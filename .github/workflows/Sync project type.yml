@@ -1,0 +1,186 @@
+name: Sync Project Type field
+
+# Auto-sets the "Type" custom field on the GitHub Project when a `type:*` label
+# is applied to an issue. The issue templates apply these labels on creation,
+# so this workflow keeps the Project's Type field in sync without manual clicks.
+#
+# ─────────────────────────────────────────────────────────────────────────────
+# ONE-TIME SETUP
+# ─────────────────────────────────────────────────────────────────────────────
+# 1. Create a Personal Access Token (Classic) with these scopes:
+#      - repo
+#      - project
+#    Or a fine-grained PAT with:
+#      - Repository permissions: Issues (read)
+#      - Account permissions:    Projects (read and write)
+#    Source: https://github.com/settings/tokens
+#
+# 2. Add the token as a repository secret named `PROJECT_PAT`:
+#      Repo → Settings → Secrets and variables → Actions → New repository secret
+#
+# 3. Add a repository variable named `PROJECT_NUMBER` with your Project's number:
+#      Repo → Settings → Secrets and variables → Actions → Variables tab → New
+#    The number is in the project URL: github.com/users/<you>/projects/<NUMBER>
+#
+# 4. The Project's "Type" field must already exist as a single-select with options:
+#      Epic, Feature, Story, Task, Bug, Spike
+#    (See GITHUB_PROJECT_SETUP.md §2.)
+#
+# ─────────────────────────────────────────────────────────────────────────────
+# BEHAVIOR
+# ─────────────────────────────────────────────────────────────────────────────
+# Triggered on: an issue is labeled with a `type:*` label.
+# Action:
+#   1. Looks up the Project's Type field and the option ID for the matched type.
+#   2. Adds the issue to the Project (idempotent — safe if already added).
+#   3. Sets the Type field to the matched option.
+#
+# Notes:
+#   - This workflow does NOT remove other `type:*` labels if multiple are
+#     present. The most-recently-applied label wins; remove old ones manually.
+#   - The Type field is set on label-add only. Removing a label does not clear
+#     the Type field. Add a different `type:*` label to change it.
+#   - If the workflow fails, the issue still has the label; just set the Type
+#     field manually as a fallback.
+
+on:
+  issues:
+    types: [labeled]
+
+permissions:
+  issues: read
+
+jobs:
+  sync-type:
+    if: startsWith(github.event.label.name, 'type:')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Sync Type field on Project
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.PROJECT_PAT }}
+          script: |
+            const labelToType = {
+              'type:epic':    'Epic',
+              'type:feature': 'Feature',
+              'type:story':   'Story',
+              'type:task':    'Task',
+              'type:bug':     'Bug',
+              'type:spike':   'Spike',
+            };
+
+            const labelName = context.payload.label.name;
+            const typeName = labelToType[labelName];
+            if (!typeName) {
+              core.info(`Label "${labelName}" is not a recognized type label. Skipping.`);
+              return;
+            }
+
+            const projectOwner = context.repo.owner;
+            const projectNumber = parseInt('${{ vars.PROJECT_NUMBER }}', 10);
+            if (!projectNumber) {
+              core.setFailed('Repository variable PROJECT_NUMBER is not set. See workflow header for setup.');
+              return;
+            }
+
+            const issueNodeId = context.payload.issue.node_id;
+            const issueNumber = context.payload.issue.number;
+
+            // 1. Fetch project ID, Type field ID, and the option ID for this type.
+            //    `user(...)` is for personal accounts. If the repo lives under
+            //    a GitHub Organization, change to `organization(...)` and update
+            //    `projectData.user` to `projectData.organization` below.
+            const projectQuery = `
+              query($owner: String!, $number: Int!) {
+                user(login: $owner) {
+                  projectV2(number: $number) {
+                    id
+                    field(name: "Type") {
+                      ... on ProjectV2SingleSelectField {
+                        id
+                        options { id name }
+                      }
+                    }
+                  }
+                }
+              }
+            `;
+
+            let project;
+            try {
+              const projectData = await github.graphql(projectQuery, {
+                owner: projectOwner,
+                number: projectNumber,
+              });
+              project = projectData.user?.projectV2;
+            } catch (err) {
+              core.setFailed(`GraphQL project lookup failed: ${err.message}`);
+              return;
+            }
+
+            if (!project) {
+              core.setFailed(`Project #${projectNumber} not found for user "${projectOwner}". Check PROJECT_NUMBER and that the PAT has access.`);
+              return;
+            }
+            if (!project.field) {
+              core.setFailed('"Type" field not found on the Project. Create it as a single-select per GITHUB_PROJECT_SETUP.md §2.');
+              return;
+            }
+
+            const projectId = project.id;
+            const fieldId = project.field.id;
+            const option = project.field.options.find(o => o.name === typeName);
+            if (!option) {
+              core.setFailed(`Type option "${typeName}" not found in the Type field. Add it to the field's options.`);
+              return;
+            }
+
+            // 2. Add the issue to the project. This is idempotent — if the
+            //    issue is already on the project, the existing item is returned.
+            const addItemMutation = `
+              mutation($projectId: ID!, $contentId: ID!) {
+                addProjectV2ItemById(input: {projectId: $projectId, contentId: $contentId}) {
+                  item { id }
+                }
+              }
+            `;
+
+            let itemId;
+            try {
+              const addResult = await github.graphql(addItemMutation, {
+                projectId: projectId,
+                contentId: issueNodeId,
+              });
+              itemId = addResult.addProjectV2ItemById.item.id;
+            } catch (err) {
+              core.setFailed(`Failed to add issue to project: ${err.message}`);
+              return;
+            }
+
+            // 3. Set the Type field on the project item.
+            const updateMutation = `
+              mutation($projectId: ID!, $itemId: ID!, $fieldId: ID!, $optionId: String!) {
+                updateProjectV2ItemFieldValue(input: {
+                  projectId: $projectId,
+                  itemId: $itemId,
+                  fieldId: $fieldId,
+                  value: { singleSelectOptionId: $optionId }
+                }) {
+                  projectV2Item { id }
+                }
+              }
+            `;
+
+            try {
+              await github.graphql(updateMutation, {
+                projectId: projectId,
+                itemId: itemId,
+                fieldId: fieldId,
+                optionId: option.id,
+              });
+            } catch (err) {
+              core.setFailed(`Failed to update Type field: ${err.message}`);
+              return;
+            }
+
+            core.info(`Set Type="${typeName}" on issue #${issueNumber}.`);
