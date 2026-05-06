@@ -1,7 +1,7 @@
 ---
 name: User Story
 about: A user-facing capability that can be demoed. Holds Tasks.
-title: "[Story] As a <persona>, I want <capability>, so that <outcome>"
+title: "[STORY] <Title>"
 labels: ["type:story"]
 ---
 
@@ -10,6 +10,7 @@ labels: ["type:story"]
 
 ## Description
 <!-- Restate the story and provide context. -->
+As a <persona>, I want <capability>, so that <outcome>
 
 ## Spec reference
 <!-- Link to specific user story ID and FR(s). e.g., US-B1, FR-2.1, FR-2.2 -->
