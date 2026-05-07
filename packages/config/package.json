@@ -1,0 +1,16 @@
+{
+  "name": "@dashforge/config",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Env variable loading + shared runtime config. STUB.",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "echo '[config] no tests yet' && exit 0",
+    "test:unit": "echo '[config] no unit tests yet' && exit 0",
+    "test:integration": "echo '[config] no integration tests yet' && exit 0"
+  }
+}

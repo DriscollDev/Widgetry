@@ -1,0 +1,133 @@
+# CI for Dashforge.
+# Source of truth: Engineering Doc §14.1.
+# Runs on every PR and push to main.
+# E2E (Playwright) is a separate nightly workflow — not yet added.
+
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# Cancel superseded runs on the same ref to save Actions minutes.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '20'
+  PNPM_VERSION: '9.12.0'
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Step 1–4: install, typecheck, lint, unit tests, build.
+  # Fast lane — runs without service containers.
+  # ---------------------------------------------------------------------------
+  static-and-unit:
+    name: Static checks, unit tests, build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Lint (ESLint + Prettier)
+        run: pnpm lint
+
+      - name: Unit tests
+        run: pnpm test:unit
+
+      - name: Build all apps
+        run: pnpm build
+
+  # ---------------------------------------------------------------------------
+  # Step 5: integration tests against real Postgres 16 + Redis 7.
+  # Versions match Engineering Doc §3.
+  # ---------------------------------------------------------------------------
+  integration:
+    name: Integration tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: static-and-unit
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: dashforge_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/dashforge_test
+      DIRECT_DATABASE_URL: postgres://postgres:postgres@localhost:5432/dashforge_test
+      REDIS_URL: redis://localhost:6379
+      NODE_ENV: test
+      # Throwaway test key — never reuse outside CI.
+      MASTER_ENCRYPTION_KEY: dGVzdC1tYXN0ZXIta2V5LTMyYnl0ZXMtZG8tbm90LXVzZQ==
+      BETTER_AUTH_SECRET: ci-test-secret-do-not-use-in-prod
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Migrations don't exist yet (Sprint 1 deliverable). Once `packages/db`
+      # ships a real schema, uncomment the next step so the integration suite
+      # runs against a fully-migrated database. Until then, stub package
+      # scripts make this a no-op.
+      #
+      # - name: Run migrations
+      #   run: pnpm --filter @dashforge/db migrate
+
+      - name: Integration tests
+        run: pnpm test:integration

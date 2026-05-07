@@ -1,0 +1,16 @@
+{
+  "name": "@dashforge/shared",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Shared Zod schemas, widget type registry, API contracts. STUB.",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "echo '[shared] no tests yet' && exit 0",
+    "test:unit": "echo '[shared] no unit tests yet' && exit 0",
+    "test:integration": "echo '[shared] no integration tests yet' && exit 0"
+  }
+}

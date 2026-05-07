@@ -1,0 +1,38 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build outputs
+dist/
+build/
+.svelte-kit/
+.turbo/
+*.tsbuildinfo
+
+# Environment
+.env
+
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Test artifacts
+coverage/
+.nyc_output/
+playwright-report/
+test-results/
+
+# Drizzle (generated migration journal stays committed; local artifacts don't)
+packages/db/drizzle/meta/_journal.json.bak
+
+# Railway
+.railway/
+.env

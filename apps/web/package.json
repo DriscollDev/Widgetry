@@ -1,0 +1,15 @@
+{
+  "name": "@dashforge/web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Dashforge web frontend (SvelteKit + Skeleton UI). STUB.",
+  "scripts": {
+    "dev": "echo '[web] dev not wired up yet — replace with svelte-kit dev in Sprint 1' && exit 0",
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "echo '[web] no tests yet' && exit 0",
+    "test:unit": "echo '[web] no unit tests yet' && exit 0",
+    "test:integration": "echo '[web] no integration tests yet' && exit 0"
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "name": "@dashforge/db",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Dashforge data layer: Drizzle schema, migrations, client factory. STUB.",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "migrate": "echo '[db] no migrations yet — Sprint 1 Drizzle schema' && exit 0",
+    "seed": "echo '[db] no seed yet — see Engineering Doc §13.3' && exit 0",
+    "test": "echo '[db] no tests yet' && exit 0",
+    "test:unit": "echo '[db] no unit tests yet' && exit 0",
+    "test:integration": "echo '[db] no integration tests yet' && exit 0"
+  }
+}
