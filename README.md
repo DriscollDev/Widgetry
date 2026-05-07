@@ -1,4 +1,4 @@
-# Dashforge
+# Widgetry
 
 Customizable widget-based API monitoring dashboards.
 See `Project_Proposal.md`, `Feature_Specification.md`, and `Engineering_Document.md` for full context.
@@ -8,7 +8,7 @@ See `Project_Proposal.md`, `Feature_Specification.md`, and `Engineering_Document
 This is a pnpm monorepo. Layout matches Engineering Doc §4.
 
 ```
-dashforge/
+Widgetry/
 ├── apps/
 │   ├── web/        SvelteKit + Skeleton UI (browser-facing)
 │   ├── api/        Fastify HTTP API (auth, board/widget CRUD, job enqueue)
@@ -55,7 +55,7 @@ Sanity check: `node -v` prints `v20.x.x`, `corepack -v` prints a version, `docke
 Target: under 15 minutes from clone to a working local stack (per Engineering Doc §17.3).
 
 ```bash
-git clone <repo-url> dashforge && cd dashforge
+git clone <repo-url> Widgetry && cd Widgetry
 pnpm install                                       # installs all workspaces (Corepack pulls pnpm on first run)
 docker compose -f docker-compose.dev.yml up -d     # Postgres + Redis
 cp .env.example .env                               # then fill in MASTER_ENCRYPTION_KEY etc.
@@ -73,8 +73,8 @@ node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
 When the Drizzle schema and seed scripts land (Sprint 1):
 
 ```bash
-pnpm --filter @dashforge/db migrate
-pnpm --filter @dashforge/db seed
+pnpm --filter @Widgetry/db migrate
+pnpm --filter @Widgetry/db seed
 ```
 
 ## Common commands
