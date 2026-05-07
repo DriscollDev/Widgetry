@@ -29,9 +29,26 @@ Sprint 1 fills in the real implementations per the engineering doc.
 
 ## Prerequisites
 
-- **Node.js 20.x** (LTS). `nvm use` will pick up `.nvmrc`.
-- **pnpm 9.x**. Install with `corepack enable && corepack prepare pnpm@latest --activate`.
-- **Docker** (for local Postgres + Redis).
+You need three things before cloning:
+
+1. **Node.js 20.x (LTS).** Two ways to install:
+   - **Direct (simplest):**
+     - macOS: `brew install node@20`
+     - Linux (Debian/Ubuntu): `curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash - && sudo apt install -y nodejs`
+     - Windows: `winget install OpenJS.NodeJS.LTS` (or download the LTS installer from [nodejs.org](https://nodejs.org)), then restart your terminal.
+   - **Via nvm (only if you want to manage multiple Node versions):**
+     - macOS / Linux / WSL: install from [nvm-sh/nvm](https://github.com/nvm-sh/nvm), close and reopen your terminal, then `nvm install 20`. The repo's `.nvmrc` lets you do `nvm use` from inside the project.
+     - Windows native: nvm-sh does not work; use [nvm-windows](https://github.com/coreybutler/nvm-windows) instead. Syntax differs (`nvm use 20.18.0` requires the full version).
+
+2. **pnpm 9.x via Corepack.** Corepack ships with Node 20, so once Node is installed:
+   ```bash
+   corepack enable
+   ```
+   No global `npm install -g pnpm` needed — the `packageManager` field in `package.json` pins the exact pnpm version, and Corepack downloads it on first use.
+
+3. **Docker** (for local Postgres + Redis). [Docker Desktop](https://www.docker.com/products/docker-desktop/) on macOS/Windows; `docker.io` package on Linux.
+
+Sanity check: `node -v` prints `v20.x.x`, `corepack -v` prints a version, `docker --version` prints a version.
 
 ## First-time setup
 
@@ -39,13 +56,13 @@ Target: under 15 minutes from clone to a working local stack (per Engineering Do
 
 ```bash
 git clone <repo-url> dashforge && cd dashforge
-nvm use                                            # Node 20
-corepack enable                                    # pnpm via packageManager field
-pnpm install                                       # installs all workspaces
+pnpm install                                       # installs all workspaces (Corepack pulls pnpm on first run)
 docker compose -f docker-compose.dev.yml up -d     # Postgres + Redis
 cp .env.example .env                               # then fill in MASTER_ENCRYPTION_KEY etc.
 pnpm dev                                           # runs web + api + worker concurrently
 ```
+
+> **Windows native (not WSL):** the `cp` command above is `copy` in PowerShell/CMD. We recommend WSL for the smoothest experience — `docker-compose.dev.yml`, the bash scripts in CI, and the broader Node ecosystem assume a Unix-like shell.
 
 Generate a local `MASTER_ENCRYPTION_KEY`:
 

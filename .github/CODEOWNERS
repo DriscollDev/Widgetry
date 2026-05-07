@@ -1,0 +1,73 @@
+# CODEOWNERS for Dashforge
+# Source of truth: Engineering Doc §19.6.
+#
+# Format: <path glob> <space-separated owners>
+# Last match wins. Order matters.
+#
+# IMPORTANT — placeholder usernames below.
+# Replace @DriscollDev / @AdrianCzerwonka1 / @IdreesAbdur with the real GitHub handles
+# after the team-assignment meeting. Once replaced, flip on
+# "Require review from Code Owners" in branch protection (see
+# branch-protection.md).
+#
+# Until real handles land, this file is reference-only and will not
+# block PRs (GitHub silently ignores nonexistent users for required
+# review purposes — but it will show a warning on the file in the UI).
+
+# ----------------------------------------------------------------------
+# Default owners — every PR pulls in at least one of these as a reviewer
+# until a more specific rule below matches.
+# ----------------------------------------------------------------------
+*                               @DriscollDev @AdrianCzerwonka1 @IdreesAbdur
+
+# ----------------------------------------------------------------------
+# Auth (Better-Auth integration, sessions, OAuth, email verification, password reset)
+# Primary: Owner 1 — Secondary: Owner 2
+# ----------------------------------------------------------------------
+/apps/api/src/auth/**           @DriscollDev @AdrianCzerwonka1 @IdreesAbdur
+
+# ----------------------------------------------------------------------
+# Grid layout (drag/resize, collision, persistence, library spike)
+# Primary: Owner 2 — Secondary: Owner 3
+# ----------------------------------------------------------------------
+/apps/web/src/lib/grid/**       @DriscollDev @AdrianCzerwonka1 @IdreesAbdur
+
+# ----------------------------------------------------------------------
+# Worker / scheduler (BullMQ, master scheduler, snapshot writes, retention purge)
+# Primary: Owner 3 — Secondary: Owner 1
+# ----------------------------------------------------------------------
+/apps/worker/**                 @DriscollDev @AdrianCzerwonka1 @IdreesAbdur
+
+# ----------------------------------------------------------------------
+# Custom JSON widget — INCLUDING SSRF protection (§11.3)
+# Primary: Owner 1 — Secondary: Owner 3
+# This is one of the two highest-risk security paths. Code review here
+# should be strict; do not skim.
+# ----------------------------------------------------------------------
+/apps/worker/src/fetchers/custom.ts        @DriscollDev @AdrianCzerwonka1 @IdreesAbdur
+/packages/shared/src/widgets/custom.ts     @DriscollDev @AdrianCzerwonka1 @IdreesAbdur
+
+# ----------------------------------------------------------------------
+# Envelope encryption (key handling, DB columns, fetcher integration)
+# Primary: Owner 2 — Secondary: Owner 1
+# This is the other highest-risk security path. By design, the primaries
+# and secondaries on the two security paths do not overlap, so a
+# four-eyes review across the security surface is structurally guaranteed.
+# ----------------------------------------------------------------------
+/apps/api/src/crypto/**         @DriscollDev @AdrianCzerwonka1 @IdreesAbdur
+/apps/worker/src/crypto/**      @DriscollDev @AdrianCzerwonka1 @IdreesAbdur
+/packages/db/src/schema/api-credentials.ts  @DriscollDev @AdrianCzerwonka1 @IdreesAbdur
+
+# ----------------------------------------------------------------------
+# Frontend widget rendering (renderer registry, config form generator, board view)
+# Primary: Owner 3 — Secondary: Owner 2
+# Not on the critical path per §19.6, but high-volume.
+# ----------------------------------------------------------------------
+/apps/web/src/lib/widgets/**    @DriscollDev @AdrianCzerwonka1 @IdreesAbdur
+
+# ----------------------------------------------------------------------
+# Cross-cutting — anyone can review.
+# ----------------------------------------------------------------------
+/.github/**                     @DriscollDev @AdrianCzerwonka1 @IdreesAbdur
+/packages/shared/src/api/**     @DriscollDev @AdrianCzerwonka1 @IdreesAbdur
+/README.md                      @DriscollDev @AdrianCzerwonka1 @IdreesAbdur
