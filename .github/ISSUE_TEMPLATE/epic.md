@@ -11,10 +11,6 @@ labels: ["type:epic"]
 ## Spec reference
 <!-- Link to relevant Feature Specification section. e.g., §4.1 Account & Authentication -->
 
-## Features (sub-issues)
-<!-- Sub-issues will be tracked here automatically once added. List the planned Features below if known. -->
-
-- [ ]
 
 ## Definition of Done
 - [ ] All child Features are Done
