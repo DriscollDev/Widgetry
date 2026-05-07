@@ -5,9 +5,6 @@ title: "[STORY] <Title>"
 labels: ["type:story"]
 ---
 
-## Parent Feature
-<!-- Link to parent Feature, e.g., #34 -->
-
 ## Description
 <!-- Restate the story and provide context. -->
 As a <persona>, I want <capability>, so that <outcome>
@@ -21,22 +18,6 @@ As a <persona>, I want <capability>, so that <outcome>
 - [ ]
 - [ ]
 - [ ]
-
-## Tasks (sub-issues)
-<!-- Engineering subtasks, added as sub-issues. -->
-
-- [ ]
-
-## Definition of Done
-- [ ] All acceptance criteria met
-- [ ] Unit tests added for new logic
-- [ ] Integration test for happy path
-- [ ] Integration test for one negative case
-- [ ] PR reviewed by a non-author and merged
-- [ ] No new lint or typecheck errors
-
-## Estimate
-<!-- Story points (Fibonacci): 1, 2, 3, 5, 8, 13. Set in the Project's Points field too. -->
 
 ## Notes
 <!-- Design hints, gotchas, related Stories. -->

@@ -5,9 +5,6 @@ title: "[Task] "
 labels: ["type:task"]
 ---
 
-## Parent Story
-<!-- Link to parent Story, e.g., #56 -->
-
 ## Description
 <!-- What needs to be done, with enough detail for a teammate to pick up cold. -->
 
@@ -17,5 +14,5 @@ labels: ["type:task"]
 - [ ]
 - [ ]
 
-## Implementation hints
+## Notes
 <!-- Optional: file paths, design notes, libraries to use, gotchas. -->
