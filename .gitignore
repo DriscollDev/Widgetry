@@ -35,4 +35,3 @@ packages/db/drizzle/meta/_journal.json.bak
 
 # Railway
 .railway/
-.env
