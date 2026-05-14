@@ -6,14 +6,14 @@ hide_week_nav: true
 permalink: /weeks/week-08/deliverable.html
 ---
 
-Sprint-by-sprint plan rendered as a Gantt chart. The image below is rendered from
+Phase based plan rendered as a Gantt chart. The image below is rendered from
 the Mermaid source kept underneath; rebuild the image when the source changes.
 
 <!--
   Workflow:
   1. Author/edit the chart in assets/gantt/schedule.mmd (Mermaid source).
   2. Render to SVG via the Mermaid CLI:
-       mmdc -i assets/gantt/schedule.mmd -o assets/img/gantt.svg
+       mmdc -i assets/mermaid/schedule.mmd -o assets/img/gantt.svg
   3. Commit both files.
   Keep the source visible in the <details> block so reviewers can read it as text.
 -->
@@ -31,7 +31,7 @@ config:
     leftPadding: 200
 ---
 gantt
-    title 10-Week Project Timeline
+    title 10-Week Project Planning Timeline
     dateFormat YYYY-MM-DD
     axisFormat %m/%d
     excludes weekends
@@ -70,10 +70,3 @@ gantt
     Final Presentation                       :milestone, m5, 2026-05-29, 0d
 </code></pre>
 </details>
-
-## Notes
-
-- Sprint plan and ownership are mirrored from the engineering document. Updating
-  one without the other creates drift; keep them in sync at sprint boundaries.
-- Critical-path items: grid layout, auth integration, scheduler. Slip on any of
-  these compresses Sprint 5 (testing and demo prep).

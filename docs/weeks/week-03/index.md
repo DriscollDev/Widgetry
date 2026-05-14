@@ -1,9 +1,20 @@
 ---
-title: "Week 03 placeholder"
+title: "Week 3 - Prototype"
 week_number: 3
-summary: TODO - fill in a short paragraph describing what this week covered and why it matters.
+summary: An interactive Figma prototype covering the must-have user flows, ahead of the heuristic evaluation in week 7.
 permalink: /weeks/week-03/
 ---
 
-TODO: write a brief description of the week. One short paragraph is enough - the
-two action cards above link readers to the status report and the deliverable.
+The interactive prototype lives in Figma and covers the must-have user flows
+from the feature specification: account creation and sign-in, board and widget
+management, custom widget setup including credential entry, and history viewing.
+It is the team's first chance to test the screen inventory against something
+tangible, and a prerequisite for the heuristic evaluation in week 7.
+
+Two things the prototype intentionally does not do:
+
+- **Final visual design.** Magitech theming applies at implementation time
+  using the tokens defined in the design principles document. The prototype
+  communicates structure and flow, not finished aesthetics.
+- **Responsive layouts.** Per the feature spec, the product targets desktop
+  viewports ≥1024px; mobile is out of scope, and the prototype reflects that.

@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" contentScriptType="application/ecmascript" contentStyleType="text/css" height="983px" preserveAspectRatio="none" style="width:855px;height:983px;" version="1.1" viewBox="0 0 855 983" width="855px" zoomAndPan="magnify"><defs/><g><text fill="#000000" font-family="Helvetica" font-size="18" lengthAdjust="spacingAndGlyphs" textLength="457" x="202" y="16.708">Widgetry — Authentication &amp; Account Management</text><!--MD5=[9d9bc40bd72db7d2c609c63e654f490d]
+cluster Widgetry--><rect fill="#FFFFFF" height="817" style="stroke: #000000; stroke-width: 1.5;" width="489" x="211" y="44.9531"/><text fill="#000000" font-family="Helvetica" font-size="14" font-weight="bold" lengthAdjust="spacingAndGlyphs" textLength="71" x="420" y="59.9482">Widgetry</text><ellipse cx="317.2353" cy="103.7189" fill="#E1ECF7" rx="87.7353" ry="23.7657" style="stroke: #2A5687; stroke-width: 1.5;"/><text fill="#000000" font-family="Helvetica" font-size="14" lengthAdjust="spacingAndGlyphs" textLength="53" x="290.7353" y="96.7916">Sign Up</text><text fill="#000000" font-family="Helvetica" font-size="14" lengthAdjust="spacingAndGlyphs" textLength="133" x="250.7353" y="113.0885">(email + password)</text><ellipse cx="316.8332" cy="187.1203" fill="#E1ECF7" rx="87.3332" ry="23.6672" style="stroke: #2A5687; stroke-width: 1.5;"/><text fill="#000000" font-family="Helvetica" font-size="14" lengthAdjust="spacingAndGlyphs" textLength="46" x="293.8332" y="180.0335">Sign In</text><text fill="#000000" font-family="Helvetica" font-size="14" lengthAdjust="spacingAndGlyphs" textLength="133" x="250.3332" y="196.3303">(email + password)</text><ellipse cx="317.2095" cy="821.0685" fill="#E1ECF7" rx="62.7095" ry="25.1154" style="stroke: #2A5687; stroke-width: 1.5;"/><text fill="#000000" font-family="Helvetica" font-size="14" lengthAdjust="spacingAndGlyphs" textLength="88" x="273.2095" y="818.9154">Authenticate</text><text fill="#000000" font-family="Helvetica" font-size="14" lengthAdjust="spacingAndGlyphs" textLength="72" x="281.2095" y="835.2123">via Google</text><ellipse cx="316.9629" cy="270.7371" fill="#E1ECF7" rx="54.4629" ry="24.784" style="stroke: #2A5687; stroke-width: 1.5;"/><text fill="#000000" font-family="Helvetica" font-size="14" lengthAdjust="spacingAndGlyphs" textLength="77" x="278.4629" y="269.0787">Verify Email</text><text fill="#000000" font-family="Helvetica" font-size="14" lengthAdjust="spacingAndGlyphs" textLength="57" x="288.4629" y="285.3756">Address</text><ellipse cx="317.23" cy="355.0699" fill="#E1ECF7" rx="85.23" ry="23.6168" style="stroke: #2A5687; stroke-width: 1.5;"/><text fill="#000000" font-family="Helvetica" font-size="14" lengthAdjust="spacingAndGlyphs" textLength="130" x="252.23" y="355.2389">Request Password</text><text fill="#000000" font-family="Helvetica" font-size="14" lengthAdjust="spacingAndGlyphs" textLength="41" x="296.73" y="371.5358">Reset</text><ellipse cx="317.1721" cy="437.042" fill="#E1ECF7" rx="90.1721" ry="23.5889" style="stroke: #2A5687; stroke-width: 1.5;"/><text fill="#000000" font-family="Helvetica" font-size="14" lengthAdjust="spacingAndGlyphs" textLength="138" x="248.1721" y="437.2566">Complete Password</text><text fill="#000000" font-family="Helvetica" font-size="14" lengthAdjust="spacingAndGlyphs" textLength="41" x="296.6721" y="453.5535">Reset</text><ellipse cx="317.2193" cy="509.9768" fill="#E1ECF7" rx="44.7193" ry="14.5236" style="stroke: #2A5687; stroke-width: 1.5;"/><text fill="#000000" font-family="Helvetica" font-size="14" lengthAdjust="spacingAndGlyphs" textLength="59" x="287.7193" y="514.6252">Sign Out</text><ellipse cx="317.1248" cy="583.8672" fill="#E1ECF7" rx="85.1248" ry="24.414" style="stroke: #2A5687; stroke-width: 1.5;"/><text fill="#000000" font-family="Helvetica" font-size="14" lengthAdjust="spacingAndGlyphs" textLength="125" x="254.6248" y="582.7726">Change Password</text><text fill="#000000" font-family="Helvetica" font-size="14" lengthAdjust="spacingAndGlyphs" textLength="80" x="277.1248" y="599.0694">(in session)</text><ellipse cx="316.8455" cy="667.7777" fill="#E1ECF7" rx="63.8455" ry="24.3246" style="stroke: #2A5687; stroke-width: 1.5;"/><text fill="#000000" font-family="Helvetica" font-size="14" lengthAdjust="spacingAndGlyphs" textLength="93" x="270.3455" y="666.8214">View Account</text><text fill="#000000" font-family="Helvetica" font-size="14" lengthAdjust="spacingAndGlyphs" textLength="57" x="288.3455" y="683.1183">Settings</text><ellipse cx="317.2471" cy="743.9026" fill="#E1ECF7" rx="70.2471" ry="16.4494" style="stroke: #2A5687; stroke-width: 1.5;"/><text fill="#000000" font-family="Helvetica" font-size="14" lengthAdjust="spacingAndGlyphs" textLength="107" x="263.7471" y="748.551">Delete Account</text><ellipse cx="607.2289" cy="136.0662" fill="#E1ECF7" rx="75.7289" ry="23.6131" style="stroke: #2A5687; stroke-width: 1.5;"/><text fill="#000000" font-family="Helvetica" font-size="14" lengthAdjust="spacingAndGlyphs" textLength="115" x="549.7289" y="136.2412">Send Verification</text><text fill="#000000" font-family="Helvetica" font-size="14" lengthAdjust="spacingAndGlyphs" textLength="36" x="589.2289" y="152.5381">Email</text><ellipse cx="606.8497" cy="302.817" fill="#E1ECF7" rx="54.8497" ry="23.8639" style="stroke: #2A5687; stroke-width: 1.5;"/><text fill="#000000" font-family="Helvetica" font-size="14" lengthAdjust="spacingAndGlyphs" textLength="81" x="566.3497" y="302.5865">Send Reset</text><text fill="#000000" font-family="Helvetica" font-size="14" lengthAdjust="spacingAndGlyphs" textLength="36" x="588.8497" y="318.8833">Email</text><ellipse cx="606.9683" cy="743.8704" fill="#E1ECF7" rx="76.9683" ry="24.9173" style="stroke: #2A5687; stroke-width: 1.5;"/><text fill="#000000" font-family="Helvetica" font-size="14" lengthAdjust="spacingAndGlyphs" textLength="110" x="551.9683" y="742.0119">Cascade Delete</text><text fill="#000000" font-family="Helvetica" font-size="14" lengthAdjust="spacingAndGlyphs" textLength="85" x="564.4683" y="758.3088">Owned Data</text><!--MD5=[acb64d932532ebbc809d9a993fb5ccd9]
+entity Visitor--><ellipse cx="54.5" cy="248.9531" fill="#FFFFFF" rx="16" ry="16" style="stroke: #173404; stroke-width: 1.5;"/><path d="M54.5,268.9531 C58.5,268.9531 61.5,268.9531 65.5,264.9531 C73.5,264.9531 81.5,272.9531 81.5,280.9531 L81.5,284.9531 C81.5,288.9531 77.5,292.9531 73.5,292.9531 L35.5,292.9531 C31.5,292.9531 27.5,288.9531 27.5,284.9531 L27.5,280.9531 C27.5,272.9531 35.5,264.9531 43.5,264.9531 C47.5,268.9531 50.5,268.9531 54.5,268.9531 " fill="#FFFFFF" style="stroke: #173404; stroke-width: 1.5;"/><text fill="#000000" font-family="Helvetica" font-size="14" lengthAdjust="spacingAndGlyphs" textLength="42" x="33.5" y="307.4482">Visitor</text><!--MD5=[44fc760c148fc25f9b9d68be63f17970]
+entity AuthUser--><ellipse cx="54.5" cy="611.4531" fill="#FFFFFF" rx="16" ry="16" style="stroke: #173404; stroke-width: 1.5;"/><path d="M54.5,631.4531 C58.5,631.4531 61.5,631.4531 65.5,627.4531 C73.5,627.4531 81.5,635.4531 81.5,643.4531 L81.5,647.4531 C81.5,651.4531 77.5,655.4531 73.5,655.4531 L35.5,655.4531 C31.5,655.4531 27.5,651.4531 27.5,647.4531 L27.5,643.4531 C27.5,635.4531 35.5,627.4531 43.5,627.4531 C47.5,631.4531 50.5,631.4531 54.5,631.4531 " fill="#FFFFFF" style="stroke: #173404; stroke-width: 1.5;"/><text fill="#000000" font-family="Helvetica" font-size="14" lengthAdjust="spacingAndGlyphs" textLength="97" x="6" y="669.9482">Authenticated</text><text fill="#000000" font-family="Helvetica" font-size="14" lengthAdjust="spacingAndGlyphs" textLength="32" x="6" y="686.2451">User</text><!--MD5=[91533b062f3f72725951882a927cc976]
+entity GoogleProv--><ellipse cx="607" cy="895.4531" fill="#FFFFFF" rx="16" ry="16" style="stroke: #173404; stroke-width: 1.5;"/><path d="M607,915.4531 C611,915.4531 614,915.4531 618,911.4531 C626,911.4531 634,919.4531 634,927.4531 L634,931.4531 C634,935.4531 630,939.4531 626,939.4531 L588,939.4531 C584,939.4531 580,935.4531 580,931.4531 L580,927.4531 C580,919.4531 588,911.4531 596,911.4531 C600,915.4531 603,915.4531 607,915.4531 " fill="#FFFFFF" style="stroke: #173404; stroke-width: 1.5;"/><text fill="#000000" font-family="Helvetica" font-size="14" lengthAdjust="spacingAndGlyphs" textLength="97" x="558.5" y="953.9482">Google OAuth</text><text fill="#000000" font-family="Helvetica" font-size="14" lengthAdjust="spacingAndGlyphs" textLength="56" x="558.5" y="970.2451">Provider</text><!--MD5=[c64b233501178c997e71b8533419e088]
+entity Email--><ellipse cx="795" cy="173.4531" fill="#FFFFFF" rx="16" ry="16" style="stroke: #173404; stroke-width: 1.5;"/><path d="M795,193.4531 C799,193.4531 802,193.4531 806,189.4531 C814,189.4531 822,197.4531 822,205.4531 L822,209.4531 C822,213.4531 818,217.4531 814,217.4531 L776,217.4531 C772,217.4531 768,213.4531 768,209.4531 L768,205.4531 C768,197.4531 776,189.4531 784,189.4531 C788,193.4531 791,193.4531 795,193.4531 " fill="#FFFFFF" style="stroke: #173404; stroke-width: 1.5;"/><text fill="#000000" font-family="Helvetica" font-size="14" lengthAdjust="spacingAndGlyphs" textLength="96" x="747" y="231.9482">Email Provider</text><text fill="#000000" font-family="Helvetica" font-size="14" lengthAdjust="spacingAndGlyphs" textLength="64" x="747" y="248.2451">(Resend)</text><!--MD5=[8ab3fba73d7d51cb5750cf19c56f84cd]
+link Visitor to SignUp--><path d="M83.14,242.3231 C111.19,214.6031 156.94,172.9031 203,145.9531 C218.14,137.0931 235.48,129.5331 251.96,123.3731 " fill="none" id="Visitor-&gt;SignUp" style="stroke: #2A5687; stroke-width: 1.0;"/><polygon fill="#2A5687" points="257.04,121.5031,247.2118,120.8653,252.349,123.2336,249.9806,128.3708,257.04,121.5031" style="stroke: #2A5687; stroke-width: 1.0;"/><!--MD5=[e1d493148babe6f822a03eacca733600]
+link Visitor to SignIn--><path d="M83.08,261.5731 C97.87,256.5831 116.4,250.3631 133,244.9531 C173.17,231.8531 218.43,217.5031 253.88,206.3531 " fill="none" id="Visitor-&gt;SignIn" style="stroke: #2A5687; stroke-width: 1.0;"/><polygon fill="#2A5687" points="259.04,204.7331,249.2547,203.6164,254.2701,206.2326,251.6539,211.2481,259.04,204.7331" style="stroke: #2A5687; stroke-width: 1.0;"/><!--MD5=[8c42d058579f466a5f143b2c9c40ff72]
+link Visitor to Verify--><path d="M83.38,270.9531 C124.64,270.9531 202.93,270.9531 257.22,270.9531 " fill="none" id="Visitor-&gt;Verify" style="stroke: #2A5687; stroke-width: 1.0;"/><polygon fill="#2A5687" points="262.39,270.9531,253.39,266.9531,257.39,270.9531,253.39,274.9531,262.39,270.9531" style="stroke: #2A5687; stroke-width: 1.0;"/><!--MD5=[165fc75f38070d892bbf33b96f305bdb]
+link Visitor to ReqReset--><path d="M83.38,279.9431 C124.34,293.1531 201.79,318.1231 256.03,335.6131 " fill="none" id="Visitor-&gt;ReqReset" style="stroke: #2A5687; stroke-width: 1.0;"/><polygon fill="#2A5687" points="260.88,337.1831,253.553,330.6017,256.1239,335.6406,251.085,338.2115,260.88,337.1831" style="stroke: #2A5687; stroke-width: 1.0;"/><!--MD5=[3d67f83ace4af047563a1870c15cdf10]
+link Visitor to DoReset--><path d="M83.1,299.6631 C111.11,327.4431 156.83,369.1831 203,395.9531 C217.81,404.5431 234.72,411.8331 250.88,417.7831 " fill="none" id="Visitor-&gt;DoReset" style="stroke: #2A5687; stroke-width: 1.0;"/><polygon fill="#2A5687" points="255.87,419.5831,248.7605,412.7673,251.1665,417.887,246.0468,420.2929,255.87,419.5831" style="stroke: #2A5687; stroke-width: 1.0;"/><!--MD5=[e86cf9bf99e4b669dd27a95be259130a]
+link AuthUser to SignOut--><path d="M85.1,593.9131 C97.85,576.9631 114.17,559.3231 133,547.9531 C173.94,523.2431 228.4,514.3931 267.24,511.3231 " fill="none" id="AuthUser-&gt;SignOut" style="stroke: #2A5687; stroke-width: 1.0;"/><polygon fill="#2A5687" points="272.37,510.9431,263.1072,507.5964,267.3828,511.3004,263.6788,515.576,272.37,510.9431" style="stroke: #2A5687; stroke-width: 1.0;"/><!--MD5=[976a050569bc54690b9e92d04a525512]
+link AuthUser to ChangePw--><path d="M103.28,631.3131 C142.6,622.5631 198.95,610.0131 243.77,600.0331 " fill="none" id="AuthUser-&gt;ChangePw" style="stroke: #2A5687; stroke-width: 1.0;"/><polygon fill="#2A5687" points="248.9,598.8931,239.2454,596.9467,244.0197,599.9808,240.9857,604.7552,248.9,598.8931" style="stroke: #2A5687; stroke-width: 1.0;"/><!--MD5=[c68f32d54b611564468e75d9c63d3123]
+link AuthUser to Account--><path d="M103.28,646.7231 C144.3,650.8131 203.85,656.7631 249.51,661.3131 " fill="none" id="AuthUser-&gt;Account" style="stroke: #2A5687; stroke-width: 1.0;"/><polygon fill="#2A5687" points="254.73,661.8331,246.1755,656.9526,249.7551,661.3328,245.3749,664.9124,254.73,661.8331" style="stroke: #2A5687; stroke-width: 1.0;"/><!--MD5=[5cdaf395289cd0ce4cf0378ff9440604]
+link AuthUser to DelAcct--><path d="M103.27,666.0431 C131.8,679.9031 168.98,697.0631 203,709.9531 C222.96,717.5131 245.38,724.5531 264.97,730.2431 " fill="none" id="AuthUser-&gt;DelAcct" style="stroke: #2A5687; stroke-width: 1.0;"/><polygon fill="#2A5687" points="269.88,731.6531,262.3426,725.3138,265.0762,730.2663,260.1237,732.9999,269.88,731.6531" style="stroke: #2A5687; stroke-width: 1.0;"/><!--MD5=[656b62dfe4ee68d47b83d8ef54456624]
+link SendVerify to Email--><path d="M656.87,153.8231 C683.01,163.3731 715.21,175.1531 741.84,184.8831 " fill="none" id="SendVerify-&gt;Email" style="stroke: #2A5687; stroke-width: 1.0;"/><polygon fill="#2A5687" points="746.74,186.6731,739.6739,179.8124,742.0473,184.9472,736.9125,187.3207,746.74,186.6731" style="stroke: #2A5687; stroke-width: 1.0;"/><!--MD5=[95d32b94d0ac76c8c20943d9eb3f4ad7]
+link SendReset to Email--><path d="M642.55,284.5631 C670.49,269.6931 710.26,248.5231 742.04,231.6131 " fill="none" id="SendReset-&gt;Email" style="stroke: #2A5687; stroke-width: 1.0;"/><polygon fill="#2A5687" points="746.66,229.1531,736.8351,229.8392,742.2435,231.4972,740.5855,236.9056,746.66,229.1531" style="stroke: #2A5687; stroke-width: 1.0;"/><!--MD5=[3ac9007de1587ba242b697339ff5782f]
+link Google to GoogleProv--><path d="M363.95,837.7031 C415.6,856.5331 499.28,887.0431 553.47,906.8031 " fill="none" id="Google-&gt;GoogleProv" style="stroke: #2A5687; stroke-width: 1.0;"/><polygon fill="#2A5687" points="558.29,908.5631,551.2055,901.7213,553.5927,906.8498,548.4642,909.237,558.29,908.5631" style="stroke: #2A5687; stroke-width: 1.0;"/><!--MD5=[0bea485f15e562db94fc9da271d704a9]
+link SignUp to SendVerify--><path d="M398.61,112.9131 C439.85,117.4931 489.77,123.0431 530.3,127.5431 " fill="none" id="SignUp-&gt;SendVerify" style="stroke: #2A5687; stroke-width: 1.0; stroke-dasharray: 7.0,7.0;"/><polygon fill="#2A5687" points="535.7,128.1431,527.2015,123.1657,530.7311,127.5863,526.3105,131.1159,535.7,128.1431" style="stroke: #2A5687; stroke-width: 1.0;"/><text fill="#000000" font-family="Helvetica" font-size="13" lengthAdjust="spacingAndGlyphs" textLength="61" x="438" y="115.02">«include»</text><!--MD5=[02a3d2a632cd88c4bb8941b61e6744de]
+link ReqReset to SendReset--><path d="M388.82,342.1631 C438.8,333.1431 504.79,321.2231 550.86,312.9131 " fill="none" id="ReqReset-&gt;SendReset" style="stroke: #2A5687; stroke-width: 1.0; stroke-dasharray: 7.0,7.0;"/><polygon fill="#2A5687" points="555.82,312.0131,546.2467,309.6999,550.9018,312.9138,547.6878,317.569,555.82,312.0131" style="stroke: #2A5687; stroke-width: 1.0;"/><text fill="#000000" font-family="Helvetica" font-size="13" lengthAdjust="spacingAndGlyphs" textLength="61" x="438" y="319.02">«include»</text><!--MD5=[de2755dceba01335ccfefefac19fedeb]
+link DelAcct to Cascade--><path d="M387.35,743.9531 C428.69,743.9531 481.39,743.9531 524.69,743.9531 " fill="none" id="DelAcct-&gt;Cascade" style="stroke: #2A5687; stroke-width: 1.0; stroke-dasharray: 7.0,7.0;"/><polygon fill="#2A5687" points="529.92,743.9531,520.92,739.9531,524.92,743.9531,520.92,747.9531,529.92,743.9531" style="stroke: #2A5687; stroke-width: 1.0;"/><text fill="#000000" font-family="Helvetica" font-size="13" lengthAdjust="spacingAndGlyphs" textLength="61" x="438" y="740.02">«include»</text><!--MD5=[9b398596399a3490d83e754dd9bbc034]
+link Google to SignUp--><path d="M259.22,811.2131 C238.72,804.9631 217.24,794.7231 203,777.9531 C143,707.2931 171.16,665.6931 162,573.4531 C152.57,478.4831 144.59,221.4231 203,145.9531 C212.28,133.9631 225.33,125.3931 239.31,119.2731 " fill="none" id="Google-&gt;SignUp" style="stroke: #2A5687; stroke-width: 1.0; stroke-dasharray: 7.0,7.0;"/><polygon fill="#2A5687" points="244.09,117.2931,234.2442,117.0472,239.4717,119.2091,237.3098,124.4365,244.09,117.2931" style="stroke: #2A5687; stroke-width: 1.0;"/><text fill="#000000" font-family="Helvetica" font-size="13" lengthAdjust="spacingAndGlyphs" textLength="60" x="134" y="569.52">«extend»</text><!--MD5=[bed119a4465702f634c67374b3983c66]
+link Google to SignIn--><path d="M259.43,811.0231 C238.96,804.7531 217.44,794.5431 203,777.9531 C148.71,715.5731 171.17,678.6431 162,596.4531 C143.73,432.6831 100.56,357.0331 203,227.9531 C212.28,216.2631 225.18,207.9031 238.97,201.9231 " fill="none" id="Google-&gt;SignIn" style="stroke: #2A5687; stroke-width: 1.0; stroke-dasharray: 7.0,7.0;"/><polygon fill="#2A5687" points="243.68,199.9831,233.8352,199.7005,239.0545,201.8818,236.8732,207.1012,243.68,199.9831" style="stroke: #2A5687; stroke-width: 1.0;"/><text fill="#000000" font-family="Helvetica" font-size="13" lengthAdjust="spacingAndGlyphs" textLength="60" x="134" y="592.52">«extend»</text><!--MD5=[aa03b2c512a12beb4209308ad6378734]
+@startuml auth
+title Widgetry — Authentication & Account Management
+
+left to right direction
+skinparam packageStyle rectangle
+skinparam actorStyle awesome
+skinparam shadowing false
+skinparam defaultFontName "Helvetica"
+skinparam usecase {
+  BackgroundColor #E1ECF7
+  BorderColor #2A5687
+  ArrowColor #2A5687
+}
+skinparam actor {
+  BackgroundColor #FFFFFF
+  BorderColor #173404
+}
+
+actor "Visitor" as Visitor
+actor "Authenticated\nUser" as AuthUser
+
+rectangle "Widgetry" {
+  usecase "Sign Up\n(email + password)" as SignUp
+  usecase "Sign In\n(email + password)" as SignIn
+  usecase "Authenticate\nvia Google" as Google
+  usecase "Verify Email\nAddress" as Verify
+  usecase "Request Password\nReset" as ReqReset
+  usecase "Complete Password\nReset" as DoReset
+  usecase "Sign Out" as SignOut
+  usecase "Change Password\n(in session)" as ChangePw
+  usecase "View Account\nSettings" as Account
+  usecase "Delete Account" as DelAcct
+
+  usecase "Send Verification\nEmail" as SendVerify
+  usecase "Send Reset\nEmail" as SendReset
+  usecase "Cascade Delete\nOwned Data" as Cascade
+}
+
+actor "Google OAuth\nProvider" as GoogleProv
+actor "Email Provider\n(Resend)" as Email
+
+Visitor - -> SignUp
+Visitor - -> SignIn
+Visitor - -> Verify
+Visitor - -> ReqReset
+Visitor - -> DoReset
+
+AuthUser - -> SignOut
+AuthUser - -> ChangePw
+AuthUser - -> Account
+AuthUser - -> DelAcct
+
+SendVerify - -> Email
+SendReset - -> Email
+Google - -> GoogleProv
+
+SignUp ..> SendVerify : <<include>>
+ReqReset ..> SendReset : <<include>>
+DelAcct ..> Cascade : <<include>>
+
+Google .> SignUp : <<extend>>
+Google .> SignIn : <<extend>>
+
+@enduml
+
+PlantUML version 1.2020.02(Sun Mar 01 10:22:07 UTC 2020)
+(GPL source distribution)
+Java Runtime: OpenJDK Runtime Environment
+JVM: OpenJDK 64-Bit Server VM
+Java Version: 21.0.10+7-Ubuntu-124.04
+Operating System: Linux
+Default Encoding: UTF-8
+Language: en
+Country: US
+--></g></svg>
