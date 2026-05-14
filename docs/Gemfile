@@ -5,5 +5,14 @@ source "https://rubygems.org"
 # current pinned set.
 gem "github-pages", group: :jekyll_plugins
 
-# Performance: faster file watching on macOS
-gem "wdm", "~> 0.1.1", :install_if => Gem.win_platform?
+# Gems that used to be in Ruby's stdlib / default-gems set but are now
+# bundled gems Bundler expects to see declared. Required from Ruby 3.4
+# (csv, bigdecimal) and 3.0 (webrick). Declaring them defensively means
+# the Gemfile works on any Ruby 3.x.
+gem "bigdecimal"
+gem "csv"
+gem "webrick"
+
+# Note: wdm was a Windows-only file-watching helper; it's abandoned upstream
+# and fails to build on modern Ruby. The `listen` gem (a Jekyll dependency)
+# handles file watching on Windows without it.

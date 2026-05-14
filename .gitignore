@@ -35,3 +35,10 @@ packages/db/drizzle/meta/_journal.json.bak
 
 # Railway
 .railway/
+
+# Docs
+_site/
+.jekyll-cache/
+.jekyll-metadata
+.bundle/
+vendor/

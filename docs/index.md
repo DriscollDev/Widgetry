@@ -6,7 +6,8 @@ description: Ten weeks of planning deliverables for the Widgetry capstone projec
 
 <section class="home-hero">
   <p class="home-eyebrow">Capstone · Planning Phase</p>
-  <h1 class="home-title">Widgetry</h1>
+  <img class="home-logo" src="{{ '/assets/img/logo-full.png' | relative_url }}" alt="Widgetry" width="1484" height="1060">
+  <p class="home-tagline">An API monitoring dashboard.</p>
   <p class="home-lede">
     Widgetry is an API monitoring dashboard: a web application where users compose
     grid-based boards of configurable widgets, each tied to an API or data source,

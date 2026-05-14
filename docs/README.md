@@ -71,6 +71,21 @@ and embedded screenshots so the page is meaningful even without clicking out.
 - Headings render in Cinzel automatically. Don't over-use H1 — there is one per
   page (the layout supplies it).
 
+## Logo files
+
+- `assets/img/logo-mark.png` — the wizard-hat-and-gear mark, used in the header
+  (32px tall) and footer ornament (24px tall).
+- `assets/img/logo-full.png` — the full logo including the "Widgetry" wordmark,
+  used as the home page hero (200px tall on desktop, 140px on narrow screens).
+- `assets/img/favicon.svg` — a simplified gear-and-violet mark that reads at
+  16×16 tab sizes; geometric echo of the main logo, not a direct downscale.
+
+If you replace either PNG, keep the filename the same and no template edits are
+needed. If you want to swap in higher-resolution `@2x` files, the simplest path
+is to overwrite the PNGs in place with the new versions — the templates request
+explicit `height` and `width` attributes on the `<img>` tags but the browser will
+honor whatever the underlying pixel density gives it.
+
 ## TODOs before going live
 
 - Fill `team` in `_config.yml`.

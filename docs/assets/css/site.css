@@ -197,11 +197,13 @@ tr:hover td { background: var(--surface-1); }
   color: var(--ink-1); text-decoration: none;
 }
 .wordmark:hover { color: var(--ink-1); text-decoration: none; }
-.wordmark-sigil {
-  font-family: var(--font-display);
-  color: var(--accent-1);
-  font-size: var(--fs-l);
-  transform: translateY(2px);
+.wordmark-logo {
+  height: 32px;
+  width: auto;
+  display: block;
+  /* PNG has no inherent stroke matching the dark theme; a soft drop-shadow
+     keeps the gold gear from disappearing on the near-black header. */
+  filter: drop-shadow(0 1px 2px rgba(0,0,0,0.4));
 }
 .wordmark-text {
   font-family: var(--font-display);
@@ -294,7 +296,12 @@ tr:hover td { background: var(--surface-1); }
 .ornament-rule {
   flex: 0 0 120px; height: 1px; background: var(--stroke-soft);
 }
-.ornament-sigil { font-family: var(--font-display); font-size: var(--fs-m); }
+.ornament-logo {
+  height: 24px;
+  width: auto;
+  display: block;
+  opacity: 0.85;
+}
 
 /* ---------- Home page ---------- */
 .home-hero {
@@ -310,8 +317,20 @@ tr:hover td { background: var(--surface-1); }
   font-size: var(--fs-xs);
   margin: 0 0 var(--sp-3);
 }
-.home-title {
-  font-size: var(--fs-3xl);
+.home-logo {
+  display: block;
+  margin: 0 0 var(--sp-5);
+  height: 200px;
+  width: auto;
+  /* The full logo is wider than tall; let it size by height and stay
+     left-aligned with the eyebrow and lede. */
+  max-width: 100%;
+  filter: drop-shadow(0 4px 12px rgba(0,0,0,0.35));
+}
+.home-tagline {
+  font-family: var(--font-display);
+  font-size: var(--fs-xl);
+  color: var(--ink-1);
   margin: 0 0 var(--sp-4);
   letter-spacing: 0.02em;
 }
@@ -576,5 +595,6 @@ details > pre { margin: 0; border: 0; border-radius: 0 0 var(--radius-m) var(--r
   .week-header { flex-direction: column; align-items: flex-start; }
   .week-actions { grid-template-columns: 1fr; }
   .week-pager { flex-direction: column; }
-  .home-title { font-size: var(--fs-2xl); }
+  .home-logo { height: 140px; }
+  .home-tagline { font-size: var(--fs-l); }
 }
