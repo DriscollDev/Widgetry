@@ -250,19 +250,47 @@ tr:hover td { background: var(--surface-1); }
 .nav-list > li > a[aria-current="page"] {
   background: var(--surface-2); color: var(--ink-1); text-decoration: none;
 }
+.nav-list > li.nav-group > .nav-group-label {
+  /* Generous vertical padding extends the hover hit area, reducing the
+     chance of the cursor exiting .nav-group while crossing the gap. */
+  padding-top: var(--sp-3);
+  padding-bottom: var(--sp-3);
+}
 .nav-group { position: relative; }
 .nav-submenu {
-  position: absolute; right: 0; top: calc(100% + 4px);
+  position: absolute; right: 0; top: 100%;
   background: var(--surface-elevated);
   border: 1px solid var(--stroke-soft);
   border-radius: var(--radius-m);
   box-shadow: var(--shadow-soft);
-  list-style: none; margin: 0; padding: var(--sp-2);
+  list-style: none; margin: 0;
+  /* Top padding doubles as the visual gap *and* the hover bridge —
+     the submenu's bounding box is now flush against the parent label,
+     so the cursor never enters a hover-dead-zone crossing into it. */
+  padding: calc(var(--sp-2) + 4px) var(--sp-2) var(--sp-2);
   min-width: 280px;
-  display: none;
+
+  /* Use opacity + visibility instead of display:none so we can transition.
+     Show is instant; hide is delayed 200ms so brief mouse jitter at the
+     edge doesn't immediately close the menu. */
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-4px);
+  transition:
+    opacity 120ms var(--ease),
+    transform 120ms var(--ease),
+    visibility 0s linear 200ms;
 }
 .nav-group:hover .nav-submenu,
-.nav-group:focus-within .nav-submenu { display: block; }
+.nav-group:focus-within .nav-submenu {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+  transition:
+    opacity 120ms var(--ease),
+    transform 120ms var(--ease),
+    visibility 0s linear 0s;
+}
 .nav-submenu a {
   display: flex; align-items: baseline; gap: var(--sp-3);
   padding: var(--sp-2) var(--sp-3);
