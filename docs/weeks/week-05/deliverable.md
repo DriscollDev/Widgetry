@@ -26,7 +26,7 @@ lives in speaker notes.
     Your browser cannot embed PDFs directly.
     <a href="{{ '/assets/slides/midterm.pdf' | relative_url }}">Download the PDF</a>
     or
-    <a href="SLIDES_LINK">open the live deck</a>.
+    <a href="https://docs.google.com/presentation/d/1MIyxVsTrawmAW1AOTnjzdnuBy39AxNSpqqdbAemEZNQ/edit?slide=id.p1#slide=id.p1">open the live deck</a>.
   </p>
 </object>
 
