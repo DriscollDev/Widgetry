@@ -1,5 +1,5 @@
 ---
-title: "Week 5 — Mid-Term Presentation"
+title: "Week 5 - Mid-Term Presentation"
 week_number: 5
 summary: Mid-planning checkpoint deck covering progress, decisions made, and the path through the back half of the planning phase.
 permalink: /weeks/week-05/

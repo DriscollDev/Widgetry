@@ -6,7 +6,7 @@
   "description": "Dashforge BullMQ worker (polling, snapshots, retention purge). STUB.",
   "main": "dist/worker.js",
   "scripts": {
-    "dev": "echo '[worker] dev not wired up yet — replace with tsx watch in Sprint 2' && exit 0",
+    "dev": "echo '[worker] dev not wired up yet - replace with tsx watch in Sprint 2' && exit 0",
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "echo '[worker] no tests yet' && exit 0",

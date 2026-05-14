@@ -12,7 +12,7 @@ included as fallbacks.
 
 <!--
   Replace EMBED_ID below with the ID from dbdiagram's "Share → Embed" option.
-  The static fallback image lives in /assets/img/erd.svg — export from dbdiagram
+  The static fallback image lives in /assets/img/erd.svg - export from dbdiagram
   and commit it so this page works even if dbdiagram is unreachable.
 -->
 
@@ -37,10 +37,10 @@ included as fallbacks.
 <details>
   <summary>DBML source</summary>
   <pre><code>// =============================================================================
-// Auth tables — owned by Better-Auth
+// Auth tables - owned by Better-Auth
 // Eng doc §5.2: "Treat Better-Auth's generated schema as authoritative for
 // sessions, accounts, verification_tokens." Modeled here for ERD completeness;
-// do NOT hand-write migrations for these — Better-Auth generates them.
+// do NOT hand-write migrations for these - Better-Auth generates them.
 // =============================================================================
 
 Table users {
@@ -99,7 +99,7 @@ Table verification_tokens {
 
 
 // =============================================================================
-// Application tables — owned by us
+// Application tables - owned by us
 // Eng doc §5.2: "All FKs are ON DELETE CASCADE unless noted."
 // Eng doc §5.2: "timestamptz everywhere (never timestamp)."
 // =============================================================================
@@ -163,7 +163,7 @@ Table api_credentials {
 
 
 // =============================================================================
-// Relationships — all ON DELETE CASCADE (eng doc §5.2)
+// Relationships - all ON DELETE CASCADE (eng doc §5.2)
 // =============================================================================
 
 Ref: accounts.user_id > users.id [delete: cascade]

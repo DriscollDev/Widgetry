@@ -21,24 +21,24 @@ parity to preserve.
 
 ## How the site is structured
 
-- `_config.yml` — site metadata, the master list of weeks, team members, external
+- `_config.yml` - site metadata, the master list of weeks, team members, external
   links. **The weeks list here drives the home page tiles and the nav submenu.**
   When a week's title or deliverable kind changes, edit it here, not in the
   individual page.
-- `_layouts/default.html` — site chrome (header, nav, footer).
-- `_layouts/week.html` — week-page chrome (badge, action cards, pager). All files
+- `_layouts/default.html` - site chrome (header, nav, footer).
+- `_layouts/week.html` - week-page chrome (badge, action cards, pager). All files
   under `weeks/` use this layout automatically per the defaults in `_config.yml`.
-- `_includes/nav.html` — primary navigation, rendered into the default layout.
-- `assets/css/site.css` — magitech dark theme. Token-driven; edit tokens at the
+- `_includes/nav.html` - primary navigation, rendered into the default layout.
+- `assets/css/site.css` - magitech dark theme. Token-driven; edit tokens at the
   top, components below inherit.
-- `index.md` — home page.
-- `weeks/week-NN/index.md` — week landing. Brief description; action cards to the
+- `index.md` - home page.
+- `weeks/week-NN/index.md` - week landing. Brief description; action cards to the
   status report and deliverable are rendered automatically by `week.html`.
-- `weeks/week-NN/status-report.md` — weekly status, structured per the template.
-- `weeks/week-NN/deliverable.md` — the week's deliverable, or an embed page for
+- `weeks/week-NN/status-report.md` - weekly status, structured per the template.
+- `weeks/week-NN/deliverable.md` - the week's deliverable, or an embed page for
   artifacts that live outside the repo (Figma, dbdiagram).
 
-## Adding deliverables — patterns by media type
+## Adding deliverables - patterns by media type
 
 **Markdown document** (Proposal, Heuristic Evaluation): write content directly in
 the deliverable file.
@@ -67,21 +67,21 @@ and embedded screenshots so the page is meaningful even without clicking out.
 - Status colors are CSS variables (`--status-up`, `--status-down`, etc.) and
   surface as utility classes (`.status-up`, `.status-down`). Use them inside
   deliverable pages where appropriate.
-- Headings render in Cinzel automatically. Don't over-use H1 — there is one per
+- Headings render in Cinzel automatically. Don't over-use H1 - there is one per
   page (the layout supplies it).
 
 ## Logo files
 
-- `assets/img/logo-mark.png` — the wizard-hat-and-gear mark, used in the header
+- `assets/img/logo-mark.svg` - the wizard-hat-and-gear mark, used in the header
   (32px tall) and footer ornament (24px tall).
-- `assets/img/logo-full.png` — the full logo including the "Widgetry" wordmark,
+- `assets/img/logo-full.svg` - the full logo including the "Widgetry" wordmark,
   used as the home page hero (200px tall on desktop, 140px on narrow screens).
-- `assets/img/favicon.svg` — a simplified gear-and-violet mark that reads at
+- `assets/img/favicon.svg` - a simplified gear-and-violet mark that reads at
   16×16 tab sizes; geometric echo of the main logo, not a direct downscale.
 
 If you replace either PNG, keep the filename the same and no template edits are
 needed. If you want to swap in higher-resolution `@2x` files, the simplest path
-is to overwrite the PNGs in place with the new versions — the templates request
+is to overwrite the PNGs in place with the new versions - the templates request
 explicit `height` and `width` attributes on the `<img>` tags but the browser will
 honor whatever the underlying pixel density gives it.
 

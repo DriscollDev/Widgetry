@@ -23,7 +23,7 @@
   <header class="site-header">
     <div class="container header-row">
       <a class="wordmark" href="{{ '/' | relative_url }}">
-        <img class="wordmark-logo" src="{{ '/assets/img/logo-mark.png' | relative_url }}" alt="" aria-hidden="true" width="32" height="37">
+        <img class="wordmark-logo" src="{{ '/assets/img/logo-mark.svg' | relative_url }}" alt="" aria-hidden="true" width="32" height="37">
         <span class="wordmark-text">Widgetry</span>
         <span class="wordmark-sub">Capstone Planning</span>
       </a>
@@ -39,11 +39,11 @@
     <div class="container">
       <div class="ornament" aria-hidden="true">
         <span class="ornament-rule"></span>
-        <img class="ornament-logo" src="{{ '/assets/img/logo-mark.png' | relative_url }}" alt="" width="24" height="27">
+        <img class="ornament-logo" src="{{ '/assets/img/logo-mark.svg' | relative_url }}" alt="" width="24" height="27">
         <span class="ornament-rule"></span>
       </div>
       <p class="footer-text">
-        Widgetry — {{ site.author }} · Capstone Planning Phase, 2026 ·
+        Widgetry - {{ site.author }} · Capstone Planning Phase, 2026 ·
         <a href="{{ site.external_links | where: 'label', 'GitHub Repo' | map: 'url' | first }}">Source</a>
       </p>
     </div>

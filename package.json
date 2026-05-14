@@ -2,7 +2,7 @@
   "name": "dashforge",
   "version": "0.1.0",
   "private": true,
-  "description": "Dashforge — customizable widget-based API monitoring dashboards.",
+  "description": "Dashforge - customizable widget-based API monitoring dashboards.",
   "engines": {
     "node": ">=20.0.0"
   },

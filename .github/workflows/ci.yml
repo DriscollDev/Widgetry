@@ -1,7 +1,7 @@
 # CI for Dashforge.
 # Source of truth: Engineering Doc §14.1.
 # Runs on every PR and push to main.
-# E2E (Playwright) is a separate nightly workflow — not yet added.
+# E2E (Playwright) is a separate nightly workflow - not yet added.
 
 name: CI
 
@@ -22,7 +22,7 @@ env:
 jobs:
   # ---------------------------------------------------------------------------
   # Step 1–4: install, typecheck, lint, unit tests, build.
-  # Fast lane — runs without service containers.
+  # Fast lane - runs without service containers.
   # ---------------------------------------------------------------------------
   static-and-unit:
     name: Static checks, unit tests, build
@@ -99,7 +99,7 @@ jobs:
       DIRECT_DATABASE_URL: postgres://postgres:postgres@localhost:5432/dashforge_test
       REDIS_URL: redis://localhost:6379
       NODE_ENV: test
-      # Throwaway test key — never reuse outside CI.
+      # Throwaway test key - never reuse outside CI.
       MASTER_ENCRYPTION_KEY: dGVzdC1tYXN0ZXIta2V5LTMyYnl0ZXMtZG8tbm90LXVzZQ==
       BETTER_AUTH_SECRET: ci-test-secret-do-not-use-in-prod
 

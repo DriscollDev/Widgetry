@@ -6,7 +6,7 @@
   "description": "Dashforge HTTP API (Fastify + Better-Auth + Drizzle). STUB.",
   "main": "dist/server.js",
   "scripts": {
-    "dev": "echo '[api] dev not wired up yet — replace with tsx watch in Sprint 1' && exit 0",
+    "dev": "echo '[api] dev not wired up yet - replace with tsx watch in Sprint 1' && exit 0",
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "echo '[api] no tests yet' && exit 0",

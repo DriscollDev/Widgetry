@@ -32,7 +32,7 @@ name: Sync Project Type field
 # Triggered on: an issue is labeled with a `type:*` label.
 # Action:
 #   1. Looks up the Project's Type field and the option ID for the matched type.
-#   2. Adds the issue to the Project (idempotent — safe if already added).
+#   2. Adds the issue to the Project (idempotent - safe if already added).
 #   3. Sets the Type field to the matched option.
 #
 # Notes:
@@ -135,7 +135,7 @@ jobs:
               return;
             }
 
-            // 2. Add the issue to the project. This is idempotent — if the
+            // 2. Add the issue to the project. This is idempotent - if the
             //    issue is already on the project, the existing item is returned.
             const addItemMutation = `
               mutation($projectId: ID!, $contentId: ID!) {

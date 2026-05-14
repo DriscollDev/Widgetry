@@ -1,12 +1,12 @@
 ---
 layout: default
-title: Widgetry — Capstone Planning Wiki
+title: Widgetry - Capstone Planning Wiki
 description: Ten weeks of planning deliverables for the Widgetry capstone project.
 ---
 
 <section class="home-hero">
   <p class="home-eyebrow">Capstone · Planning Phase</p>
-  <img class="home-logo" src="{{ '/assets/img/logo-full.png' | relative_url }}" alt="Widgetry" width="1484" height="1060">
+  <img class="home-logo" src="{{ '/assets/img/logo-full.svg' | relative_url }}" alt="Widgetry" width="1484" height="1060">
   <p class="home-tagline">An API monitoring dashboard.</p>
   <p class="home-lede">
     Widgetry is an API monitoring dashboard: a web application where users compose
@@ -55,8 +55,8 @@ description: Ten weeks of planning deliverables for the Widgetry capstone projec
     <h2>Related</h2>
   </div>
   <p>
-    Internal design documentation — feature spec, engineering doc, screen inventory,
-    and the rest — lives in the team's separate
+    Internal design documentation - feature spec, engineering doc, screen inventory,
+    and the rest - lives in the team's separate
     <a href="{{ site.external_links | where: 'label', 'Design Wiki' | map: 'url' | first }}">design wiki</a>.
     The source repository for this site is available
     <a href="{{ site.external_links | where: 'label', 'GitHub Repo' | map: 'url' | first }}">on GitHub</a>.

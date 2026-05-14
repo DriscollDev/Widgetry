@@ -1,10 +1,10 @@
 /* =========================================================
-   Widgetry Capstone Wiki — magitech dark theme
+   Widgetry Capstone Wiki - magitech dark theme
    Token-driven. Edit tokens here; components inherit.
    ========================================================= */
 
 :root {
-  /* Surfaces — near-black ink with a violet undertone */
+  /* Surfaces - near-black ink with a violet undertone */
   --surface-0: #0a0911;
   --surface-1: #110f1c;
   --surface-2: #1a1729;
@@ -17,14 +17,14 @@
   --ink-3: #7a7491;
   --ink-disabled: #4a4560;
 
-  /* Brand — pale gold and deep violet */
+  /* Brand - pale gold and deep violet */
   --accent-1: #d4b454; /* primary gold */
   --accent-1-dim: #8a7434;
   --accent-2: #7a5cff; /* arcane violet */
   --accent-2-dim: #4d3aa0;
   --accent-glow: rgba(122, 92, 255, 0.18);
 
-  /* Status palette — desaturated to live in dark UI */
+  /* Status palette - desaturated to live in dark UI */
   --status-up: #58c08a;
   --status-down: #d96565;
   --status-warn: #d6a14a;
@@ -193,12 +193,12 @@ tr:hover td { background: var(--surface-1); }
   gap: var(--sp-5); padding: var(--sp-3) var(--sp-5);
 }
 .wordmark {
-  display: inline-flex; align-items: baseline; gap: var(--sp-2);
+  display: inline-flex; align-items: center; gap: var(--sp-2);
   color: var(--ink-1); text-decoration: none;
 }
 .wordmark:hover { color: var(--ink-1); text-decoration: none; }
 .wordmark-logo {
-  height: 32px;
+  height: 52px;
   width: auto;
   display: block;
   /* PNG has no inherent stroke matching the dark theme; a soft drop-shadow
@@ -264,7 +264,7 @@ tr:hover td { background: var(--surface-1); }
   border-radius: var(--radius-m);
   box-shadow: var(--shadow-soft);
   list-style: none; margin: 0;
-  /* Top padding doubles as the visual gap *and* the hover bridge —
+  /* Top padding doubles as the visual gap *and* the hover bridge -
      the submenu's bounding box is now flush against the parent label,
      so the cursor never enters a hover-dead-zone crossing into it. */
   padding: calc(var(--sp-2) + 4px) var(--sp-2) var(--sp-2);

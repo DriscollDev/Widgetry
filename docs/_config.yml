@@ -1,5 +1,5 @@
 # Site metadata
-title: Widgetry — Capstone Planning Wiki
+title: Widgetry - Capstone Planning Wiki
 description: >-
   Planning phase deliverables for the Widgetry capstone project.
   Ten weeks of documentation, presentations, and design artifacts.
@@ -49,42 +49,52 @@ weeks:
     slug: week-01
     title: Project Proposal
     deliverable_kind: markdown
+    status: false
   - number: 2
     slug: week-02
     title: Use Case Diagram
     deliverable_kind: image
+    status: true
   - number: 3
     slug: week-03
     title: Prototype
     deliverable_kind: external # Figma link
+    status: true
   - number: 4
     slug: week-04
     title: Database Design (ERD)
     deliverable_kind: embed # dbdiagram iframe
+    status: true
   - number: 5
     slug: week-05
     title: Mid-Term Presentation
     deliverable_kind: slides
+    status: true
   - number: 6
     slug: week-06
     title: Class Diagrams
     deliverable_kind: image
+    status: true
   - number: 7
     slug: week-07
     title: Heuristic Evaluation
     deliverable_kind: markdown
+    status: true
   - number: 8
     slug: week-08
     title: Gantt Chart
     deliverable_kind: mermaid
+    status: true
   - number: 9
     slug: week-09
-    title: Wiki Delivery + Status
+    title: Wiki Delivery
     deliverable_kind: self # this wiki is the deliverable
+    status: true
   - number: 10
     slug: week-10
     title: Final Presentation
     deliverable_kind: slides
+    status: false
 
 # Site-wide links surfaced in the nav.
 external_links:

@@ -24,12 +24,15 @@ layout: default
   </header>
 
   {% unless page.hide_week_nav %}
+  
   <nav class="week-actions" aria-label="Week resources">
+    {% if meta.status %}
     <a class="action-card" href="{{ week_base | append: '/status-report.html' | relative_url }}">
       <span class="action-card-eyebrow">Report</span>
       <span class="action-card-title">Status Report</span>
       <span class="action-card-hint">Weekly summary, blockers, next steps →</span>
     </a>
+    {% endif %}
     {% if meta.deliverable_kind == 'self' %}
     <a class="action-card" href="{{ '/' | relative_url }}">
       <span class="action-card-eyebrow">Deliverable</span>

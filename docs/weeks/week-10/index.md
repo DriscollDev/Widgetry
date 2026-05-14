@@ -1,9 +1,9 @@
 ---
 title: "Week 10 placeholder"
 week_number: 10
-summary: TODO — fill in a short paragraph describing what this week covered and why it matters.
+summary: TODO - fill in a short paragraph describing what this week covered and why it matters.
 permalink: /weeks/week-10/
 ---
 
-TODO: write a brief description of the week. One short paragraph is enough — the
+TODO: write a brief description of the week. One short paragraph is enough - the
 two action cards above link readers to the status report and the deliverable.

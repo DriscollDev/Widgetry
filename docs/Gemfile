@@ -5,7 +5,7 @@ source "https://rubygems.org"
 #   1. github-pages versions <228 hard-pin liquid = 4.0.3, which is
 #      incompatible with Ruby 3.2+ (it calls the removed String#tainted?).
 #   2. GitHub Pages' build server uses its own pinned gem set regardless of
-#      this Gemfile — github-pages is purely for local-preview parity, and
+#      this Gemfile - github-pages is purely for local-preview parity, and
 #      since github-pages is stuck on Jekyll 3.10, that parity is fictional
 #      anyway.
 #   3. Our scaffold uses no github-pages-only plugins (no jekyll-feed,
@@ -13,7 +13,7 @@ source "https://rubygems.org"
 gem "jekyll", "~> 4.3"
 
 # Jekyll plugin group. Anything in here is only loaded when Jekyll is run
-# locally — the deployed site will not have these.
+# locally - the deployed site will not have these.
 group :jekyll_plugins do
   # Add any local-preview-only plugins here. None needed by default.
 end
