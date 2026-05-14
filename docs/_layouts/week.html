@@ -1,0 +1,67 @@
+---
+layout: default
+---
+{% assign current_week_number = page.week_number %}
+{% assign weeks = site.weeks %}
+{% assign prev_num = current_week_number | minus: 1 %}
+{% assign next_num = current_week_number | plus: 1 %}
+{% assign prev_week = weeks | where: 'number', prev_num | first %}
+{% assign next_week = weeks | where: 'number', next_num | first %}
+{% assign meta = weeks | where: 'number', current_week_number | first %}
+{% assign week_base = '/weeks/' | append: meta.slug %}
+
+<article class="week">
+  <header class="week-header">
+    <div class="week-badge">
+      <span class="week-badge-label">Week</span>
+      <span class="week-badge-number">{{ current_week_number }}</span>
+    </div>
+    <div class="week-titles">
+      <p class="week-eyebrow">{{ meta.title }}</p>
+      <h1 class="week-title">{{ page.title }}</h1>
+      {% if page.summary %}<p class="week-summary">{{ page.summary }}</p>{% endif %}
+    </div>
+  </header>
+
+  {% unless page.hide_week_nav %}
+  <nav class="week-actions" aria-label="Week resources">
+    <a class="action-card" href="{{ week_base | append: '/status-report.html' | relative_url }}">
+      <span class="action-card-eyebrow">Report</span>
+      <span class="action-card-title">Status Report</span>
+      <span class="action-card-hint">Weekly summary, blockers, next steps →</span>
+    </a>
+    {% if meta.deliverable_kind == 'self' %}
+    <a class="action-card" href="{{ '/' | relative_url }}">
+      <span class="action-card-eyebrow">Deliverable</span>
+      <span class="action-card-title">This Wiki</span>
+      <span class="action-card-hint">The wiki itself is week {{ current_week_number }}'s deliverable →</span>
+    </a>
+    {% else %}
+    <a class="action-card" href="{{ week_base | append: '/deliverable.html' | relative_url }}">
+      <span class="action-card-eyebrow">Deliverable</span>
+      <span class="action-card-title">{{ meta.title }}</span>
+      <span class="action-card-hint">View the week {{ current_week_number }} deliverable →</span>
+    </a>
+    {% endif %}
+  </nav>
+  {% endunless %}
+
+  <section class="week-body">
+    {{ content }}
+  </section>
+
+  <nav class="week-pager" aria-label="Adjacent weeks">
+    {% if prev_week %}
+    <a class="pager-link pager-prev" href="{{ '/weeks/' | append: prev_week.slug | append: '/' | relative_url }}">
+      <span class="pager-direction">← Week {{ prev_week.number }}</span>
+      <span class="pager-target">{{ prev_week.title }}</span>
+    </a>
+    {% else %}<span class="pager-link pager-disabled"></span>{% endif %}
+    {% if next_week %}
+    <a class="pager-link pager-next" href="{{ '/weeks/' | append: next_week.slug | append: '/' | relative_url }}">
+      <span class="pager-direction">Week {{ next_week.number }} →</span>
+      <span class="pager-target">{{ next_week.title }}</span>
+    </a>
+    {% else %}<span class="pager-link pager-disabled"></span>{% endif %}
+  </nav>
+</article>

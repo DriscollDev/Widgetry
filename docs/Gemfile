@@ -1,0 +1,9 @@
+source "https://rubygems.org"
+
+# Match the gem versions GitHub Pages uses in production so local preview
+# matches the deployed site. See https://pages.github.com/versions/ for the
+# current pinned set.
+gem "github-pages", group: :jekyll_plugins
+
+# Performance: faster file watching on macOS
+gem "wdm", "~> 0.1.1", :install_if => Gem.win_platform?

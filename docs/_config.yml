@@ -1,0 +1,100 @@
+# Site metadata
+title: Widgetry — Capstone Planning Wiki
+description: >-
+  Planning phase deliverables for the Widgetry capstone project.
+  Ten weeks of documentation, presentations, and design artifacts.
+author: Pokeballers
+
+# URL config. Custom domain set via CNAME, so baseurl is empty.
+# If you ever move off the custom domain to <org>.github.io/<repo>/docs,
+# change baseurl to "/<repo>/docs".
+url: "" # filled in by Pages
+baseurl: ""
+
+# Build settings
+markdown: kramdown
+highlighter: rouge
+kramdown:
+  input: GFM
+  syntax_highlighter: rouge
+  toc_levels: 2..3
+
+# We are not using a gem-based theme; layouts live in _layouts/.
+theme: ~
+
+# What to keep out of the built site
+exclude:
+  - README.md
+  - Gemfile
+  - Gemfile.lock
+  - node_modules
+  - vendor
+
+# Collection for weekly entries. Each weeks/week-N/ folder behaves
+# like a normal directory; this just gives us a place to set defaults.
+defaults:
+  - scope:
+      path: "weeks"
+    values:
+      layout: week
+  - scope:
+      path: ""
+    values:
+      layout: default
+
+# Ordered list of weeks used by the nav include and the home page tiles.
+# Edit this when deliverables shift.
+weeks:
+  - number: 1
+    slug: week-01
+    title: Project Proposal
+    deliverable_kind: markdown
+  - number: 2
+    slug: week-02
+    title: Use Case Diagram
+    deliverable_kind: image
+  - number: 3
+    slug: week-03
+    title: Prototype
+    deliverable_kind: external # Figma link
+  - number: 4
+    slug: week-04
+    title: Database Design (ERD)
+    deliverable_kind: embed # dbdiagram iframe
+  - number: 5
+    slug: week-05
+    title: Mid-Term Presentation
+    deliverable_kind: slides
+  - number: 6
+    slug: week-06
+    title: Class Diagrams
+    deliverable_kind: image
+  - number: 7
+    slug: week-07
+    title: Heuristic Evaluation
+    deliverable_kind: markdown
+  - number: 8
+    slug: week-08
+    title: Gantt Chart
+    deliverable_kind: mermaid
+  - number: 9
+    slug: week-09
+    title: Wiki Delivery + Status
+    deliverable_kind: self # this wiki is the deliverable
+  - number: 10
+    slug: week-10
+    title: Final Presentation
+    deliverable_kind: slides
+
+# Site-wide links surfaced in the nav.
+external_links:
+  - label: Design Wiki
+    url: "TODO_REPLACE_WITH_GITHUB_WIKI_URL"
+  - label: GitHub Repo
+    url: "TODO_REPLACE_WITH_REPO_URL"
+
+# Team. Edit names here; they appear on the home page.
+team:
+  - name: TODO Owner 1
+  - name: TODO Owner 2
+  - name: TODO Owner 3
