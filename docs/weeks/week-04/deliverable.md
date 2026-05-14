@@ -18,7 +18,7 @@ included as fallbacks.
 
 <iframe
   class="embed-frame"
-  src="https://dbdiagram.io/embed/EMBED_ID"
+  src="https://dbdiagram.io/e/69e929c4d80a958d1cb50770/69e92f981bbca0331218519e"
   title="Widgetry entity-relationship diagram"
   loading="lazy">
 </iframe>
