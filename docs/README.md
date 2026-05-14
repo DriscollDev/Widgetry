@@ -13,12 +13,11 @@ bundle exec jekyll serve
 
 Then visit `http://127.0.0.1:4000`.
 
-If you don't have a `Gemfile`, the GitHub-Pages-compatible one is:
-
-```ruby
-source "https://rubygems.org"
-gem "github-pages", group: :jekyll_plugins
-```
+The `Gemfile` uses modern Jekyll directly (not the `github-pages` meta-gem).
+Reasons documented inline in the Gemfile, but the short version: `github-pages`
+pins Liquid 4.0.3 which is incompatible with Ruby 3.2+, and GitHub Pages' build
+server uses its own gems regardless of what's in your Gemfile, so there's no
+parity to preserve.
 
 ## How the site is structured
 

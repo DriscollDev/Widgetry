@@ -89,9 +89,9 @@ weeks:
 # Site-wide links surfaced in the nav.
 external_links:
   - label: Design Wiki
-    url: "TODO_REPLACE_WITH_GITHUB_WIKI_URL"
+    url: "https://github.com/DriscollDev/Widgetry/wiki"
   - label: GitHub Repo
-    url: "TODO_REPLACE_WITH_REPO_URL"
+    url: "https://github.com/DriscollDev/Widgetry"
 
 # Team. Edit names here; they appear on the home page.
 team:

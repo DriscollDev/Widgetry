@@ -1,9 +1,22 @@
 source "https://rubygems.org"
 
-# Match the gem versions GitHub Pages uses in production so local preview
-# matches the deployed site. See https://pages.github.com/versions/ for the
-# current pinned set.
-gem "github-pages", group: :jekyll_plugins
+# We use modern Jekyll directly rather than the `github-pages` meta-gem.
+# Reasons:
+#   1. github-pages versions <228 hard-pin liquid = 4.0.3, which is
+#      incompatible with Ruby 3.2+ (it calls the removed String#tainted?).
+#   2. GitHub Pages' build server uses its own pinned gem set regardless of
+#      this Gemfile — github-pages is purely for local-preview parity, and
+#      since github-pages is stuck on Jekyll 3.10, that parity is fictional
+#      anyway.
+#   3. Our scaffold uses no github-pages-only plugins (no jekyll-feed,
+#      jekyll-seo-tag, etc.), so vanilla Jekyll is sufficient.
+gem "jekyll", "~> 4.3"
+
+# Jekyll plugin group. Anything in here is only loaded when Jekyll is run
+# locally — the deployed site will not have these.
+group :jekyll_plugins do
+  # Add any local-preview-only plugins here. None needed by default.
+end
 
 # Gems that used to be in Ruby's stdlib / default-gems set but are now
 # bundled gems Bundler expects to see declared. Required from Ruby 3.4
@@ -12,6 +25,8 @@ gem "github-pages", group: :jekyll_plugins
 gem "bigdecimal"
 gem "csv"
 gem "webrick"
+gem "logger"
+gem "base64"
 
 # Note: wdm was a Windows-only file-watching helper; it's abandoned upstream
 # and fails to build on modern Ruby. The `listen` gem (a Jekyll dependency)
