@@ -32,3 +32,11 @@ inheritance live here, not in the database schema.
   loading="lazy"
   allowfullscreen>
 </iframe>
+
+<details>
+  <summary>Image Backup</summary>
+  <figure class="figure">
+    <img src="{{ '/assets/img/classdiagram.png' | relative_url }}" alt="Sign-in screen">
+    <figcaption>Sign-in.</figcaption>
+  </figure>
+</details>

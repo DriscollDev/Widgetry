@@ -49,17 +49,17 @@ placeholder figures with actual exports as they become available.
 
 <figure class="figure">
   <img src="{{ '/assets/img/prototype/board-view.png' | relative_url }}" alt="Board view with widgets arranged on the grid">
-  <figcaption>Board view - the primary surface (SCR-APP-02).</figcaption>
+  <figcaption>Board view - the primary surface.</figcaption>
 </figure>
 
 <figure class="figure">
   <img src="{{ '/assets/img/prototype/widget-config.png' | relative_url }}" alt="Widget configuration modal">
-  <figcaption>Widget configuration modal (SCR-MOD-05).</figcaption>
+  <figcaption>Widget configuration modal.</figcaption>
 </figure>
 
 <figure class="figure">
   <img src="{{ '/assets/img/prototype/sign-in.png' | relative_url }}" alt="Sign-in screen">
-  <figcaption>Sign-in (SCR-AUTH-01).</figcaption>
+  <figcaption>Sign-in.</figcaption>
 </figure>
 
 ## Scope of the prototype
@@ -77,5 +77,3 @@ full state inventory.
   flow. Final magitech theming is applied at implementation time using the
   tokens defined in the Design Principles document.
 - **Not interactive against real data.** All values shown are mocked.
-- **Not a responsive design.** Per Feature Spec §6.4, the product targets
-  desktop viewports ≥1024px. Mobile layouts are out of scope.

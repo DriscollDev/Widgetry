@@ -5,11 +5,11 @@ week_number: 3
 hide_week_nav: true
 permalink: /weeks/week-03/status-report.html
 ---
-# WIDGETRY Project Status Report — Week 3
+# WIDGETRY Project Status Report - Week 3
 
 ## Project Summary
 
-Widgetry is building an API Monitoring Dashboard — a web application that allows developers and users to monitor multiple API endpoints through customizable, widget-based boards. Users can create boards, place and resize widgets tied to API endpoints, configure polling intervals, and view live status data including response time, status codes, and uptime.
+Widgetry is building an API Monitoring Dashboard - a web application that allows developers and users to monitor multiple API endpoints through customizable, widget-based boards. Users can create boards, place and resize widgets tied to API endpoints, configure polling intervals, and view live status data including response time, status codes, and uptime.
 
 ## Team Members – Hours Worked on Project
 
@@ -49,8 +49,8 @@ Widgetry is building an API Monitoring Dashboard — a web application that allo
 | --- | --- |
 | Technology stack not finalized, may affect development timeline | **Medium** |
 | Team members unfamiliar with chosen framework could slow early development | **Medium** |
-| Scope creep — dashboard widget features may expand beyond initial plan | **Low** |
-| Project clarity — without fleshed out project scope may not be properly defined or fulfill a senior project standard. | **High** |
+| Scope creep - dashboard widget features may expand beyond initial plan | **Low** |
+| Project clarity - without fleshed out project scope may not be properly defined or fulfill a senior project standard. | **High** |
 
 ## Overdue Tasks
 

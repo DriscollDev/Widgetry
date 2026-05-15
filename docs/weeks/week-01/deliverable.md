@@ -65,7 +65,7 @@ The project will deliver seven user-facing capability areas:
 1. **Account management.** Email + password and Google OAuth sign-in; email verification; password reset via time-limited tokens; account deletion with full data cascade.
 2. **Board management.** Up to ten boards per user; rename, delete, and choose refresh mode (automatic at a selectable interval, or manual).
 3. **Widget placement.** Drag, resize, and delete widgets on a 12-column grid, with reject-on-overlap conflict handling and immediate visual feedback.
-4. **Built-in widget catalog.** Six fixed-purpose widget types covering monitoring and informational use cases (see §6).
+4. **Built-in widget catalog.** Six fixed-purpose widget types covering monitoring and informational use cases
 5. **Custom data widgets.** User-defined widgets that pull from arbitrary HTTP(S) JSON APIs, with SSRF-protected outbound fetches.
 6. **Historical data and timeline views.** Snapshot storage for widgets that support history, with per-widget retention and on-demand timeline chart rendering.
 7. **Secure credentials.** Envelope-encrypted, write-only API key storage for custom widgets that require authentication.

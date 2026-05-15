@@ -15,23 +15,23 @@ scale: 0 = not a problem (strength), 1 = cosmetic, 2 = minor, 3 = major,
 
 ## Evaluation summary
 
-| # | Heuristic | Status | Findings | Highest severity |
-|---|-----------|--------|----------|------------------|
-| 1 | Visibility of system status | Satisfied | 1 | 0 |
-| 2 | Match between system and real world | Satisfied | 1 | 0 |
-| 3 | User control and freedom | Satisfied | 1 | 0 |
-| 4 | Consistency and standards | Satisfied | 1 | 0 |
-| 5 | Error prevention | Satisfied | 1 | 0 |
-| 6 | Recognition rather than recall | Satisfied | 1 | 0 |
-| 7 | Flexibility and efficiency of use | Satisfied | 1 | 0 |
-| 8 | Aesthetic and minimalist design | Satisfied | 1 | 0 |
-| 9 | Help users recognize, diagnose, and recover from errors | Satisfied | 1 | 0 |
-| 10 | Help and documentation | Satisfied | 1 | 0 |
+| # | Heuristic | Status | Findings |
+|---|-----------|--------|----------|
+| 1 | Visibility of system status | Satisfied | 1 |
+| 2 | Match between system and real world | Satisfied | 1 |
+| 3 | User control and freedom | Satisfied | 1 |
+| 4 | Consistency and standards | Satisfied | 1 |
+| 5 | Error prevention | Fix In Progress | 2 |
+| 6 | Recognition rather than recall | Satisfied | 1 |
+| 7 | Flexibility and efficiency of use | Satisfied | 1 |
+| 8 | Aesthetic and minimalist design | Satisfied | 1 |
+| 9 | Help users recognize, diagnose, and recover from errors | Satisfied | 1 |
+| 10 | Help and documentation | Satisfied | 1 |
 
 ## Methodology
 
 The team reviewed each of Nielsen's ten heuristics against the planning
-artifacts produced earlier in the phase — the screen inventory, wireframes,
+artifacts produced earlier in the phase - the screen inventory, wireframes,
 user flow diagrams, and prototype. For each heuristic, the team identified how
 the current design satisfies the principle, drawing on specific design
 decisions made during planning.
@@ -83,7 +83,7 @@ that flow into the development backlog.
 - **F3.1** All actions on widgets can be reversed or amended. Users can remove
   any widget they no longer want and update existing widgets to change their
   configuration or position. *Severity:* 0 (strength). *Recommendation:*
-  maintain — extend the same affordance to any new widget-level operations
+  maintain - extend the same affordance to any new widget-level operations
   introduced during development.
 
 ### 4. Consistency and standards
@@ -99,12 +99,12 @@ that flow into the development backlog.
 
 ### 5. Error prevention
 
-**Status:** Satisfied
+**Status:** Fix In Progress
 
 **Findings:**
 
 - **F5.1** Required form fields must be filled before submission. Each modal
-  and widget has scoped functionality — nothing tries to handle data or
+  and widget has scoped functionality - nothing tries to handle data or
   actions it is not designed for, reducing the surface area where user error
   can occur. *Severity:* 0 (strength). *Recommendation:* maintain; carry the
   same scoping discipline into new modals and widgets.
@@ -140,7 +140,7 @@ that flow into the development backlog.
 - **F8.1** Minimalism is the core idea of the site. Widgets use simple but
   effective templates; page navigation is easy to use; dashboards can be
   organized into themes; secondary pages are easy to reach and operate.
-  *Severity:* 0 (strength). *Recommendation:* maintain — resist scope creep
+  *Severity:* 0 (strength). *Recommendation:* maintain - resist scope creep
   in widget chrome and modal density during development.
 
 ### 9. Help users recognize, diagnose, and recover from errors
@@ -163,7 +163,7 @@ that flow into the development backlog.
 - **F10.1** Help is available in two places: the project's GitHub wiki and
   the in-app FAQ. Together these cover the common problems users are likely
   to encounter and how to resolve them. *Severity:* 0 (strength).
-  *Recommendation:* maintain — keep the wiki and FAQ in sync as the product
+  *Recommendation:* maintain - keep the wiki and FAQ in sync as the product
   evolves during development.
 
 ## Priority fixes

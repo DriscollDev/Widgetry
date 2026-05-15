@@ -35,7 +35,3 @@ lives in speaker notes.
   <a href="SLIDES_LINK" rel="noopener">Open in Google Slides ↗</a>
 </p>
 
-## Speaker notes
-
-Optional - paste high-level takeaways here so the page is meaningful even without
-viewing the deck. Especially useful for reviewers who skim.

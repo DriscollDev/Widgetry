@@ -5,23 +5,57 @@ week_number: 10
 hide_week_nav: true
 permalink: /weeks/week-10/status-report.html
 ---
+# WIDGETRY Project Status Report - Week 10
 
-## Summary
+## Project Summary
 
-TODO.
+Widgetry is a customizable API monitoring dashboard that allows developers and users to monitor multiple API endpoints through widget-based boards. Users can create boards, place and resize widgets tied to API endpoints, configure polling intervals, and view live status data including response time, status codes, and uptime.
 
-## Completed
+**Wiki:** <a href="https://wiki.widgetry.app" rel="noopener">wiki.widgetry.app</a>
+**Repo:** <a href="https://github.com/DriscollDev/Widgetry" rel="noopener">github.com/DriscollDev/Widgetry</a>
 
-- TODO
+## Team Members – Hours Worked on Project
 
-## In progress
+| Team Member | Hours This Week | Total Hours |
+| --- | --- | --- |
+| Conor Driscoll | X | X |
+| Adrian Czerwonka | X | X |
+| Idrees Abdurrazzak | X | X |
 
-- TODO
+## Completed Tasks from Last Week – (Task Owner)
 
-## Blockers
+| Task | Owner |
+| --- | --- |
+| X | X |
 
-None.
+## Budget
 
-## Plan for next week
+| Planned Time | Actual Time | Remaining Hours in Budget |
+| --- | --- | --- |
+| X Hours (Week 10) | X Hours | Ongoing |
 
-- TODO
+## Planned Tasks for Next Week – (Task Owner)
+
+| Task | Owner |
+| --- | --- |
+| X | X |
+
+## Project Risks – (High, Medium, Low)
+
+| Risk | Level |
+| --- | --- |
+| X | **X** |
+
+## Overdue Tasks
+
+- XXX
+
+## Issues
+
+- XXX
+
+## Follow-up Actions – (Responsible Person)
+
+| Action | Responsible |
+| --- | --- |
+| X | X |

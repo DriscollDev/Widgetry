@@ -5,11 +5,11 @@ week_number: 5
 hide_week_nav: true
 permalink: /weeks/week-05/status-report.html
 ---
-# WIDGETRY Project Status Report — Week 5
+# WIDGETRY Project Status Report - Week 5
 
 ## Project Summary
 
-Widgetry is building an API Monitoring Dashboard — a web application that allows developers and users to monitor multiple API endpoints through customizable, widget-based boards. Users can create boards, place and resize widgets tied to API endpoints, configure polling intervals, and view live status data including response time, status codes, and uptime.
+Widgetry is building an API Monitoring Dashboard - a web application that allows developers and users to monitor multiple API endpoints through customizable, widget-based boards. Users can create boards, place and resize widgets tied to API endpoints, configure polling intervals, and view live status data including response time, status codes, and uptime.
 
 ## Team Members – Hours Worked on Project
 
@@ -43,7 +43,7 @@ Widgetry is building an API Monitoring Dashboard — a web application that allo
 | --- | --- |
 | Activity Diagrams (Canvas Week 6 deliverable) | All |
 | Start and populate project Wiki (tech stack, roles, ERD) | Adrian Czerwonka |
-| Continue GitHub repo structure — add backend boilerplate | Conor Driscoll |
+| Continue GitHub repo structure - add backend boilerplate | Conor Driscoll |
 | Define detailed user stories & functional requirements | All |
 | Schedule and hold 60-minute focused team meeting | All |
 
@@ -51,13 +51,13 @@ Widgetry is building an API Monitoring Dashboard — a web application that allo
 
 | Risk | Level |
 | --- | --- |
-| Late submissions — we submitted our wireframe late in Week 4; this pattern won't continue | **High** |
-| Insufficient team coordination — meetings not happening until class; Scrum Master needs to drive earlier check-ins | **High** |
-| Wiki not yet started — documentation required | **Medium** |
+| Late submissions - we submitted our wireframe late in Week 4; this pattern won't continue | **High** |
+| Insufficient team coordination - meetings not happening until class; Scrum Master needs to drive earlier check-ins | **High** |
+| Wiki not yet started - documentation required | **Medium** |
 
 ## Overdue Tasks
 
-- Project Wiki — not yet started
+- Project Wiki - not yet started
 
 ## Issues
 
@@ -68,7 +68,7 @@ Widgetry is building an API Monitoring Dashboard — a web application that allo
 | Action | Responsible |
 | --- | --- |
 | Complete Activity Diagrams for Week 6 Canvas submission | All |
-| Start project Wiki — tech stack, ERD, team roles | Adrian Czerwonka |
+| Start project Wiki - tech stack, ERD, team roles | Adrian Czerwonka |
 | Continue GitHub repo and add backend folder structure | Conor Driscoll |
 | Schedule mid-week Discord check-in | Idrees Abdurrazzak |
 | Write detailed user stories for core features | All |

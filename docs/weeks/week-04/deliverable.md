@@ -38,15 +38,13 @@ included as fallbacks.
   <summary>DBML source</summary>
   <pre><code>// =============================================================================
 // Auth tables - owned by Better-Auth
-// Eng doc §5.2: "Treat Better-Auth's generated schema as authoritative for
-// sessions, accounts, verification_tokens." Modeled here for ERD completeness;
 // do NOT hand-write migrations for these - Better-Auth generates them.
 // =============================================================================
 
 Table users {
   id uuid [primary key, default: `gen_random_uuid()`]
   email text [unique, not null]
-  email_verified_at timestamptz [note: 'Null = unverified; timestamp = when verified (FR-1.7)']
+  email_verified_at timestamptz [note: 'Null = unverified; timestamp = when verified']
   name text
   image text
   created_at timestamptz [not null]
@@ -58,7 +56,7 @@ Table accounts {
   user_id uuid [not null]
   provider_id text [not null, note: "'credentials' | 'google'"]
   account_id text [not null, note: "Provider's user id (Google sub for OAuth; user.id for credentials)"]
-  password text [note: 'argon2id hash; only set when provider_id=credentials (FR-1.2)']
+  password text [note: 'argon2id hash; only set when provider_id=credentials']
   access_token text
   refresh_token text
   id_token text
@@ -77,7 +75,7 @@ Table sessions {
   id uuid [primary key, default: `gen_random_uuid()`]
   user_id uuid [not null]
   token text [unique, not null]
-  expires_at timestamptz [not null, note: '30-day sliding window (FR-1.4)']
+  expires_at timestamptz [not null, note: '30-day sliding window']
   ip_address text
   user_agent text
   created_at timestamptz [not null]
@@ -88,7 +86,7 @@ Table verification_tokens {
   id uuid [primary key, default: `gen_random_uuid()`]
   identifier text [not null, note: 'Usually email; the thing being verified']
   value text [not null, note: 'Token (or hash thereof)']
-  expires_at timestamptz [not null, note: 'Password reset: 1h (FR-1.8); email verify: per Better-Auth default']
+  expires_at timestamptz [not null, note: 'Password reset: 1h; email verify: per Better-Auth default']
   created_at timestamptz [not null]
   updated_at timestamptz [not null]
 
@@ -100,16 +98,16 @@ Table verification_tokens {
 
 // =============================================================================
 // Application tables - owned by us
-// Eng doc §5.2: "All FKs are ON DELETE CASCADE unless noted."
-// Eng doc §5.2: "timestamptz everywhere (never timestamp)."
+// "All FKs are ON DELETE CASCADE unless noted."
+// "timestamptz everywhere (never timestamp)."
 // =============================================================================
 
 Table boards {
   id uuid [primary key, default: `gen_random_uuid()`]
   user_id uuid [not null]
-  name text [not null, note: '1-64 chars (FR-2.2)']
+  name text [not null, note: '1-64 chars']
   refresh_mode text [not null, note: "CHECK IN ('auto', 'manual')"]
-  refresh_interval_seconds integer [note: "CHECK IN (30,60,300,900,1800,3600) when auto, NULL when manual (FR-2.3)"]
+  refresh_interval_seconds integer [note: "CHECK IN (30,60,300,900,1800,3600) when auto, NULL when manual"]
   created_at timestamptz [not null]
   updated_at timestamptz [not null]
 
@@ -121,15 +119,15 @@ Table boards {
 Table widgets {
   id uuid [primary key, default: `gen_random_uuid()`]
   board_id uuid [not null]
-  widget_type text [not null, note: "CHECK IN ('uptime','weather','stock','currency','datetime','clock','custom_json'); validated against code-only registry (eng doc §7.1)"]
-  config jsonb [not null, note: 'Validated at write time against widget_type Zod schema (eng doc §7.1)']
-  grid_col integer [not null, note: 'CHECK 0-11 (FR-3.1)']
+  widget_type text [not null, note: "CHECK IN ('uptime','weather','stock','currency','datetime','clock','custom_json'); validated against code-only registry"]
+  config jsonb [not null, note: 'Validated at write time against widget_type Zod schema']
+  grid_col integer [not null, note: 'CHECK 0-11']
   grid_row integer [not null, note: 'CHECK >= 0']
-  grid_width integer [not null, note: 'CHECK 1-6 (FR-3.2)']
+  grid_width integer [not null, note: 'CHECK 1-6']
   grid_height integer [not null, note: 'CHECK 1-6 (FR-3.2)']
-  refresh_interval_seconds integer [note: 'Server-polled widget types only; min 3600 (FR-4.2)']
-  retention_hours integer [not null, default: 168, note: 'CHECK 12-720; default 7 days (FR-5.2)']
-  last_polled_at timestamptz [note: 'Updated by worker on poll; read by master scheduler (eng doc §8.1)']
+  refresh_interval_seconds integer [note: 'Server-polled widget types only; min 3600']
+  retention_hours integer [not null, default: 168, note: 'CHECK 12-720; default 7 days']
+  last_polled_at timestamptz [note: 'Updated by worker on poll; read by master scheduler']
   created_at timestamptz [not null]
   updated_at timestamptz [not null]
 
@@ -140,7 +138,7 @@ Table widgets {
 }
 
 Table widget_snapshots {
-  id bigserial [primary key, note: 'bigserial: eng doc §5.2 estimates ~10.8M rows in retention window at full scale']
+  id bigserial [primary key]
   widget_id uuid [not null]
   captured_at timestamptz [not null]
   value jsonb [note: 'Typed payload per widget_type renderer']
@@ -154,16 +152,18 @@ Table widget_snapshots {
 Table api_credentials {
   id uuid [primary key, default: `gen_random_uuid()`]
   widget_id uuid [unique, not null, note: 'One credential per widget']
-  ciphertext bytea [not null, note: 'AES-256-GCM(api_key_plaintext) under DEK']
-  encrypted_dek bytea [not null, note: 'AES-256-GCM(DEK) under MK from MASTER_ENCRYPTION_KEY env var']
-  iv bytea [not null, note: 'KNOWN ISSUE: eng doc §10.2 says DEK encryption needs "its own iv" but §5.1 shows only one iv column. Needs to be split into ciphertext_iv + dek_iv before migration. Flagged for team review.']
-  auth_tag bytea [not null, note: 'Same issue as iv above']
+  ciphertext bytea [not null]
+  encrypted_dek bytea [not null]
+  ciphertext_iv bytea [not null]
+  dek_iv bytea [not null]
+  ciphertext_auth_tag bytea [not null]
+  dek_auth_tag bytea [not null]
   created_at timestamptz [not null]
 }
 
 
 // =============================================================================
-// Relationships - all ON DELETE CASCADE (eng doc §5.2)
+// Relationships - all ON DELETE CASCADE
 // =============================================================================
 
 Ref: accounts.user_id > users.id [delete: cascade]
