@@ -1,14 +1,15 @@
 ---
-title: Week 9 - Wiki Delivery
+title: "Week 9 - Gantt Chart"
 week_number: 9
-summary: This week's deliverable is this wiki. The status report below covers the work involved in building it.
+summary: Sprint-by-sprint development schedule, derived from the engineering document's sprint plan.
 permalink: /weeks/week-09/
 ---
 
-This week's deliverable is the wiki you are reading. There is no separate
-artifact to embed - the structure, navigation, theming, and content imports are
-themselves the work submitted this week.
+The Gantt chart visualizes the ten-week development phase as five two-week sprints.
+The chart is rendered from Mermaid source, with both the rendered image and the
+source committed to the repository - the source is the maintainable artifact, the
+rendered image is what reviewers see.
 
-For a tour, start at the [home page]({{ '/' | relative_url }}) and follow the
-weekly tiles. Each tile leads to a brief week summary, that week's status
-report, and the corresponding deliverable.
+Critical-path items in the schedule are the grid layout, the Better-Auth
+integration, and the polling scheduler. Slip on any of these compresses the
+testing and demo-preparation work in Sprint 5.

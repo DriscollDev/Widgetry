@@ -1,42 +1,54 @@
 ---
 layout: week
-title: Class Diagrams
+title: Activity Diagrams
 week_number: 6
 hide_week_nav: true
 permalink: /weeks/week-06/deliverable.html
 ---
 
-UML class diagrams capturing the application's domain model and the relationships
-between its core entities. These diagrams complement the ERD (week 4) by showing
-behavior and structure rather than persistence shape - methods, interfaces, and
-inheritance live here, not in the database schema.
+## Activity diagrams
 
-<!--
-  Workflow:
-  1. Export each diagram as SVG (preferred) or PNG from the modeling tool.
-  2. Save to /assets/img/class-diagrams/ with descriptive names.
-  3. Update the <figure> blocks below.
+The following activity diagrams capture the core Widgetry workflows.
 
-  <iframe style="border: 1px solid rgba(0, 0, 0, 0.1);" width="800" height="450" src="https://embed.figma.com/design/9iuYKVkkgUVPudhdP8wVsv/Bachelors-Capstone?node-id=121-30&embed-host=share" allowfullscreen></iframe>
+1. **Authentication and onboarding flow** – user sign-up, email verification,
+   and first board creation.
+2. **Polling scheduler and worker flow** – how scheduled widget polling jobs are
+   queued, executed, and recorded.
+3. **Widget polling and fetch validation** – external API fetch, JSON parsing,
+   and error handling.
+4. **Widget movement and layout save flow** – client drag/resizing, overlap checks,
+   and optimistic persistence.
 
-  If diagrams are authored in Mermaid, follow the week-08 (Gantt) pattern:
-  keep the .mmd source alongside the rendered image, and include the source
-  in a <details> block.
--->
-
-## Class Diagrams
-<iframe
-  class="embed-frame"
-  src="https://embed.figma.com/design/9iuYKVkkgUVPudhdP8wVsv/Bachelors-Capstone?node-id=121-30&embed-host=share"
-  title="Widgetry Class Diagrams"
-  loading="lazy"
-  allowfullscreen>
-</iframe>
+### Rendered diagrams
 
 <details>
-  <summary>Image Backup</summary>
+  <summary>Authentication and onboarding activity diagram</summary>
   <figure class="figure">
-    <img src="{{ '/assets/img/classdiagram.png' | relative_url }}" alt="Sign-in screen">
-    <figcaption>Sign-in.</figcaption>
+    <img src="{{ '/assets/img/activity-diagrams/act_auth.svg' | relative_url }}" alt="Authentication and onboarding activity diagram">
+    <figcaption>Authentication and onboarding activity diagram.</figcaption>
+  </figure>
+</details>
+
+<details>
+  <summary>Polling scheduler and worker flow activity diagram</summary>
+  <figure class="figure">
+    <img src="{{ '/assets/img/activity-diagrams/act_poll_server.svg' | relative_url }}" alt="Polling scheduler and worker flow activity diagram">
+    <figcaption>Polling scheduler and worker flow activity diagram.</figcaption>
+  </figure>
+</details>
+
+<details>
+  <summary>Widget polling and fetch validation activity diagram</summary>
+  <figure class="figure">
+    <img src="{{ '/assets/img/activity-diagrams/act_poll_widget.svg' | relative_url }}" alt="Widget polling and fetch validation activity diagram">
+    <figcaption>Widget polling and fetch validation activity diagram.</figcaption>
+  </figure>
+</details>
+
+<details>
+  <summary>Widget movement and layout save activity diagram</summary>
+  <figure class="figure">
+    <img src="{{ '/assets/img/activity-diagrams/act_widget_move.svg' | relative_url }}" alt="Widget movement and layout save activity diagram">
+    <figcaption>Widget movement and layout save activity diagram.</figcaption>
   </figure>
 </details>

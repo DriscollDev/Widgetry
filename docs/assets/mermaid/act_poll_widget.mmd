@@ -1,0 +1,32 @@
+flowchart TD
+    Start([Start]) --> Dequeue[Worker dequeues poll job]
+    Dequeue --> Load[Load config and decrypt creds]
+    Load --> Scheme{URL is http/https?}
+    Scheme -->|no| BadScheme[Reject: bad scheme]:::err
+    Scheme -->|yes| Resolve[DNS-resolve hostname]
+    Resolve --> Public{"All IPs public?<br/>(vs blocklist)"}
+    Public -->|no| Blocked[Reject: SSRF blocklist]:::err
+    Public -->|yes| Pin["Connect to pinned IP<br/>(defeats DNS rebinding)"]
+    Pin --> Fetch["Fetch with timeout + size cap<br/>(5s, 256 KB, ≤3 redirects)"]
+    Fetch --> FetchOk{Fetch ok?}
+    FetchOk -->|no| NetErr[Network or HTTP error]:::err
+    FetchOk -->|yes| Parse[Parse response as JSON]
+    Parse --> ParseOk{Parses?}
+    ParseOk -->|no| BadJson[Invalid JSON]:::err
+    ParseOk -->|yes| Apply[Apply dot-notation path]
+    Apply --> PathOk{Path resolves?}
+    PathOk -->|no| PathMiss[Path miss]:::err
+    PathOk -->|yes| WriteValue[Write value snapshot]:::ok
+
+    BadScheme --> WriteError[Write error snapshot]:::err
+    Blocked --> WriteError
+    NetErr --> WriteError
+    BadJson --> WriteError
+    PathMiss --> WriteError
+
+    WriteValue --> Update[Update last_polled_at]
+    WriteError --> Update
+    Update --> End([End])
+
+    classDef ok fill:#EAF3DE,stroke:#3B6D11,color:#173404
+    classDef err fill:#FCEBEB,stroke:#A32D2D,color:#501313

@@ -1,0 +1,16 @@
+flowchart TD
+    Start([Start]) --> Tick[Scheduler tick - every 60s]
+    Tick --> Query[Query widgets due to poll]
+    Query --> Enqueue[Enqueue poll-widget jobs]
+    Enqueue --> Dequeue[Worker dequeues job]
+    Dequeue --> Load[Load config and decrypt creds]
+    Load --> Fetch["Fetch external API<br/>(5s timeout, up to 3 attempts)"]
+    Fetch --> Success{Success?}
+    Success -->|yes| WriteValue[Write value snapshot]:::ok
+    Success -->|no| WriteError[Write error snapshot]:::err
+    WriteValue --> Update[Update last_polled_at]
+    WriteError --> Update
+    Update --> End([End])
+
+    classDef ok fill:#EAF3DE,stroke:#3B6D11,color:#173404
+    classDef err fill:#FCEBEB,stroke:#A32D2D,color:#501313

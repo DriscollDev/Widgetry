@@ -84,23 +84,23 @@ weeks:
     status: true
   - number: 6
     slug: week-06
-    title: Class Diagrams
+    title: Activity Diagrams
     deliverable_kind: image
     status: true
   - number: 7
     slug: week-07
-    title: Heuristic Evaluation
-    deliverable_kind: markdown
+    title: Class Diagrams
+    deliverable_kind: image
     status: true
   - number: 8
     slug: week-08
-    title: Gantt Chart
-    deliverable_kind: mermaid
+    title: Heuristic Evaluation
+    deliverable_kind: markdown
     status: true
   - number: 9
     slug: week-09
-    title: Wiki Delivery
-    deliverable_kind: self # this wiki is the deliverable
+    title: Gantt Chart
+    deliverable_kind: mermaid
     status: true
   - number: 10
     slug: week-10
