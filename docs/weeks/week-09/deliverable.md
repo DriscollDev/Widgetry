@@ -19,9 +19,14 @@ the Mermaid source kept underneath; rebuild the image when the source changes.
 -->
 
 <figure class="figure">
-  <img src="{{ '/assets/img/gantt.svg' | relative_url }}" alt="Widgetry development Gantt chart">
-  <figcaption>Ten-week development plan, sprint-by-sprint.</figcaption>
+  <img src="{{ '/assets/img/gantt.svg' | relative_url }}" alt="Widgetry Planning Gantt chart">
+  <figcaption>Ten-week Planning plan, week-by-week.</figcaption>
 </figure>
+<figure class="figure">
+  <img src="{{ '/assets/img/devgantt.svg' | relative_url }}" alt="Widgetry development Gantt chart">
+  <figcaption>Ten-week Development plan, week-by-week.</figcaption>
+</figure>
+
 
 <details>
   <summary>Mermaid source</summary>
@@ -68,5 +73,44 @@ gantt
     Dev Timeline Chart                       :e1, 2026-05-18, 5d
     Finalize and Publish Wiki                :e2, 2026-05-18, 10d
     Final Presentation                       :milestone, m5, 2026-05-29, 0d
+</code></pre>
+</details>
+<details>
+  <summary>Mermaid source - Dev</summary>
+  <pre><code>
+  mermaid
+  gantt
+    title Widgetry — MVP Epic-Level Gantt (10 weeks, 3 devs)
+    dateFormat YYYY-MM-DD
+    axisFormat %b %d
+    tickInterval 1week
+    weekday monday
+ 
+    section Sprint 1 · Foundation (W1-2)
+    E1 Platform Foundation            :crit, e1,  2026-06-01, 14d
+    E2a Core auth (email+pw)          :e2a,       2026-06-01, 14d
+    E3 Boards & Grid (start)          :crit, e3,  2026-06-08, 21d
+    M1 Sprint 1 exit                  :milestone, m1, 2026-06-14, 0d
+ 
+    section Sprint 2 · First widgets + layout (W3-4)
+    E4 Widget Framework               :crit, e4,  2026-06-15, 14d
+    E7 Polling Infrastructure         :crit, e7,  2026-06-15, 14d
+    E5a Clock / Weather / Uptime      :e5a,       2026-06-15, 14d
+    M2 Sprint 2 exit                  :milestone, m2, 2026-06-28, 0d
+ 
+    section Sprint 3 · Auth completion + custom widget (W5-6)
+    E2b Verify / reset / OAuth / del  :e2b,       2026-06-29, 14d
+    E6 Custom JSON Widget             :crit, e6,  2026-06-29, 14d
+    E9 Credentials + hardening        :e9,        2026-06-29, 28d
+    M3 Sprint 3 exit                  :milestone, m3, 2026-07-12, 0d
+ 
+    section Sprint 4 · Polish + remaining widgets (W7-8)
+    E5b Stock / Currency / Date-Time  :e5b,       2026-07-13, 14d
+    E8 History / Retention / Timeline :crit, e8,  2026-07-13, 14d
+    M4 FEATURE FREEZE                 :milestone, m4, 2026-07-26, 0d
+ 
+    section Sprint 5 · Testing, docs, demo (W9-10)
+    E10 Quality / Docs / Demo         :crit, e10, 2026-07-27, 14d
+    M5 Capstone defense ready         :milestone, m5, 2026-08-09, 0d
 </code></pre>
 </details>

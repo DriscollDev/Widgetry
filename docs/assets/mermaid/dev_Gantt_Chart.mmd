@@ -1,0 +1,33 @@
+---
+config:
+  gantt:
+    leftPadding: 200
+---
+gantt
+    title Widgetry - MVP Development Gantt
+    dateFormat YYYY-MM-DD
+    axisFormat %m/%d
+    excludes weekends
+    todayMarker off
+    section Phase 1 · Foundation
+    E1 Platform Foundation            :crit, e1,  2026-07-13, 14d
+    E2a Core auth (email+pw)          :e2a,       2026-07-13, 14d
+    E3 Boards & Grid (start)          :crit, e3,  2026-07-20, 21d
+    M1 Phase 1 exit                  :milestone, m1, 2026-07-26, 0d
+    section Phase 2 · First widgets + layout
+    E4 Widget Framework               :crit, e4,  2026-07-27, 14d
+    E7 Polling Infrastructure         :crit, e7,  2026-07-27, 14d
+    E5a Clock / Weather / Uptime      :e5a,       2026-07-27, 14d
+    M2 Phase 2 exit                  :milestone, m2, 2026-08-09, 0d
+    section Phase 3 · Auth completion + custom widget
+    E2b Verify / reset / OAuth / del  :e2b,       2026-08-10, 14d
+    E6 Custom JSON Widget             :crit, e6,  2026-08-10, 14d
+    E9 Credentials + hardening        :e9,        2026-08-10, 28d
+    M3 Phase 3 exit                  :milestone, m3, 2026-08-23, 0d
+    section Phase 4 · Polish + remaining widgets
+    E5b Stock / Currency / Date-Time  :e5b,       2026-08-24, 14d
+    E8 History / Retention / Timeline :crit, e8,  2026-08-24, 14d
+    M4 FEATURE FREEZE                 :milestone, m4, 2026-09-06, 0d
+    section Phase 5 · Testing, docs, demo
+    E10 Quality / Docs / Demo         :crit, e10, 2026-09-07, 14d
+    M5 Final Presentation ready         :milestone, m5, 2026-09-20, 0d
