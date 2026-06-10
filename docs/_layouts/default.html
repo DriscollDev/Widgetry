@@ -25,13 +25,19 @@
       <a class="wordmark" href="{{ '/' | relative_url }}">
         <img class="wordmark-logo" src="{{ '/assets/img/logo-mark.svg' | relative_url }}" alt="" aria-hidden="true" width="32" height="37">
         <span class="wordmark-text">Widgetry</span>
-        <span class="wordmark-sub">Capstone Planning</span>
+        <span class="wordmark-sub">
+          {% case page.wiki %}
+            {% when 'course' %}Capstone Planning
+            {% when 'design' %}Design & Planning
+            {% else %}Product Docs
+          {% endcase %}
+        </span>
       </a>
       {% include nav.html %}
     </div>
   </header>
 
-  <main id="main" class="container">
+  <main id="main" class="container{% if page.layout == 'wiki' %} container-wide{% endif %}">
     {{ content }}
   </main>
 
@@ -43,10 +49,26 @@
         <span class="ornament-rule"></span>
       </div>
       <p class="footer-text">
-        Widgetry - {{ site.author }} · Capstone Planning Phase, 2026 ·
+        Widgetry - {{ site.author }} ·
         <a href="{{ site.external_links | where: 'label', 'GitHub Repo' | map: 'url' | first }}">Source</a>
       </p>
     </div>
   </footer>
+
+  <script type="module">
+    import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: 'dark',
+      themeVariables: {
+        primaryColor: '#1a1729',
+        primaryTextColor: '#ecebf2',
+        primaryBorderColor: '#7a5cff',
+        lineColor: '#b8b3c9',
+        secondaryColor: '#110f1c',
+        tertiaryColor: '#232037'
+      }
+    });
+  </script>
 </body>
 </html>

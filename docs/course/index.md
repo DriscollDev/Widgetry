@@ -1,7 +1,9 @@
 ---
 layout: default
-title: Widgetry - Capstone Planning Wiki
+title: Capstone Planning Wiki
+permalink: /course/
 description: Ten weeks of planning deliverables for the Widgetry capstone project.
+wiki: course
 ---
 
 <section class="home-hero">
@@ -55,9 +57,10 @@ description: Ten weeks of planning deliverables for the Widgetry capstone projec
     <h2>Related</h2>
   </div>
   <p>
-    Internal design documentation - feature spec, engineering doc, screen inventory,
-    and the rest - lives in the team's separate
-    <a href="{{ site.external_links | where: 'label', 'Design Wiki' | map: 'url' | first }}">design wiki</a>.
+    Internal design documentation lives in the
+    <a href="{{ '/design/' | relative_url }}">design wiki</a>.
+    Product documentation for end users is on the
+    <a href="{{ '/' | relative_url }}">Active wiki home</a>.
     The source repository for this site is available
     <a href="{{ site.external_links | where: 'label', 'GitHub Repo' | map: 'url' | first }}">on GitHub</a>.
   </p>

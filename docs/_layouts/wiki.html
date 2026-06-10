@@ -1,0 +1,50 @@
+---
+layout: default
+---
+<div class="wiki-layout">
+  <aside class="wiki-sidebar" aria-label="Wiki navigation">
+    <details class="wiki-sidebar-toggle" open>
+      <summary class="wiki-sidebar-label">On this wiki</summary>
+      <nav class="wiki-sidebar-nav">
+        {% if page.wiki == 'design' %}
+          {% for section in site.design_nav %}
+            <div class="wiki-sidebar-section">
+              <p class="wiki-sidebar-heading">{{ section.section }}</p>
+              <ul class="wiki-sidebar-list">
+                {% for item in section.items %}
+                  {% assign item_index_path = item.path | append: 'index.html' %}
+                  <li>
+                    <a href="{{ item.path | relative_url }}"{% if page.url == item.path or page.url == item_index_path %} aria-current="page"{% endif %}>
+                      {{ item.title }}
+                    </a>
+                  </li>
+                {% endfor %}
+              </ul>
+            </div>
+          {% endfor %}
+        {% elsif page.wiki == 'active' %}
+          {% for section in site.active_nav %}
+            <div class="wiki-sidebar-section">
+              <p class="wiki-sidebar-heading">{{ section.section }}</p>
+              <ul class="wiki-sidebar-list">
+                {% for item in section.items %}
+                  {% assign item_index_path = item.path | append: 'index.html' %}
+                  <li>
+                    <a href="{{ item.path | relative_url }}"{% if page.url == item.path or page.url == item_index_path %} aria-current="page"{% endif %}>
+                      {{ item.title }}
+                    </a>
+                  </li>
+                {% endfor %}
+              </ul>
+            </div>
+          {% endfor %}
+        {% endif %}
+      </nav>
+    </details>
+  </aside>
+
+  <article class="wiki-content">
+    {% if page.title %}<h1>{{ page.title }}</h1>{% endif %}
+    {{ content }}
+  </article>
+</div>

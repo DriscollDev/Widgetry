@@ -1,8 +1,8 @@
 # Site metadata
-title: Widgetry - Capstone Planning Wiki
+title: Widgetry Wiki
 description: >-
-  Planning phase deliverables for the Widgetry capstone project.
-  Ten weeks of documentation, presentations, and design artifacts.
+  Documentation for Widgetry - an API monitoring dashboard.
+  Product guides, capstone deliverables, and design specifications.
 author: Pokeballers
 
 # URL config. Custom domain set via CNAME, so baseurl is empty.
@@ -30,19 +30,31 @@ exclude:
   - node_modules
   - vendor
 
-# Collection for weekly entries. Each weeks/week-N/ folder behaves
-# like a normal directory; this just gives us a place to set defaults.
+# Layout defaults per content folder (active/, course/, design/, weeks/).
+# Later entries override earlier ones when both match.
 defaults:
+  - scope:
+      path: "active"
+    values:
+      layout: wiki
+      wiki: active
   - scope:
       path: "weeks"
     values:
       layout: week
+      wiki: course
   - scope:
-      path: ""
+      path: "design"
+    values:
+      layout: wiki
+      wiki: design
+  - scope:
+      path: "course"
     values:
       layout: default
+      wiki: course
 
-# Ordered list of weeks used by the nav include and the home page tiles.
+# Ordered list of weeks used by the nav include and the course home page tiles.
 # Edit this when deliverables shift.
 weeks:
   - number: 1
@@ -96,14 +108,72 @@ weeks:
     deliverable_kind: slides
     status: false
 
+# Active wiki sidebar navigation.
+active_nav:
+  - section: Product
+    items:
+      - title: Home
+        path: /
+      # - title: Getting Started
+      #   path: /getting-started/
+      # - title: Boards & Widgets
+      #   path: /boards-and-widgets/
+
+# Design wiki sidebar navigation.
+design_nav:
+  - section: The Project
+    items:
+      - title: Home
+        path: /design/
+      - title: The Problem We're Solving
+        path: /design/the-problem/
+      - title: Who It's For
+        path: /design/who-its-for/
+      - title: What It Does
+        path: /design/what-it-does/
+      - title: What It Doesn't Do (Yet)
+        path: /design/what-it-doesnt-do/
+  - section: How It Works
+    items:
+      - title: System Overview
+        path: /design/how-it-works-system-overview/
+      - title: The Widget System
+        path: /design/how-it-works-widget-system/
+      - title: Keeping Your Data Safe
+        path: /design/how-it-works-keeping-data-safe/
+      - title: Data Flow Walkthroughs
+        path: /design/how-it-works-data-flow-walkthroughs/
+  - section: How We Planned It
+    items:
+      - title: Our Process
+        path: /design/planning-our-process/
+      - title: Key Decisions
+        path: /design/planning-key-decisions/
+      - title: Risks
+        path: /design/planning-risks/
+      - title: The Roadmap
+        path: /design/planning-roadmap/
+  - section: Deliverables
+    items:
+      - title: Entity Relationship Diagram
+        path: /design/diagrams-erd/
+      - title: Class Diagrams
+        path: /design/diagrams-class/
+      - title: Activity Diagrams
+        path: /design/diagrams-activity/
+      - title: Presentation
+        path: /design/deliverable-presentation/
+  - section: The Team
+    items:
+      - title: Who We Are
+        path: /design/team/
+
 # Site-wide links surfaced in the nav.
 external_links:
-  - label: Design Wiki
-    url: "https://github.com/DriscollDev/Widgetry/wiki"
   - label: GitHub Repo
     url: "https://github.com/DriscollDev/Widgetry"
 
-# Team. Edit names here; they appear on the home page.
+# Team. Edit names here; they appear on the course home page.
 team:
   - name: Conor Driscoll
   - name: Idrees Abdurrazzak

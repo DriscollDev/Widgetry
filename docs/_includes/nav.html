@@ -6,10 +6,18 @@
     <span class="sr-only">Menu</span>
   </button>
   <ul id="nav-list" class="nav-list">
-    <li><a href="{{ '/' | relative_url }}"{% if page.url == '/' %} aria-current="page"{% endif %}>Home</a></li>
+    <li>
+      <a href="{{ '/' | relative_url }}"{% if page.wiki == 'active' %} aria-current="page"{% endif %}>Active</a>
+    </li>
     <li class="nav-group" aria-haspopup="true">
-      <span class="nav-group-label">Weeks</span>
+      <a class="nav-group-label" href="{{ '/course/' | relative_url }}"{% if page.wiki == 'course' %} aria-current="page"{% endif %}>Course</a>
       <ul class="nav-submenu">
+        <li>
+          <a href="{{ '/course/' | relative_url }}">
+            <span class="nav-week-num">⌂</span>
+            <span class="nav-week-title">Course Home</span>
+          </a>
+        </li>
         {% for w in site.weeks %}
           <li>
             <a href="{{ '/weeks/' | append: w.slug | append: '/' | relative_url }}">
@@ -17,6 +25,23 @@
               <span class="nav-week-title">{{ w.title }}</span>
             </a>
           </li>
+        {% endfor %}
+      </ul>
+    </li>
+    <li class="nav-group" aria-haspopup="true">
+      <a class="nav-group-label" href="{{ '/design/' | relative_url }}"{% if page.wiki == 'design' %} aria-current="page"{% endif %}>Design</a>
+      <ul class="nav-submenu">
+        {% for section in site.design_nav %}
+          <li class="nav-submenu-section">
+            <span class="nav-submenu-heading">{{ section.section }}</span>
+          </li>
+          {% for item in section.items %}
+            <li>
+              <a href="{{ item.path | relative_url }}">
+                <span class="nav-week-title">{{ item.title }}</span>
+              </a>
+            </li>
+          {% endfor %}
         {% endfor %}
       </ul>
     </li>

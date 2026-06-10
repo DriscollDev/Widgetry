@@ -1,0 +1,120 @@
+---
+title: Entity Relationship Diagram
+permalink: /design/diagrams-erd/
+---
+
+```mermaid
+erDiagram
+    %% =====================================================
+    %% Better-Auth tables - owned by Better-Auth
+    %% Do NOT hand-write migrations for these
+    %% =====================================================
+
+    users {
+        uuid id PK
+        text email UK
+        timestamptz email_verified_at "null = unverified"
+        text name
+        text image
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    accounts {
+        uuid id PK
+        uuid user_id FK
+        text provider_id "credentials | google"
+        text account_id "provider's user id"
+        text password "argon2id; credentials only"
+        text access_token
+        text refresh_token
+        text id_token
+        timestamptz access_token_expires_at
+        timestamptz refresh_token_expires_at
+        text scope
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    sessions {
+        uuid id PK
+        uuid user_id FK
+        text token UK
+        timestamptz expires_at "30-day sliding window"
+        text ip_address
+        text user_agent
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    verification_tokens {
+        uuid id PK
+        text identifier "usually email; no FK to users"
+        text value "token or hash"
+        timestamptz expires_at "1h for pw reset"
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    %% =====================================================
+    %% Application tables - owned by us
+    %% All FKs ON DELETE CASCADE; timestamptz everywhere
+    %% =====================================================
+
+    boards {
+        uuid id PK
+        uuid user_id FK
+        text name "1-64 chars"
+        text refresh_mode "auto | manual"
+        integer refresh_interval_seconds "null when manual"
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    widgets {
+        uuid id PK
+        uuid board_id FK
+        text widget_type "uptime|weather|stock|currency|datetime|clock|custom_json"
+        jsonb config "Zod-validated at write time"
+        integer grid_col "0-11"
+        integer grid_row ">= 0"
+        integer grid_width "1-6"
+        integer grid_height "1-6"
+        integer refresh_interval_seconds "server-polled; min 3600"
+        integer retention_hours "12-720; default 168"
+        timestamptz last_polled_at "read by master scheduler"
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    widget_snapshots {
+        bigserial id PK
+        uuid widget_id FK
+        timestamptz captured_at
+        jsonb value "typed payload per renderer"
+        jsonb error "null on success"
+    }
+
+    api_credentials {
+        uuid id PK
+        uuid widget_id FK "unique: 1 cred per widget"
+        bytea ciphertext "AES-256-GCM under DEK"
+        bytea encrypted_dek "DEK under MK"
+        bytea ciphertext_iv
+        bytea dek_iv
+        bytea ciphertext_auth_tag
+        bytea dek_auth_tag
+        timestamptz created_at
+    }
+
+    %% =====================================================
+    %% Relationships (all ON DELETE CASCADE)
+    %% =====================================================
+
+    users ||--o{ accounts             : "has"
+    users ||--o{ sessions             : "has"
+    users ||--o{ boards               : "owns"
+    boards ||--o{ widgets             : "contains"
+    widgets ||--o{ widget_snapshots   : "captures"
+    widgets ||--o| api_credentials    : "secured by"
+```
