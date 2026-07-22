@@ -1,0 +1,16 @@
+flowchart TD
+    Start([Start]) --> Submit[User submits sign-up form]
+    Submit --> Validate{Form validates?}
+    Validate -->|no| Errors[Show errors]:::err
+    Validate -->|yes| Create[Create user, hash password]
+    Create --> SendEmail[Send verification email]
+    SendEmail --> SignIn[Sign in, show verify banner]
+    SignIn --> Wait["User clicks email link<br/>(async - minutes to days)"]
+    Wait --> TokenValid{Token valid?}
+    TokenValid -->|no| Expired[Link expired]:::err
+    TokenValid -->|yes| Verify[Set email_verified_at]
+    Verify --> CreateBoard[User creates first board]
+    CreateBoard --> Persist[Empty board appears]:::ok
+
+    classDef ok fill:#EAF3DE,stroke:#3B6D11,color:#173404
+    classDef err fill:#FCEBEB,stroke:#A32D2D,color:#501313

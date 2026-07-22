@@ -1,0 +1,14 @@
+flowchart TD
+    Start([Start]) --> Drag[User drags or resizes widget]
+    Drag --> Snap[Snap to nearest grid cell]
+    Snap --> ClientCheck{"Would it overlap<br/>another widget?"}
+    ClientCheck -->|yes| SnapBack[Snap back, flash indicator]:::err
+    ClientCheck -->|no| Optimistic[Show new position immediately]
+    Optimistic --> Patch["Send change to server<br/>(after a brief pause)"]
+    Patch --> ServerCheck[Server re-checks for overlap]
+    ServerCheck --> Accept{Server accepts?}
+    Accept -->|no| Rollback[Revert to previous position]:::err
+    Accept -->|yes| Confirm[Save and confirm]:::ok
+
+    classDef ok fill:#EAF3DE,stroke:#3B6D11,color:#173404
+    classDef err fill:#FCEBEB,stroke:#A32D2D,color:#501313

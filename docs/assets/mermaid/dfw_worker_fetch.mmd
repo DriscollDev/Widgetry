@@ -1,0 +1,16 @@
+flowchart TD
+    Start([Start]) --> Tick[Scheduler wakes up - every 60 seconds]
+    Tick --> Query[Find widgets that are due to refresh]
+    Query --> Enqueue[Add a job for each one]
+    Enqueue --> Dequeue[Worker picks up a job]
+    Dequeue --> Load[Load configuration, decrypt any saved keys]
+    Load --> Fetch["Try to fetch the data<br/>(retry up to 3 times)"]
+    Fetch --> Success{Worked?}
+    Success -->|yes| WriteValue[Save the new value]:::ok
+    Success -->|no| WriteError[Save an error]:::err
+    WriteValue --> Update[Mark the widget as recently checked]
+    WriteError --> Update
+    Update --> End([End])
+
+    classDef ok fill:#EAF3DE,stroke:#3B6D11,color:#173404
+    classDef err fill:#FCEBEB,stroke:#A32D2D,color:#501313

@@ -1,0 +1,20 @@
+flowchart TB
+    Browser["Your browser"]
+
+    subgraph Ours["What we run"]
+        Web["Website<br/>(serves pages)"]
+        API["API<br/>(handles requests)"]
+        Worker["Worker<br/>(fetches data in background)"]
+        DB[("Database<br/>(stores everything)")]
+        Queue[("Job queue<br/>(scheduled work)")]
+    end
+
+    External["External data sources<br/>(weather, stocks, your URLs)"]
+
+    Browser -->|HTTPS| Web
+    Web --> API
+    API --> DB
+    API --> Queue
+    Worker --> Queue
+    Worker --> DB
+    Worker -->|fetches| External

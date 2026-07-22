@@ -9,28 +9,10 @@ This page explains how the system fits together at a high level. We've kept it f
 
 When you visit the site, your browser is talking to one of three programs we run. Each program has a focused job. They share a single database where everything is stored.
 
-```mermaid
-flowchart TB
-    Browser["Your browser"]
-
-    subgraph Ours["What we run"]
-        Web["Website<br/>(serves pages)"]
-        API["API<br/>(handles requests)"]
-        Worker["Worker<br/>(fetches data in background)"]
-        DB[("Database<br/>(stores everything)")]
-        Queue[("Job queue<br/>(scheduled work)")]
-    end
-
-    External["External data sources<br/>(weather, stocks, your URLs)"]
-
-    Browser -->|HTTPS| Web
-    Web --> API
-    API --> DB
-    API --> Queue
-    Worker --> Queue
-    Worker --> DB
-    Worker -->|fetches| External
-```
+<figure class="figure">
+  <img src="{{ '/assets/img/design/system-overview.svg' | relative_url }}" alt="System overview: browser talking to website, API, worker, database, and job queue">
+  <figcaption>How the pieces fit together.</figcaption>
+</figure>
 
 ## What each piece does
 

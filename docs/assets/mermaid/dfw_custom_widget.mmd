@@ -1,0 +1,32 @@
+flowchart TD
+    Start([Start]) --> Dequeue[Worker picks up custom widget job]
+    Dequeue --> Load[Load configuration, decrypt key if any]
+    Load --> Scheme{Is this a normal web URL?}
+    Scheme -->|no| BadScheme[Reject: unsupported]:::err
+    Scheme -->|yes| Resolve[Look up actual address]
+    Resolve --> Public{"Is the address<br/>safely public?"}
+    Public -->|no| Blocked[Reject: private address]:::err
+    Public -->|yes| Pin["Connect to the address we just verified<br/>(prevents bait-and-switch)"]
+    Pin --> Fetch["Fetch - with strict limits<br/>(5 second timeout, 256 KB max)"]
+    Fetch --> FetchOk{Did it work?}
+    FetchOk -->|no| NetErr[Network or HTTP error]:::err
+    FetchOk -->|yes| Parse[Try to parse the response]
+    Parse --> ParseOk{Is it valid?}
+    ParseOk -->|no| BadJson[Invalid response]:::err
+    ParseOk -->|yes| Apply[Look up the requested value]
+    Apply --> PathOk{Did we find it?}
+    PathOk -->|no| PathMiss[Path not found]:::err
+    PathOk -->|yes| WriteValue[Save the value]:::ok
+
+    BadScheme --> WriteError[Save an error]
+    Blocked --> WriteError
+    NetErr --> WriteError
+    BadJson --> WriteError
+    PathMiss --> WriteError
+
+    WriteValue --> Update[Mark widget as recently checked]
+    WriteError --> Update
+    Update --> End([End])
+
+    classDef ok fill:#EAF3DE,stroke:#3B6D11,color:#173404
+    classDef err fill:#FCEBEB,stroke:#A32D2D,color:#501313
