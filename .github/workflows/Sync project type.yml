@@ -63,7 +63,7 @@ jobs:
             const labelToType = {
               'type:epic':    'Epic',
               'type:feature': 'Feature',
-              'type:story':   'Story',
+              'type:story':   'User Story',
               'type:task':    'Task',
               'type:bug':     'Bug',
               'type:spike':   'Spike',
