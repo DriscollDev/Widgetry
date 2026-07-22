@@ -153,16 +153,6 @@ design_nav:
         path: /design/planning-risks/
       - title: The Roadmap
         path: /design/planning-roadmap/
-  - section: Deliverables
-    items:
-      - title: Entity Relationship Diagram
-        path: /design/diagrams-erd/
-      - title: Class Diagrams
-        path: /design/diagrams-class/
-      - title: Activity Diagrams
-        path: /design/diagrams-activity/
-      - title: Presentation
-        path: /design/deliverable-presentation/
   - section: The Team
     items:
       - title: Who We Are
