@@ -12,6 +12,8 @@ build/
 # Environment
 .env
 
+#Wiki
+docs/
 
 # Logs
 *.log
