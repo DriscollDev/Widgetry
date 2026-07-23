@@ -1,4 +1,4 @@
-# Branch Protection — `main`
+# Branch Protection - `main`
 
 Source of truth: Engineering Doc §17.1 and §17.4.
 
@@ -21,7 +21,7 @@ GitHub Repository Rulesets supports JSON import. Faster and version-controlled.
 
 To edit the rules later, edit `branch-ruleset.json`, delete the old ruleset
 in the UI, and re-import. (GitHub does not currently support editing a
-ruleset by re-importing JSON — it's a delete-and-recreate workflow.)
+ruleset by re-importing JSON - it's a delete-and-recreate workflow.)
 
 ## Apply manually (if you prefer the UI)
 
@@ -33,8 +33,8 @@ Branch name pattern: `main`
 
 | Setting                                                       | Value | Why                                                                                          |
 | ------------------------------------------------------------- | ----- | -------------------------------------------------------------------------------------------- |
-| Require a pull request before merging                         | ✅    | §17.1 — `main` is protected.                                                                  |
-| Required approvals                                            | **1** | §17.1 — explicitly 1, not 2; rationale recorded there.                                       |
+| Require a pull request before merging                         | ✅    | §17.1 - `main` is protected.                                                                  |
+| Required approvals                                            | **1** | §17.1 - explicitly 1, not 2; rationale recorded there.                                       |
 | Dismiss stale pull request approvals when new commits pushed  | ✅    | Forces a fresh look after rebases or post-review fixes.                                      |
 | Require review from Code Owners                               | ❌ for now → ✅ after team meeting | CODEOWNERS uses placeholder usernames. Flip on once `Owner 1/2/3` is replaced with real GitHub handles. |
 | Require approval of the most recent reviewable push           | ✅    | Closes the "approve, then push more, then merge" loophole.                                   |
@@ -75,7 +75,7 @@ protection, but they belong with this config.
 | Allow squash merging                          | ✅    | Default merge method. Squash-merge title format: **Pull request title and description**.                |
 | Allow rebase merging                          | ✅    | Useful when a PR's commits are individually meaningful (e.g., a careful refactor series).               |
 | Always suggest updating pull request branches | ✅    | Nudges you to rebase before merging.                                                                    |
-| Allow auto-merge                              | ✅    | Lets you queue a merge to fire as soon as CI passes — useful for the long integration-test job.        |
+| Allow auto-merge                              | ✅    | Lets you queue a merge to fire as soon as CI passes - useful for the long integration-test job.        |
 | Automatically delete head branches            | ✅    | Keeps the branch list clean post-merge.                                                                 |
 
 ## Branch naming (not enforced by GitHub, by convention only)
@@ -90,16 +90,16 @@ to `ci.yml` because the convention is currently low-stakes for a 3-person team.
 
 ## What happens when
 
-- **You open a PR to `main`** — required CI checks run. Merge button greyed
+- **You open a PR to `main`** - required CI checks run. Merge button greyed
   out until both jobs pass and you have one approval.
-- **A reviewer leaves "request changes"** — merge blocked until they
+- **A reviewer leaves "request changes"** - merge blocked until they
   re-review, or until another reviewer approves and the dismissal happens.
-- **You push more commits after approval** — the approval is dismissed.
+- **You push more commits after approval** - the approval is dismissed.
   Reviewer must re-approve. (This is the "dismiss stale" + "approve most
   recent push" combo doing its job.)
-- **CI passes but the branch is behind `main`** — merge blocked until you
+- **CI passes but the branch is behind `main`** - merge blocked until you
   rebase. The "update branch" button in the PR UI does this for you.
-- **Someone wants to push directly to `main`** — rejected. There is no
+- **Someone wants to push directly to `main`** - rejected. There is no
   emergency bypass; if `main` is broken, the path forward is a hotfix PR.
 
 ## Adjustments expected over the project's lifetime
