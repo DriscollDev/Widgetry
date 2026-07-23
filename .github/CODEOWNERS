@@ -1,36 +1,36 @@
-# CODEOWNERS for Dashforge
+# CODEOWNERS for Widgetry
 # Source of truth: Engineering Doc §19.6.
 #
 # Format: <path glob> <space-separated owners>
 # Last match wins. Order matters.
 
 # ----------------------------------------------------------------------
-# Default owners — every PR pulls in at least one of these as a reviewer
+# Default owners - every PR pulls in at least one of these as a reviewer
 # until a more specific rule below matches.
 # ----------------------------------------------------------------------
 *                               @DriscollDev @AdrianCzerwonka1 @IdreesAbdur
 
 # ----------------------------------------------------------------------
 # Auth (Better-Auth integration, sessions, OAuth, email verification, password reset)
-# Primary: Conor — Secondary: 
+# Primary: Conor - Secondary: 
 # ----------------------------------------------------------------------
 /apps/api/src/auth/**           @DriscollDev
 
 # ----------------------------------------------------------------------
 # Grid layout (drag/resize, collision, persistence, library spike)
-# Primary:  — Secondary: 
+# Primary:  - Secondary: 
 # ----------------------------------------------------------------------
 /apps/web/src/lib/grid/**       @DriscollDev @AdrianCzerwonka1 @IdreesAbdur
 
 # ----------------------------------------------------------------------
 # Worker / scheduler (BullMQ, master scheduler, snapshot writes, retention purge)
-# Primary: Conor — Secondary: 
+# Primary: Conor - Secondary: 
 # ----------------------------------------------------------------------
 /apps/worker/**                 @DriscollDev
 
 # ----------------------------------------------------------------------
-# Custom JSON widget — INCLUDING SSRF protection (§11.3)
-# Primary:  — Secondary: 
+# Custom JSON widget - INCLUDING SSRF protection (§11.3)
+# Primary:  - Secondary: 
 # This is one of the two highest-risk security paths. Code review here
 # should be strict; do not skim.
 # ----------------------------------------------------------------------
@@ -39,7 +39,7 @@
 
 # ----------------------------------------------------------------------
 # Envelope encryption (key handling, DB columns, fetcher integration)
-# Primary: Conor — Secondary: 
+# Primary: Conor - Secondary: 
 # This is the other highest-risk security path. By design, the primaries
 # and secondaries on the two security paths do not overlap, so a
 # four-eyes review across the security surface is structurally guaranteed.
@@ -50,13 +50,13 @@
 
 # ----------------------------------------------------------------------
 # Frontend widget rendering (renderer registry, config form generator, board view)
-# Primary:  — Secondary: 
+# Primary:  - Secondary: 
 # Not on the critical path per §19.6, but high-volume.
 # ----------------------------------------------------------------------
 /apps/web/src/lib/widgets/**    @DriscollDev @AdrianCzerwonka1 @IdreesAbdur
 
 # ----------------------------------------------------------------------
-# Cross-cutting — anyone can review.
+# Cross-cutting - anyone can review.
 # ----------------------------------------------------------------------
 /.github/**                     @DriscollDev @AdrianCzerwonka1 @IdreesAbdur
 /packages/shared/src/api/**     @DriscollDev @AdrianCzerwonka1 @IdreesAbdur

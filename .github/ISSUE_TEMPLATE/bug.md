@@ -23,9 +23,9 @@ labels: ["type:bug"]
 - Spec section affected (if applicable):
 
 ## Severity
-- [ ] **Blocker** — can't ship / breaks demo
-- [ ] **Major** — significant impact, workaround exists
-- [ ] **Minor** — cosmetic or low-impact
+- [ ] **Blocker** - can't ship / breaks demo
+- [ ] **Major** - significant impact, workaround exists
+- [ ] **Minor** - cosmetic or low-impact
 
 ## Estimate
 <!-- Story points (Fibonacci) for the fix. Bugs are pointed like small Stories. -->

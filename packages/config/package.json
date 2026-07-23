@@ -1,5 +1,5 @@
 {
-  "name": "@dashforge/config",
+  "name": "@widgetry/config",
   "version": "0.1.0",
   "private": true,
   "type": "module",

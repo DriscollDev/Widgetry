@@ -1,0 +1,17 @@
+/* Widgetry global stylesheet.
+ * Tailwind v4 + Skeleton UI v3 (Eng Doc §3 locked stack).
+ * Theme selection lives on <html data-theme="..."> in app.html. */
+
+@import 'tailwindcss';
+
+@import '@skeletonlabs/skeleton';
+@import '@skeletonlabs/skeleton/optional/presets';
+@import '@skeletonlabs/skeleton/themes/cerberus';
+
+/* Let Tailwind see the class names used inside Skeleton's Svelte components. */
+@source '../node_modules/@skeletonlabs/skeleton-svelte/dist';
+
+html,
+body {
+  height: 100%;
+}

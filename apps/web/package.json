@@ -1,15 +1,33 @@
 {
-  "name": "@dashforge/web",
+  "name": "@widgetry/web",
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Dashforge web frontend (SvelteKit + Skeleton UI). STUB.",
+  "description": "Widgetry web frontend (SvelteKit + Skeleton UI v3).",
   "scripts": {
-    "dev": "echo '[web] dev not wired up yet — replace with svelte-kit dev in Sprint 1' && exit 0",
-    "build": "tsc -p tsconfig.json",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "echo '[web] no tests yet' && exit 0",
-    "test:unit": "echo '[web] no unit tests yet' && exit 0",
+    "dev": "vite dev",
+    "build": "vite build",
+    "preview": "vite preview",
+    "start": "node build/index.js",
+    "prepare": "svelte-kit sync",
+    "typecheck": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
+    "test": "vitest run",
+    "test:unit": "vitest run",
     "test:integration": "echo '[web] no integration tests yet' && exit 0"
+  },
+  "devDependencies": {
+    "@sveltejs/adapter-node": "^5",
+    "@sveltejs/kit": "^2",
+    "@sveltejs/vite-plugin-svelte": "^5",
+    "@tailwindcss/vite": "^4",
+    "svelte": "^5",
+    "svelte-check": "^4",
+    "tailwindcss": "^4",
+    "vite": "^6",
+    "vitest": "^3"
+  },
+  "dependencies": {
+    "@skeletonlabs/skeleton": "^3.2.2",
+    "@skeletonlabs/skeleton-svelte": "^1.5.3"
   }
 }
