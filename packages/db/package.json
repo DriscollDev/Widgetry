@@ -23,6 +23,7 @@
     "ioredis": "^5"
   },
   "devDependencies": {
+    "@types/node": "^20",
     "@types/pg": "^8",
     "drizzle-kit": "^0.31.10",
     "tsx": "^4"
