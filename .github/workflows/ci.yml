@@ -69,37 +69,22 @@ jobs:
     timeout-minutes: 20
     needs: static-and-unit
 
-    services:
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: widgetry_test
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-
-      redis:
-        image: redis:7
-        ports:
-          - 6379:6379
-        options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
+    # All integration runs share one remote ci-test database (Eng Doc §14.1).
+    # Queue runs rather than let them collide; never cancel mid-run - an
+    # interrupted truncate/migrate poisons the database for the next run.
+    concurrency:
+      group: integration-tests
+      cancel-in-progress: false
 
     env:
-      DATABASE_URL: postgres://postgres:postgres@localhost:5432/widgetry_test
-      DIRECT_DATABASE_URL: postgres://postgres:postgres@localhost:5432/widgetry_test
-      REDIS_URL: redis://localhost:6379
+      # ci-test Postgres public proxy URL, path pointing at widgetry_ci_test.
+      # Pooled and direct are the same connection in CI (no pooler on the
+      # proxy path), so both vars use the same secret.
+      DATABASE_URL: ${{ secrets.TEST_DATABASE_URL }}
+      DIRECT_DATABASE_URL: ${{ secrets.TEST_DATABASE_URL }}
+      REDIS_URL: ${{ secrets.TEST_REDIS_URL }}
       NODE_ENV: test
-      # Throwaway test key - never reuse outside CI.
+      # Throwaway test keys - never reuse outside CI.
       MASTER_ENCRYPTION_KEY: dGVzdC1tYXN0ZXIta2V5LTMyYnl0ZXMtZG8tbm90LXVzZQ==
       BETTER_AUTH_SECRET: ci-test-secret-do-not-use-in-prod
 
@@ -121,10 +106,16 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # Guarded reset (Eng Doc §13.2): truncates all application tables and
+      # flushes the ci-test Redis. Refuses to run unless the database name
+      # ends in `_ci_test`, so a mis-set secret cannot wipe dev or production.
+      # Safe on an empty database (no tables → nothing to truncate).
+      - name: Reset ci-test database
+        run: pnpm --filter @widgetry/db reset
+
       # Migrations don't exist yet (Sprint 1 deliverable). Once `packages/db`
-      # ships a real schema, uncomment the next step so the integration suite
-      # runs against a fully-migrated database. Until then, stub package
-      # scripts make this a no-op.
+      # ships a real schema, uncomment so the suite runs against a fully-
+      # migrated database. Until then, stub package scripts make this a no-op.
       #
       # - name: Run migrations
       #   run: pnpm --filter @widgetry/db migrate

@@ -3,14 +3,24 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Widgetry HTTP API (Fastify + Better-Auth + Drizzle). STUB.",
+  "description": "Widgetry HTTP API (Fastify + Better-Auth + Drizzle).",
   "main": "dist/server.js",
   "scripts": {
     "dev": "echo '[api] dev not wired up yet - replace with tsx watch in Sprint 1' && exit 0",
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
+    "auth:generate": "auth generate --config src/auth.ts --output ../../packages/db/src/schema/auth.ts -y",
     "test": "echo '[api] no tests yet' && exit 0",
     "test:unit": "echo '[api] no unit tests yet' && exit 0",
     "test:integration": "echo '[api] no integration tests yet' && exit 0"
+  },
+  "dependencies": {
+    "@widgetry/db": "workspace:*",
+    "@node-rs/argon2": "^2.0.2",
+    "better-auth": "^1.6.25"
+  },
+  "devDependencies": {
+    "auth": "^1.6.25",
+    "tsx": "^4"
   }
 }

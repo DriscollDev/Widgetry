@@ -3,16 +3,28 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Widgetry data layer: Drizzle schema, migrations, client factory. STUB.",
+  "description": "Widgetry data layer: Drizzle schema, migrations, client factory.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "migrate": "echo '[db] no migrations yet - Sprint 1 Drizzle schema' && exit 0",
+    "generate": "drizzle-kit generate",
+    "migrate": "drizzle-kit migrate",
     "seed": "echo '[db] no seed yet - see Engineering Doc §13.3' && exit 0",
     "test": "echo '[db] no tests yet' && exit 0",
     "test:unit": "echo '[db] no unit tests yet' && exit 0",
-    "test:integration": "echo '[db] no integration tests yet' && exit 0"
+    "test:integration": "echo '[db] no integration tests yet' && exit 0",
+    "reset": "tsx src/reset.ts"
+  },
+  "dependencies": {
+    "drizzle-orm": "^0.45.2",
+    "pg": "^8",
+    "ioredis": "^5"
+  },
+  "devDependencies": {
+    "@types/pg": "^8",
+    "drizzle-kit": "^0.31.10",
+    "tsx": "^4"
   }
 }
