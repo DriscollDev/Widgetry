@@ -12,5 +12,8 @@
     "test": "echo '[worker] no tests yet' && exit 0",
     "test:unit": "echo '[worker] no unit tests yet' && exit 0",
     "test:integration": "echo '[worker] no integration tests yet' && exit 0"
+  },
+  "devDependencies": {
+    "@types/node": "^20"
   }
 }

@@ -10,7 +10,8 @@
   "scripts": {
     "dev": "pnpm -r --parallel dev",
     "build": "pnpm -r build",
-    "typecheck": "pnpm -r typecheck",
+    "build:packages": "pnpm -r --filter \"./packages/**\" build",
+    "typecheck": "pnpm build:packages && pnpm -r typecheck",
     "lint": "eslint . && prettier --check .",
     "lint:fix": "eslint . --fix && prettier --write .",
     "format": "prettier --write .",
