@@ -1,7 +1,7 @@
 # @widgetry/api
 
 Fastify HTTP API. Behind a SvelteKit proxy  the browser never talks to this
-service directly (Engineering Doc §2.3).
+service directly.
 
 ```bash
 pnpm --filter @widgetry/api dev          # tsx watch, listens on PORT (default 3000)
@@ -17,7 +17,7 @@ pnpm --filter @widgetry/api test:integration  # needs TEST_DATABASE_URL (ci-test
 | \*      | `/v1/auth/*`    | Varies | Better-Auth: sign-up, sign-in, sign-out, get-session, verify-email, password reset |
 
 Everything else under `/v1/` is rejected with `401 unauthenticated` by the
-session hook before routing (EX-13). The public allowlist lives in
+session hook before routing. The public allowlist lives in
 `src/plugins/auth.ts`  adding to it needs review.
 
 ## Env
@@ -70,16 +70,16 @@ Failures from `/v1/auth/*` use Better-Auth's own body shape
 §6.1  that envelope covers everything this service routes itself. Worth
 knowing when writing the error-display component.
 
-## Auth policy, and where it is pinned
+## Auth policy
 
 `src/auth.ts` sets policy the feature spec states in prose; `test/unit/auth-config.test.ts`
 asserts each one so a Better-Auth default can't quietly replace it (its own
 defaults are 8-character passwords and 7-day sessions).
 
-- FR-1.4  sessions expire after 30 days of inactivity (`expiresIn` + `updateAge`)
-- FR-1.5  passwords must be ≥12 characters and not in the breach corpus
-- FR-1.7  unverified accounts *can* sign in; the web side shows a banner (EX-16)
-- Eng §11.5  argon2id at 19 MiB / t=2 / p=1, asserted against the encoded hash
+- sessions expire after 30 days of inactivity (`expiresIn` + `updateAge`)
+- passwords must be ≥12 characters and not in the breach corpus
+- unverified accounts *can* sign in; the web side shows a banner (EX-16)
+- argon2id at 19 MiB / t=2 / p=1, asserted against the encoded hash
   string in `test/unit/password.test.ts`, not against our own constants
 
 ### Breached-password check
@@ -95,7 +95,7 @@ Tests set it to `false` so CI never depends on an external host.
 
 ## Still outstanding
 
-- **EX-15**: `sendVerificationEmail` / `sendResetPassword` log the link to stdout
+- `sendVerificationEmail` / `sendResetPassword` log the link to stdout
   instead of sending it through Resend. Must not ship.
 - Per-user 120/min default rate limit (§6.4)  nothing to apply it to until the
   board/widget routes exist.

@@ -18,13 +18,35 @@ import { eq } from 'drizzle-orm';
 import { createDb, schema } from '@widgetry/db';
 import type { FastifyInstance } from 'fastify';
 
-const hasTestDb = Boolean(process.env.TEST_DATABASE_URL);
-const describeIntegration = hasTestDb ? describe : describe.skip;
+/**
+ * Gate on the *resolved* database name, not on which variable happened to be
+ * set. CI (`.github/workflows/ci.yml`) supplies the ci-test connection as
+ * DATABASE_URL rather than TEST_DATABASE_URL, so keying off the latter made
+ * this whole file skip silently in the one place it most needs to run.
+ *
+ * The `_ci_test` suffix is the same guard packages/db/src/reset.ts uses, and it
+ * carries the same intent: these tests create and delete users, so they must
+ * never be pointed at the shared `dev` database by accident.
+ */
+function ciTestDatabaseName(): string | null {
+  const url = process.env.DATABASE_URL;
+  if (!url) return null;
+  try {
+    const name = decodeURIComponent(new URL(url).pathname.replace(/^\//, ''));
+    return name.endsWith('_ci_test') ? name : null;
+  } catch {
+    return null;
+  }
+}
 
-if (!hasTestDb) {
+const targetDb = ciTestDatabaseName();
+const describeIntegration = targetDb ? describe : describe.skip;
+
+if (!targetDb) {
   console.warn(
-    '[integration] TEST_DATABASE_URL is not set - skipping. These tests only ' +
-      'run against the ci-test database (Eng §13.2).',
+    '[integration] skipping: DATABASE_URL does not point at a database whose ' +
+      'name ends in "_ci_test". Set TEST_DATABASE_URL to the ci-test ' +
+      'connection to run these locally (Eng §13.2).',
   );
 }
 
