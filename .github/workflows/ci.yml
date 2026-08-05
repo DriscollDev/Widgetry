@@ -106,6 +106,14 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # @widgetry/db and @widgetry/shared resolve through "main": "dist/...",
+      # so the workspace packages must be compiled before anything imports
+      # them. This job is a separate runner from static-and-unit and inherits
+      # none of its build output. (static-and-unit gets this for free because
+      # `pnpm typecheck` runs `build:packages` first.)
+      - name: Build workspace packages
+        run: pnpm build:packages
+
       # Guarded reset (Eng Doc §13.2): truncates all application tables and
       # flushes the ci-test Redis. Refuses to run unless the database name
       # ends in `_ci_test`, so a mis-set secret cannot wipe dev or production.
