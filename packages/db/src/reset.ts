@@ -13,6 +13,12 @@
 
 import { Client } from 'pg';
 import { Redis } from 'ioredis';
+import { loadRootEnv } from './load-env.js';
+
+// Populate DATABASE_URL/REDIS_URL from the repo-root .env when not already set.
+// The _ci_test suffix guard below still applies, so a locally-loaded dev URL is
+// refused rather than reset.
+loadRootEnv();
 
 const REQUIRED_DB_SUFFIX = '_ci_test';
 

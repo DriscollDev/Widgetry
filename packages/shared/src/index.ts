@@ -1,5 +1,9 @@
-// Placeholder. Sprint 1+ adds:
-//   src/api/        Zod request/response schemas (boards, widgets, auth)
-//   src/widgets/    Per-widget-type config schemas + WidgetTypeDef registry
-//                   (Engineering Doc §7.1)
-export const placeholder = 'shared';
+// Public surface of @widgetry/shared.
+//
+// Contracts here are imported by BOTH apps/web and apps/api so a request shape
+// can never drift between the two (Eng §6.3). Still to come:
+//   src/api/       boards, widgets, snapshots, credentials contracts
+//   src/widgets/   per-widget-type config schemas + WidgetTypeDef registry (§7.1)
+
+export * from './api/errors.js';
+export * from './api/health.js';
