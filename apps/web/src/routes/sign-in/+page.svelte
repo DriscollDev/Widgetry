@@ -109,42 +109,14 @@
         Sign in
       </button>
 
-      <p class="text-center text-xs text-neutral-500">or continue with</p>
+      <div class="hidden space-y-3">
+        <p class="text-center text-xs text-neutral-500">or continue with</p>
 
-      <div class="grid grid-cols-2 gap-3">
         <button
           type="button"
-          class="flex items-center justify-center gap-2 rounded-lg border border-neutral-700 bg-neutral-800/60 py-2 text-sm text-neutral-200 hover:bg-neutral-800"
+          class="w-full rounded-lg border border-neutral-700 bg-neutral-800/60 py-2 text-sm text-neutral-200 hover:bg-neutral-800"
         >
-          <svg
-            viewBox="0 0 24 24"
-            class="h-4 w-4"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.5"
-          >
-            <circle cx="12" cy="12" r="9" />
-            <path d="M12 7v5l3 2" />
-          </svg>
           Google
-        </button>
-        <button
-          type="button"
-          class="flex items-center justify-center gap-2 rounded-lg border border-neutral-700 bg-neutral-800/60 py-2 text-sm text-neutral-200 hover:bg-neutral-800"
-        >
-          <svg
-            viewBox="0 0 24 24"
-            class="h-4 w-4"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.5"
-          >
-            <rect x="3" y="3" width="7" height="7" rx="1" />
-            <rect x="14" y="3" width="7" height="7" rx="1" />
-            <rect x="3" y="14" width="7" height="7" rx="1" />
-            <rect x="14" y="14" width="7" height="7" rx="1" />
-          </svg>
-          Discord
         </button>
       </div>
     </form>
