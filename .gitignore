@@ -1,6 +1,8 @@
 # Dependencies
 node_modules/
 .pnpm-store/
+# This repo is pnpm-only (see packageManager in package.json) - never commit npm's lockfile.
+package-lock.json
 
 # Build outputs
 dist/
