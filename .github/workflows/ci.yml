@@ -106,6 +106,14 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # @widgetry/db and @widgetry/shared resolve through "main": "dist/...",
+      # so the workspace packages must be compiled before anything imports
+      # them. This job is a separate runner from static-and-unit and inherits
+      # none of its build output. (static-and-unit gets this for free because
+      # `pnpm typecheck` runs `build:packages` first.)
+      - name: Build workspace packages
+        run: pnpm build:packages
+
       # Guarded reset (Eng Doc §13.2): truncates all application tables and
       # flushes the ci-test Redis. Refuses to run unless the database name
       # ends in `_ci_test`, so a mis-set secret cannot wipe dev or production.
@@ -113,12 +121,11 @@ jobs:
       - name: Reset ci-test database
         run: pnpm --filter @widgetry/db reset
 
-      # Migrations don't exist yet (Sprint 1 deliverable). Once `packages/db`
-      # ships a real schema, uncomment so the suite runs against a fully-
-      # migrated database. Until then, stub package scripts make this a no-op.
-      #
-      # - name: Run migrations
-      #   run: pnpm --filter @widgetry/db migrate
+      # The reset step above drops the public + drizzle schemas, so this is not
+      # optional: without it the suite runs against an empty database. Enabled
+      # now that packages/db/drizzle/0000_init.sql exists.
+      - name: Run migrations
+        run: pnpm --filter @widgetry/db migrate
 
       - name: Integration tests
         run: pnpm test:integration
