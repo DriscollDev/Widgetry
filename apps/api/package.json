@@ -25,6 +25,7 @@
     "fastify": "^5.11.2",
     "fastify-plugin": "^6.0.0",
     "ioredis": "^5",
+    "resend": "^6.19.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {

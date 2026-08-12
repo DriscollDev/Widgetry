@@ -29,6 +29,8 @@ Beyond what `.env.example` already documents, this service reads:
 | `HOST` / `PORT`         | No       | Default `0.0.0.0` / `3000`. Must agree with `API_ORIGIN`.           |
 | `BETTER_AUTH_SECRET`    | **Yes**  | ≥32 characters; the process refuses to start otherwise.             |
 | `PASSWORD_BREACH_CHECK` | No       | Default `true`. See "Breached-password check" below.                |
+| `RESEND_API_KEY`        | In prod  | EX-15. Unset in dev: auth emails are logged, link included, instead of sent. The process refuses to start without it when `NODE_ENV=production`. |
+| `EMAIL_FROM`            | No       | Sender for auth emails. Default `Widgetry <onboarding@resend.dev>` (Resend's sandbox sender, pending a verified domain). |
 
 There is **no** `BETTER_AUTH_URL`. Better-Auth's `baseURL` is `APP_ORIGIN`,
 because every auth URL a user actually clicks (verification links, OAuth
@@ -65,6 +67,49 @@ POST /v1/auth/sign-out        {}                         -> 200
 GET  /v1/auth/get-session                                -> 200 { session, user } | null
 ```
 
+### Email verification (F2.3, SCR-AUTH-05)
+
+```
+POST /v1/auth/send-verification-email  { email, callbackURL? }  -> 200 { status: true }
+GET  /v1/auth/verify-email?token=..&callbackURL=..              -> 302 to callbackURL
+```
+
+Sign-up sends the first verification email by itself. The emailed link points at
+`GET /v1/auth/verify-email` - clicking it *is* the verification, so the link
+lands on this service (through the proxy) and then 302s to `callbackURL`.
+
+- **Pass `callbackURL` on sign-up and on any resend.** It defaults to `/`; pass
+  the screen you want the user to land on (`/boards` per SCR-AUTH-05).
+- On a bad or expired token the 302 carries `?error=INVALID_TOKEN` /
+  `?error=TOKEN_EXPIRED` on that same `callbackURL` - that is the
+  invalid-token state to render.
+- Verifying signs the user in (`autoSignInAfterVerification`), so the redirect
+  arrives with a session cookie. Already-verified tokens succeed the same way.
+- Tokens last 1 hour. Resends are capped at 5/min per IP like every other
+  auth endpoint.
+
+### Password reset (F2.4, SCR-AUTH-03 / SCR-AUTH-04)
+
+```
+POST /v1/auth/request-password-reset  { email }               -> 200 { status: true, message }
+POST /v1/auth/reset-password          { token, newPassword }  -> 200 { status: true }
+```
+
+- `request-password-reset` (**not** `/forget-password`, which 404s on the
+  current Better-Auth) always answers 200 with the same body, whether the
+  address is unknown, unverified, or fine. Render the ambiguous
+  acknowledgment from SCR-AUTH-03 and nothing else.
+- The emailed link is `APP_ORIGIN/reset-password?token=…` - a **web** route, so
+  SCR-AUTH-04 needs to exist at that path and read `token` from the query.
+- `reset-password` returns 400 for a token that is unknown, already used, or
+  older than an hour, and for a `newPassword` under 12 characters or in the
+  breach corpus. All four are the same status; the body's `code` distinguishes
+  them.
+- FR-1.7: an unverified account never receives the email. The api will not tell
+  the client that - see the acknowledgment note above.
+- A successful reset revokes the user's other sessions, so any other device is
+  signed out.
+
 Failures from `/v1/auth/*` use Better-Auth's own body shape
 (`{ message, code }`), **not** the `{ error: { code, message } }` envelope from
 §6.1  that envelope covers everything this service routes itself. Worth
@@ -79,6 +124,11 @@ defaults are 8-character passwords and 7-day sessions).
 - sessions expire after 30 days of inactivity (`expiresIn` + `updateAge`)
 - passwords must be ≥12 characters and not in the breach corpus
 - unverified accounts *can* sign in; the web side shows a banner (EX-16)
+- verification and password-reset tokens both last exactly 1 hour, pinned
+  rather than inherited from Better-Auth's defaults
+- unverified accounts are not eligible for password reset (FR-1.7): the token
+  is minted but the email is never sent, and the response is unchanged
+- a completed reset revokes the user's other sessions
 - argon2id at 19 MiB / t=2 / p=1, asserted against the encoded hash
   string in `test/unit/password.test.ts`, not against our own constants
 
@@ -95,8 +145,9 @@ Tests set it to `false` so CI never depends on an external host.
 
 ## Still outstanding
 
-- `sendVerificationEmail` / `sendResetPassword` log the link to stdout
-  instead of sending it through Resend. Must not ship.
+- Resend still sends from `onboarding@resend.dev`. Delivery to arbitrary
+  inboxes needs a team-owned verified domain (§3.2); until then only the
+  team's own addresses reliably receive mail.
 - Per-user 120/min default rate limit (§6.4)  nothing to apply it to until the
   board/widget routes exist.
 - `packages/config` is still a stub; `src/env.ts` should move there once the
