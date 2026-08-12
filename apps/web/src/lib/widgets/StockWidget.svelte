@@ -1,0 +1,59 @@
+<script lang="ts">
+  import { buildSparklinePath } from './sparkline';
+
+  type Props = {
+    symbol: string;
+    name?: string;
+    price: number;
+    changePct: number;
+    points: number[];
+  };
+
+  let { symbol, name, price, changePct, points }: Props = $props();
+
+  const width = 100;
+  const height = 32;
+
+  let path = $derived(buildSparklinePath(points, width, height));
+  let isUp = $derived(changePct >= 0);
+</script>
+
+<div class="flex flex-col gap-2 rounded-xl border border-surface-200-800 bg-surface-50-950 p-4">
+  <div class="flex items-baseline justify-between">
+    <div>
+      <p class="text-sm font-semibold text-surface-950-50">{symbol}</p>
+      {#if name}
+        <p class="text-xs text-surface-600-400">{name}</p>
+      {/if}
+    </div>
+    <span
+      class="flex items-center gap-1 rounded px-2 py-0.5 text-xs {isUp
+        ? 'preset-filled-success-500'
+        : 'preset-filled-error-500'}"
+    >
+      {#if isUp}
+        <svg viewBox="0 0 10 10" class="h-2.5 w-2.5" fill="currentColor">
+          <path d="M5 1l4 6H1z" />
+        </svg>
+      {:else}
+        <svg viewBox="0 0 10 10" class="h-2.5 w-2.5" fill="currentColor">
+          <path d="M5 9L1 3h8z" />
+        </svg>
+      {/if}
+      {Math.abs(changePct).toFixed(2)}%
+    </span>
+  </div>
+
+  <p class="font-mono text-2xl font-semibold text-surface-950-50">${price.toLocaleString()}</p>
+
+  <svg viewBox="0 0 {width} {height}" preserveAspectRatio="none" class="h-8 w-full">
+    <path
+      d={path}
+      fill="none"
+      class={isUp ? 'stroke-success-500' : 'stroke-error-500'}
+      stroke-width="2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    />
+  </svg>
+</div>
