@@ -3,6 +3,7 @@
 
 // can only be one of two exact strings.
 export type BoardRefreshMode = 'auto' | 'manual';
+export type BoardViewState = 'loading' | 'empty' | 'populated' | 'error';
 
 //This defines the shape of a widget entry. Exist to see if the entry matches the shape
 export type BoardWidgetSummary = {
@@ -41,4 +42,22 @@ export const populatedBoardFixture: BoardViewFixture = {
     { id: 'w3', widgetType: 'clock' },
     { id: 'w4', widgetType: 'custom_json' },
   ],
+};
+
+// Loading/error states still show a board object (name, etc.) but the
+// component ignores widgets and renders a skeleton/error instead.
+export const loadingBoardFixture: BoardViewFixture = {
+  id: 'fixture-loading',
+  name: 'Loading Board',
+  refreshMode: 'manual',
+  refreshIntervalSeconds: null,
+  widgets: [],
+};
+
+export const errorBoardFixture: BoardViewFixture = {
+  id: 'fixture-error',
+  name: 'Error Board',
+  refreshMode: 'manual',
+  refreshIntervalSeconds: null,
+  widgets: [],
 };
