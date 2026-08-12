@@ -43,6 +43,22 @@ describe('Better-Auth policy (Feature Spec §5.1)', () => {
     expect(options.emailVerification?.sendOnSignUp).toBe(true);
   });
 
+  it('FR-1.7: a verification email is actually wired up, and expires in 1 hour', () => {
+    expect(options.emailVerification?.sendVerificationEmail).toBeTypeOf('function');
+    expect(options.emailVerification?.expiresIn).toBe(60 * 60);
+  });
+
+  it('FR-1.8: reset tokens are wired up and valid for 1 hour', () => {
+    expect(options.emailAndPassword?.sendResetPassword).toBeTypeOf('function');
+    expect(options.emailAndPassword?.resetPasswordTokenExpiresIn).toBe(60 * 60);
+  });
+
+  it("FR-1.8: a completed reset revokes the user's other sessions", () => {
+    // Better-Auth defaults this to false; a reset implies the old password is
+    // suspect, so sessions minted with it must not survive.
+    expect(options.emailAndPassword?.revokeSessionsOnPasswordReset).toBe(true);
+  });
+
   it('Eng §11.1/§11.2: session cookies are HTTP-only and SameSite=Lax', () => {
     const cookie = options.advanced?.defaultCookieAttributes;
     expect(cookie?.httpOnly).toBe(true);
