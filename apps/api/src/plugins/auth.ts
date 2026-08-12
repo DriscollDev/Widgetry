@@ -13,6 +13,7 @@ import fp from 'fastify-plugin';
 import { fromNodeHeaders } from 'better-auth/node';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { auth, AUTH_BASE_PATH, type Session, type SessionUser } from '../auth.js';
+import { setEmailLogger } from '../email/index.js';
 import { env } from '../env.js';
 import { unauthenticated } from '../lib/errors.js';
 
@@ -43,9 +44,16 @@ const PUBLIC_PATHS = new Set(['/v1/health', '/v1/widgets/catalog']);
 export const THROTTLED_AUTH_PATHS = [
   `${AUTH_BASE_PATH}/sign-in/email`,
   `${AUTH_BASE_PATH}/sign-up/email`,
+  // `/request-password-reset` is the live route in better-auth 1.6.25;
+  // `/forget-password` is the name it used to go by and 404s today. Kept so an
+  // upstream rename cannot silently drop the cap on the endpoint that mails a
+  // reset link out.
+  `${AUTH_BASE_PATH}/request-password-reset`,
   `${AUTH_BASE_PATH}/forget-password`,
   `${AUTH_BASE_PATH}/reset-password`,
-  `${AUTH_BASE_PATH}/request-password-reset`,
+  // Takes an arbitrary address and sends mail to it (EX-15). Uncapped, it is
+  // both a way to spam a third party and a way to burn the Resend quota.
+  `${AUTH_BASE_PATH}/send-verification-email`,
 ];
 
 /** Exact segment match, so `/v1/authorize` is never mistaken for an auth route. */
@@ -103,6 +111,11 @@ export const authPlugin = fp(
   async function authPlugin(fastify: FastifyInstance) {
     fastify.decorateRequest('session', null);
     fastify.decorateRequest('user', null);
+
+    // Auth emails are sent from Better-Auth callbacks, which have no request in
+    // scope. Handing them the server logger keeps EX-15 delivery failures on
+    // the same pino stream (and under the same redaction) as everything else.
+    setEmailLogger(fastify.log);
 
     // ---- 1. Mount Better-Auth -------------------------------------------
     // Encapsulated child scope so the pass-through body parser (Better-Auth

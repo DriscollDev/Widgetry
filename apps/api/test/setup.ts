@@ -52,3 +52,10 @@ process.env.DATABASE_URL ??= 'postgres://unit-test-placeholder/none';
 // Sign-up in tests must not depend on api.pwnedpasswords.com being reachable,
 // and must not send real passwords' hash prefixes off-box from CI.
 process.env.PASSWORD_BREACH_CHECK = 'false';
+
+// EX-15: a test run must never send a real email, even on a machine whose .env
+// carries a working Resend key. Blanked rather than deleted for the same reason
+// as REDIS_URL above - src/env.ts re-runs dotenv, which would put it back.
+// With no key the transport logs instead of sending (email/send.ts); the tests
+// that care about content mock the transport outright.
+process.env.RESEND_API_KEY = '';

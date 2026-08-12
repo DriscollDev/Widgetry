@@ -134,4 +134,38 @@
   .board-view__actions button:hover {
     text-decoration: underline;
   }
+
+  .board-view__skeleton {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .board-view__skeleton-line {
+    height: 1rem;
+    border-radius: 0.25rem;
+    background: var(--color-surface-300);
+    animation: board-view-pulse 1.2s ease-in-out infinite;
+  }
+
+  .board-view__skeleton-line--short {
+    width: 40%;
+  }
+
+  @keyframes board-view-pulse {
+    0%,
+    100% {
+      opacity: 0.5;
+    }
+    50% {
+      opacity: 1;
+    }
+  }
+
+  .board-view__error {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    color: var(--color-error-600, #b91c1c);
+  }
 </style>
