@@ -10,7 +10,7 @@
   let { title, target, history }: Props = $props();
 
   let uptimePct = $derived(
-    history.length === 0 ? 0 : (history.filter((s) => s === 'up').length / history.length) * 100
+    history.length === 0 ? 0 : (history.filter((s) => s === 'up').length / history.length) * 100,
   );
 </script>
 
@@ -21,7 +21,10 @@
   </div>
   <div class="flex gap-1">
     {#each history as status, i (i)}
-      <div class="h-8 flex-1 rounded-sm {STATUS_META[status].dot}" title={STATUS_META[status].label}></div>
+      <div
+        class="h-8 flex-1 rounded-sm {STATUS_META[status].dot}"
+        title={STATUS_META[status].label}
+      ></div>
     {/each}
   </div>
   <p class="font-mono text-sm text-surface-950-50">
