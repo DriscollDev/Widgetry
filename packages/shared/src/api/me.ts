@@ -74,8 +74,17 @@ export type MeResponse = z.infer<typeof MeResponse>;
  * api compares this against the session's own email and refuses on mismatch.
  */
 export const DeleteAccountRequest = z.object({
-  /** Must equal the signed-in user's email, case-insensitively. */
-  confirmEmail: z.email(),
+  /**
+   * Must equal the signed-in user's email, compared case-insensitively.
+   *
+   * `.trim()` before the format check, not after, and it is load-bearing:
+   * `z.email()` rejects a value with surrounding whitespace outright, so
+   * validating first would fail a padded address before the comparison ever ran
+   * - and the address is typed into a modal or pasted, where a trailing space is
+   * the single most likely way for a correct answer to arrive. The trimmed value
+   * is what the schema outputs, so the handler compares clean input.
+   */
+  confirmEmail: z.string().trim().pipe(z.email()),
 });
 
 export type DeleteAccountRequest = z.infer<typeof DeleteAccountRequest>;

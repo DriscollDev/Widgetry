@@ -112,7 +112,9 @@ export async function meRoutes(fastify: FastifyInstance): Promise<void> {
     // from the modal. Case- and whitespace-insensitive: the user is retyping
     // their own address from memory, and rejecting "  Me@Example.com " for a
     // stored "me@example.com" is friction that protects nobody.
-    const confirmed = parsed.data.confirmEmail.trim().toLowerCase();
+    // The schema already trimmed the incoming value; the stored address is
+    // trimmed here because nothing guarantees what went into the column.
+    const confirmed = parsed.data.confirmEmail.toLowerCase();
     if (confirmed !== user.email.trim().toLowerCase()) {
       // No detail about what the real address is - the caller is authenticated
       // as this user and can read it from GET /v1/me, but there is no reason for
