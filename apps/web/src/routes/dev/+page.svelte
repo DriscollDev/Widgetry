@@ -67,13 +67,13 @@
   // so the gap is visible: these are not 404s, they hit the deny-by-default
   // guard and bounce to /sign-in.
   const notBuilt: Probe[] = [
-    { href: '/forgot-password', label: '/forgot-password', expect: 'SCR-AUTH-03 - no screen yet' },
+    { href: '/forgot-password', label: '/forgot-password', expect: 'no screen yet' },
     {
       href: '/reset-password?token=example',
       label: '/reset-password?token=…',
-      expect: 'SCR-AUTH-04 - no screen yet; the api mails links here',
+      expect: 'no screen yet; the api mails links here',
     },
-    { href: '/verify-email', label: '/verify-email', expect: 'SCR-AUTH-05 - no screen yet' },
+    { href: '/verify-email', label: '/verify-email', expect: 'no screen yet' },
   ];
 
   const otherDevPages: Probe[] = [
@@ -175,7 +175,7 @@
           or <a href="/sign-in" class="text-blue-400 hover:text-blue-300">sign in</a> to populate this.
         </p>
         <p class="mt-2 text-xs text-neutral-500">
-          Sign-up needs a password of at least 12 characters (FR-1.5). With RESEND_API_KEY unset the
+          Sign-up needs a password of at least 12 characters. With RESEND_API_KEY unset the
           api logs the verification link to its console instead of sending it.
         </p>
       {/if}
@@ -206,12 +206,12 @@
 
     {@render routeList(
       'Open-redirect probes',
-      'Every one of these should land you on /boards. If any navigates off localhost, safeReturnTo() has a hole.',
+      'Every one of these should land you on /boards. If it doesnt, something broke',
       openRedirectProbes,
     )}
 
     {@render routeList(
-      'Screens the api supports but nobody has built',
+      'Screens the api supports but dont have UI',
       'These hit the deny-by-default guard and bounce to /sign-in rather than 404ing.',
       notBuilt,
     )}
@@ -220,10 +220,6 @@
 
     <section class="rounded-xl border border-neutral-800 bg-neutral-900 p-5">
       <h2 class="text-sm font-semibold text-white">/v1 proxy probes</h2>
-      <p class="mt-1 text-xs text-neutral-500">
-        Run from the browser, so these exercise the same-origin proxy hop rather than the
-        server-side path a load() takes.
-      </p>
       <ul class="mt-3 space-y-3">
         {#each apiProbes as item (item.path)}
           <li>
