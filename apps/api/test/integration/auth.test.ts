@@ -27,6 +27,12 @@ import type { FastifyInstance } from 'fastify';
  * The `_ci_test` suffix is the same guard packages/db/src/reset.ts uses, and it
  * carries the same intent: these tests create and delete users, so they must
  * never be pointed at the shared `dev` database by accident.
+ *
+ * Locally, that suffix should belong to a throwaway Railway database of your
+ * own (Eng §17.3). Pointing it at the shared `ci-test` database instead is the
+ * one thing to avoid: CI drops that database's schemas before every run, and
+ * the `integration-tests` concurrency group serializes CI against CI only - it
+ * has no idea a local run exists.
  */
 function ciTestDatabaseName(): string | null {
   const url = process.env.DATABASE_URL;
@@ -44,9 +50,10 @@ const describeIntegration = targetDb ? describe : describe.skip;
 
 if (!targetDb) {
   console.warn(
-    '[integration] skipping: DATABASE_URL does not point at a database whose ' +
-      'name ends in "_ci_test". Set TEST_DATABASE_URL to the ci-test ' +
-      'connection to run these locally (Eng §13.2).',
+    '[integration] skipping auth.test.ts: DATABASE_URL does not resolve to a ' +
+      'database whose name ends in "_ci_test". To run these locally, point ' +
+      'TEST_DATABASE_URL at your own throwaway Railway Postgres - not the ' +
+      'shared ci-test one, which CI resets. See .env.example (Eng §13.2, §17.3).',
   );
 }
 
