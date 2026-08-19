@@ -175,8 +175,8 @@
           or <a href="/sign-in" class="text-blue-400 hover:text-blue-300">sign in</a> to populate this.
         </p>
         <p class="mt-2 text-xs text-neutral-500">
-          Sign-up needs a password of at least 12 characters. With RESEND_API_KEY unset the
-          api logs the verification link to its console instead of sending it.
+          Sign-up needs a password of at least 12 characters. With RESEND_API_KEY unset the api logs
+          the verification link to its console instead of sending it.
         </p>
       {/if}
     </section>

@@ -48,7 +48,9 @@
     return !passwordError;
   }
 </script>
-<a href="/dev" style="color: aqua;">Dev</a> <!-- DEV LINK TODO: REMOVE LATER-->
+
+<a href="/dev" style="color: aqua;">Dev</a>
+<!-- DEV LINK TODO: REMOVE LATER-->
 <div class="flex min-h-screen items-center justify-center bg-neutral-950 px-4">
   <div class="w-full max-w-sm rounded-2xl border border-neutral-800 bg-neutral-900 p-8 shadow-xl">
     <div class="mb-6 flex items-center gap-2">
@@ -119,11 +121,12 @@
       </div>
 
       <div>
-        <div class="mb-1.5 flex items-center justify-between ">
+        <div class="mb-1.5 flex items-center justify-between">
           <label for="password" class="text-sm text-neutral-300">Password</label>
           <a href="/forgot-password" class="text-sm text-blue-400 hover:text-blue-300 hidden"
             >Forgot password?</a
-          > <!--HIDDEN UNTIL IMPLEMENTED TODO: UNHIDE -->
+          >
+          <!--HIDDEN UNTIL IMPLEMENTED TODO: UNHIDE -->
         </div>
         <input
           id="password"
@@ -167,7 +170,8 @@
         {submitting ? 'Signing in…' : 'Sign in'}
       </button>
 
-      <div class="hidden space-y-3">  <!--HIDDEN UNTIL IMPLEMENTED TODO: UNHIDE -->
+      <div class="hidden space-y-3">
+        <!--HIDDEN UNTIL IMPLEMENTED TODO: UNHIDE -->
         <p class="text-center text-xs text-neutral-500">or continue with</p>
 
         <button

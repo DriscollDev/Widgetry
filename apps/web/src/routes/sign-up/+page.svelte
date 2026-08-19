@@ -68,7 +68,9 @@
     return !passwordError;
   }
 </script>
-<a href="/dev" style="color: aqua;">Dev</a> <!-- DEV LINK TODO: REMOVE LATER-->
+
+<a href="/dev" style="color: aqua;">Dev</a>
+<!-- DEV LINK TODO: REMOVE LATER-->
 <div class="flex min-h-screen items-center justify-center bg-neutral-950 px-4">
   <div class="w-full max-w-md rounded-2xl border border-neutral-800 bg-neutral-900 p-8 shadow-xl">
     <div class="mb-6 flex items-center gap-2">
