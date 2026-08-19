@@ -50,4 +50,5 @@ export default defineConfig({
     include: ['src/**/*.{test,spec}.{js,ts}'],
     environment: 'node',
   },
+  resolve: process.env.VITEST ? { conditions: ['browser'] } : undefined,
 });

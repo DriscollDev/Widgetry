@@ -28,8 +28,8 @@
   <div class="board-view__body">
     {#if state === 'loading'}
       <div class="board-view__skeleton" aria-busy="true" aria-label="Loading board">
-        <div class="board-view__skeleton-line" />
-        <div class="board-view__skeleton-line board-view__skeleton-line--short" />
+        <div class="board-view__skeleton-line"></div>
+        <div class="board-view__skeleton-line board-view__skeleton-line--short"></div>
       </div>
     {:else if state === 'error'}
       <div class="board-view__error">
