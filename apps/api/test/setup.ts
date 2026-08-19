@@ -1,9 +1,16 @@
 // apps/api/test/setup.ts
 //
-// Loads the repo-root .env, then redirects the process at the ci-test
-// infrastructure (Eng §13.2, §16.2): TEST_DATABASE_URL / TEST_REDIS_URL win over
-// DATABASE_URL / REDIS_URL so a test run can never touch the shared `dev`
-// database that all three developers are looking at.
+// Loads the repo-root .env, then redirects the process at test infrastructure
+// (Eng §13.2, §16.2): TEST_DATABASE_URL wins over DATABASE_URL so a test run can
+// never touch the shared `dev` database that all three developers are looking
+// at. Integration files additionally refuse to run unless the resolved database
+// name ends in `_ci_test`.
+//
+// In CI, TEST_DATABASE_URL is the shared `ci-test` environment, supplied as a
+// GitHub Actions secret. Locally it should be your OWN throwaway Railway
+// Postgres (Eng §17.3's personal-throwaway fallback), never the shared
+// `ci-test` one - CI drops that database's schemas before every run, and its
+// concurrency group cannot see a local run. See `.env.example` for the setup.
 
 import { config } from 'dotenv';
 import { existsSync } from 'node:fs';
@@ -23,18 +30,17 @@ for (let dir = process.cwd(), i = 0; i < 6; i++) {
 if (process.env.TEST_DATABASE_URL) {
   process.env.DATABASE_URL = process.env.TEST_DATABASE_URL;
 }
-// Unset rather than inherited: a test run must never write rate-limit keys into
-// the shared `dev` Redis. With no REDIS_URL the limiter falls back to its
+// Blanked rather than inherited: a test run must never write rate-limit keys
+// into the shared `dev` Redis. With no REDIS_URL the limiter falls back to its
 // in-process store, which is single-process and therefore exactly what a test
-// wants anyway.
+// wants anyway - the EX-42 assertions count 429s against per-IP buckets, and
+// the test IPs are separated per file, not per concurrent run. Point this at a
+// shared Redis and two overlapping runs share those buckets, which shows up as
+// a flaky 429.
+//
 // Blanked rather than deleted: src/env.ts re-runs dotenv at load time, and a
 // deleted key would simply be re-injected from .env. An empty value survives
 // dotenv's override:false and reads as "not configured" (see optionalString).
-//
-// Blanking rather than inheriting matters - a test run must never write
-// rate-limit keys into the shared `dev` Redis. With no REDIS_URL the limiter
-// falls back to its in-process store, which is single-process and therefore
-// exactly what a test wants anyway.
 process.env.REDIS_URL = process.env.TEST_REDIS_URL ?? '';
 
 process.env.NODE_ENV = 'test';
