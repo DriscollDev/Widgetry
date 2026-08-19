@@ -63,3 +63,32 @@ export const MeResponse = z.object({
 });
 
 export type MeResponse = z.infer<typeof MeResponse>;
+
+/**
+ * DELETE /v1/me request body (US-A5, FR-1.6).
+ *
+ * SCR-MOD-08 calls this "the highest-friction confirmation in the product" and
+ * requires the user to type their own email address. That requirement is
+ * enforced on the server, not just in the modal: a confirmation the client can
+ * skip is decoration, and this is the one irreversible action in the API. The
+ * api compares this against the session's own email and refuses on mismatch.
+ */
+export const DeleteAccountRequest = z.object({
+  /** Must equal the signed-in user's email, case-insensitively. */
+  confirmEmail: z.email(),
+});
+
+export type DeleteAccountRequest = z.infer<typeof DeleteAccountRequest>;
+
+/**
+ * DELETE /v1/me response.
+ *
+ * FR-1.6 allows up to 24 hours for the cascade; we do it inline, so `deletedAt`
+ * is the moment it actually happened rather than a promise about a queue. Web
+ * uses it for the SCR-MOD-08 confirmation toast.
+ */
+export const DeleteAccountResponse = z.object({
+  deletedAt: z.iso.datetime(),
+});
+
+export type DeleteAccountResponse = z.infer<typeof DeleteAccountResponse>;

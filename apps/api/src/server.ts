@@ -15,6 +15,7 @@ import { ApiErrorCode } from '@widgetry/shared';
 import { env } from './env.js';
 import { errorBody, isApiError } from './lib/errors.js';
 import { authPlugin } from './plugins/auth.js';
+import { ownershipPlugin } from './plugins/ownership.js';
 import { rateLimitPlugin } from './plugins/rate-limit.js';
 import { healthRoutes } from './routes/health.js';
 import { meRoutes } from './routes/me.js';
@@ -73,6 +74,7 @@ export async function buildServer(): Promise<FastifyInstance> {
 
   await fastify.register(rateLimitPlugin);
   await fastify.register(authPlugin);
+  await fastify.register(ownershipPlugin);
   await fastify.register(healthRoutes);
   await fastify.register(meRoutes);
 
