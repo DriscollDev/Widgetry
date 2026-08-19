@@ -32,6 +32,12 @@ widget ownership resolves by joining through `boards.user_id`. The two-user
 isolation suite in `test/integration/isolation.test.ts` currently drives probe
 routes; move each endpoint onto the real handler as it lands.
 
+EX-18 backs that up with lint: reading `widgets`, `widget_snapshots`, or
+`api_credentials` under `src/` without joining through `boards` is an ESLint
+error (see the note at the top of `eslint.config.js`). The worker and the test
+suites are deliberately out of scope - the §8.1 scheduler sweep is unscoped by
+design. Never silence it with a disable comment; use the ownership helpers.
+
 Rate limiting (§6.4): 120/min per user by default on every route, 5/min per IP
 on the credential- and email-bearing `/v1/auth/*` paths, and `/v1/health`
 opted out.
