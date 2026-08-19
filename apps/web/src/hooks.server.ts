@@ -1,8 +1,8 @@
-import { redirect, type Handle } from '@sveltejs/kit';
+import { error, redirect, type Handle } from '@sveltejs/kit';
 import { sequence } from '@sveltejs/kit/hooks';
 import { SIGN_IN_PATH } from '$lib/navigation.js';
 import { INTERNAL_API_URL } from '$lib/server/api.js';
-import { getSessionUser } from '$lib/server/auth.js';
+import { lookupSession } from '$lib/server/auth.js';
 
 /**
  * Single-public-origin proxy (Eng Doc §2.3, locked).
@@ -49,9 +49,23 @@ const handleApiProxy: Handle = async ({ event, resolve }) => {
  * Skipped for `/v1/*`, which the proxy above has already returned - those
  * requests carry their own cookie to `api` and get their own session check
  * there.
+ *
+ * `sessionStatus` records *why* `user` is null, which the guard below needs:
+ * "you are signed out" and "we could not ask" call for different answers.
  */
 const handleSession: Handle = async ({ event, resolve }) => {
-  event.locals.user = await getSessionUser(event);
+  const lookup = await lookupSession(event);
+
+  event.locals.user = lookup.status === 'authenticated' ? lookup.user : null;
+  event.locals.sessionStatus = lookup.status;
+
+  if (lookup.status === 'unavailable') {
+    console.error('[auth] session lookup failed', {
+      path: event.url.pathname,
+      reason: lookup.reason,
+    });
+  }
+
   return resolve(event);
 };
 
@@ -110,6 +124,15 @@ const handleAuthGuard: Handle = async ({ event, resolve }) => {
   const { pathname, search } = event.url;
 
   if (!event.locals.user && !isPublic(pathname)) {
+    // We could not reach the api, so we do not know whether this person is
+    // signed in. Bouncing them to /sign-in would assert something we cannot
+    // support, throw away where they were, and - if they are in fact signed in
+    // - show a sign-in form that succeeds and returns them right back here.
+    // A 503 says what actually happened and is retryable.
+    if (event.locals.sessionStatus === 'unavailable') {
+      error(503, 'Could not verify your session. Try again in a moment.');
+    }
+
     const returnTo = encodeURIComponent(`${pathname}${search}`);
     redirect(303, `${SIGN_IN_PATH}?returnTo=${returnTo}`);
   }

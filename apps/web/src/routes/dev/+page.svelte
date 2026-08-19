@@ -92,10 +92,16 @@
   const apiProbes = [
     { path: 'health', label: 'GET /v1/health', expect: '200 {"status":"ok"}' },
     {
+      path: 'me',
+      label: 'GET /v1/me',
+      expect: '200 {user, session} signed in, 401 signed out - this is what the session hook reads',
+    },
+    {
       path: 'auth/get-session',
       label: 'GET /v1/auth/get-session',
-      expect: '200; body is null when signed out',
-    }
+      expect:
+        "Better-Auth's own shape: 200 with a null body when signed out. Web no longer uses it.",
+    },
   ];
 
   let results = $state<Record<string, string>>({});
@@ -118,9 +124,7 @@
 <div class="min-h-screen bg-neutral-950 px-6 py-10 text-neutral-200">
   <div class="mx-auto max-w-3xl space-y-8">
     <header>
-      <p class="text-xs font-medium uppercase tracking-wider text-amber-500">
-        Developer tools
-      </p>
+      <p class="text-xs font-medium uppercase tracking-wider text-amber-500">Developer tools</p>
       <h1 class="mt-1 text-2xl font-semibold text-white">Route harness</h1>
       <p class="mt-1 text-sm text-neutral-400">
         Not a product screen. This page 404s outside <code class="text-neutral-300">dev</code>.
@@ -140,6 +144,8 @@
           <dd class="text-neutral-300">{data.user.email}</dd>
           <dt class="text-neutral-500">name</dt>
           <dd class="text-neutral-300">{data.user.name}</dd>
+          <dt class="text-neutral-500">createdAt</dt>
+          <dd class="text-neutral-300">{data.user.createdAt}</dd>
           <dt class="text-neutral-500">emailVerified</dt>
           <dd class={data.user.emailVerified ? 'text-emerald-400' : 'text-amber-400'}>
             {data.user.emailVerified}

@@ -87,39 +87,12 @@ export type SignInEmailRequest = z.infer<typeof SignInEmailRequest>;
 
 // ---- Responses -------------------------------------------------------------
 
-/**
- * The slice of the Better-Auth session we hand to the UI. `.loose()` is
- * intentional: Better-Auth adds fields to `user` over time and an upgrade must
- * not start failing session lookups. Unlisted fields are dropped rather than
- * forwarded, which keeps anything we have not deliberately exposed out of the
- * page payload.
- */
-export const SessionUser = z.object({
-  id: z.string(),
-  email: z.string(),
-  name: z.string(),
-  emailVerified: z.boolean(),
-  image: z.string().nullish(),
-});
-export type SessionUser = z.infer<typeof SessionUser>;
-
-/** GET /v1/auth/get-session. Better-Auth answers `null` - not 401 - when signed out. */
-export const SessionResponse = z.object({ user: SessionUser }).loose().nullable();
-export type SessionResponse = z.infer<typeof SessionResponse>;
-
-/**
- * Better-Auth's error body: `{ code, message }`. This is NOT the §6.1 envelope
- * - that envelope belongs to routes *we* write, and to failures raised by our
- * own Fastify layer in front of Better-Auth (notably the EX-42 429). A caller
- * of /v1/auth/* has to be ready for either shape.
- */
-export const AuthErrorBody = z
-  .object({
-    code: z.string().optional(),
-    message: z.string().optional(),
-  })
-  .loose();
-export type AuthErrorBody = z.infer<typeof AuthErrorBody>;
+// The signed-in user's shape is NOT defined here. `GET /v1/me` is the endpoint
+// web reads identity from, and `MeUser` / `MeResponse` in ./me.ts is its
+// contract - one schema, imported by both sides. There used to be a
+// `SessionUser` here modelling Better-Auth's own /v1/auth/get-session response;
+// it was a second description of the same thing, which is the duplication the
+// shared package exists to prevent.
 
 /**
  * The Better-Auth error codes our screens branch on. Better-Auth defines many

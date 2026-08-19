@@ -15,7 +15,7 @@
 //
 // `normalizeFailure` flattens both to one `{ code, message }`.
 
-import { ApiErrorCode, SessionResponse, type SessionUser } from '@widgetry/shared';
+import { ApiErrorCode, MeResponse, type MeUser } from '@widgetry/shared';
 import type { RequestEvent } from '@sveltejs/kit';
 import { apiFetch, readJson } from './api.js';
 import { relaySetCookies } from './cookies.js';
@@ -83,26 +83,59 @@ async function postAuth<T>(
 // ---- Session ---------------------------------------------------------------
 
 /**
- * Resolve the caller's session. Better-Auth answers `200` with a `null` body
- * when there is no session - it does not 401 - so "signed out" and "api is
- * broken" are genuinely different outcomes here, and both end up as `null`.
- * That is the right call for a hook that runs on every navigation: a session
- * lookup failing should log the user out of the UI, not 500 the page.
+ * What one session lookup concluded.
+ *
+ * `anonymous` and `unavailable` are kept apart on purpose. Collapsing both to
+ * "no user" - which this did until the api gained a global 120/min limiter -
+ * means a 429 or a restarting api reads as a logout, and the guard bounces a
+ * signed-in user to /sign-in having silently thrown away where they were. That
+ * failure mode is indistinguishable from a real auth bug when someone reports
+ * it, so the two cases are separated at the source.
  */
-export async function getSessionUser(event: RequestEvent): Promise<SessionUser | null> {
+export type SessionLookup =
+  | { status: 'authenticated'; user: MeUser }
+  | { status: 'anonymous' }
+  | { status: 'unavailable'; reason: string };
+
+/**
+ * Resolve the caller's identity from `GET /v1/me`.
+ *
+ * Deliberately not Better-Auth's `/v1/auth/get-session`, for the reasons
+ * apps/api/src/routes/me.ts gives - `/v1/me` is our own versioned contract and
+ * 401s like every other route instead of answering `200 null`. One consequence
+ * it does not mention, which matters here: the api's default limiter keys on
+ * `user:<id>` at `preHandler`, but `/v1/auth/*` is public there, so `request.user`
+ * is never populated and session lookups would key on `ip:` - putting everyone
+ * behind one NAT (a lab, a campus network) in a single 120/min bucket. Reading
+ * identity from a session-gated route gives each account its own budget.
+ */
+export async function lookupSession(event: RequestEvent): Promise<SessionLookup> {
   let response: Response;
   try {
-    response = await apiFetch(event, `${AUTH_BASE}/get-session`);
+    response = await apiFetch(event, '/v1/me');
   } catch (error) {
-    console.error('[auth] api unreachable during session lookup', error);
-    return null;
+    return {
+      status: 'unavailable',
+      reason: `api unreachable: ${error instanceof Error ? error.message : String(error)}`,
+    };
   }
 
-  if (!response.ok) return null;
+  // The only status that actually means "not signed in". EX-13's onRequest hook
+  // produces it for an absent, expired or badly-signed cookie.
+  if (response.status === 401) return { status: 'anonymous' };
 
-  const parsed = SessionResponse.safeParse(await readJson(response));
-  if (!parsed.success || parsed.data === null) return null;
-  return parsed.data.user;
+  if (!response.ok) {
+    return { status: 'unavailable', reason: `GET /v1/me returned ${response.status}` };
+  }
+
+  const parsed = MeResponse.safeParse(await readJson(response));
+  if (!parsed.success) {
+    // A 200 we cannot read is the api speaking a shape we do not know, not a
+    // signed-out user. Saying so keeps a contract break loud.
+    return { status: 'unavailable', reason: 'GET /v1/me returned an unrecognised body' };
+  }
+
+  return { status: 'authenticated', user: parsed.data.user };
 }
 
 // ---- Credentials -----------------------------------------------------------

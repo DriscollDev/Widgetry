@@ -72,7 +72,14 @@ export async function buildServer(): Promise<FastifyInstance> {
     // Without this, the EX-42 per-IP limit collapses to one shared bucket.
     trustProxy: true,
     requestIdHeader: 'x-request-id',
-    disableRequestLogging: false,
+    // The per-request log line Eng §15.1 asks for is Fastify's default, so
+    // there is nothing to set. `disableRequestLogging: false` used to sit here
+    // saying so out loud, but Fastify 5 deprecates the top-level option
+    // (FSTDEP023) and warns on every boot merely because the key is present -
+    // the value is not even read. Its replacement, a `logController` subclass,
+    // is a lot of machinery for restating a default. If request logging ever
+    // needs to be conditional (per-route, or off for healthchecks), that is
+    // when to reach for `logController`.
   });
 
   fastify.setNotFoundHandler((_request, reply) =>
