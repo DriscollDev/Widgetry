@@ -1,10 +1,8 @@
 <!--
   Route: `/` (Screen Inventory §4 - router, not a real screen).
 
-  TODO (frontend): this is a redirect target, not a landing page.
-    - Signed out            -> redirect to /sign-in
-    - Signed in, ≥1 board   -> redirect to /boards/:id (most recently updated)
-    - Signed in, no boards  -> redirect to /boards (empty state)
-  Implement the redirect in a `+page.server.ts` load() once auth exists.
+  +page.server.ts redirects on every path through here, so this markup is only
+  ever reached if that load somehow returns - it exists because SvelteKit wants
+  a component for the route, not because anyone should see it.
 -->
 <h1>Widgetry</h1>
