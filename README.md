@@ -125,7 +125,7 @@ All commands run from the repository root.
 | `pnpm lint`                        | ESLint + Prettier check (matches CI)                |
 | `pnpm lint:fix` / `pnpm format`    | Auto-fix lint issues / format all files             |
 | `pnpm test:unit`                   | Run unit tests (Vitest)                             |
-| `pnpm test:integration`            | Run integration tests _(needs DB/Redis env vars set)_ |
+| `pnpm test:integration`            | Run integration tests _(skipped unless `TEST_DATABASE_URL` points at a `_ci_test` database - see `.env.example`)_ |
 
 Per-package scripts are reachable with `pnpm --filter <name> <script>`, e.g.
 `pnpm --filter @widgetry/web build`.
