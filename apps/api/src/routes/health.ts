@@ -14,7 +14,11 @@ import type { HealthResponse } from '@widgetry/shared';
 const startedAt = Date.now();
 
 export async function healthRoutes(fastify: FastifyInstance): Promise<void> {
-  fastify.get('/v1/health', async (): Promise<HealthResponse> => {
+  // The one route that opts out of the §6.4 default limit. Railway restarts a
+  // service whose healthcheck fails, so throttling the probe would turn a burst
+  // of traffic from one IP into an api restart loop. Safe to leave open: the
+  // handler touches no I/O and returns a fixed-size body.
+  fastify.get('/v1/health', { config: { rateLimit: false } }, async (): Promise<HealthResponse> => {
     return {
       status: 'ok',
       service: 'api',

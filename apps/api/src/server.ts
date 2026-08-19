@@ -17,6 +17,7 @@ import { errorBody, isApiError } from './lib/errors.js';
 import { authPlugin } from './plugins/auth.js';
 import { rateLimitPlugin } from './plugins/rate-limit.js';
 import { healthRoutes } from './routes/health.js';
+import { meRoutes } from './routes/me.js';
 
 export async function buildServer(): Promise<FastifyInstance> {
   const fastify = Fastify({
@@ -73,6 +74,7 @@ export async function buildServer(): Promise<FastifyInstance> {
   await fastify.register(rateLimitPlugin);
   await fastify.register(authPlugin);
   await fastify.register(healthRoutes);
+  await fastify.register(meRoutes);
 
   return fastify;
 }

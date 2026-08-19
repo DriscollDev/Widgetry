@@ -16,6 +16,7 @@ import { auth, AUTH_BASE_PATH, type Session, type SessionUser } from '../auth.js
 import { setEmailLogger } from '../email/index.js';
 import { env } from '../env.js';
 import { unauthenticated } from '../lib/errors.js';
+import { AUTH_RATE_LIMIT_MAX, RATE_LIMIT_WINDOW } from './rate-limit.js';
 
 declare module 'fastify' {
   interface FastifyRequest {
@@ -136,12 +137,34 @@ export const authPlugin = fp(
 
       // The throttled paths are registered explicitly so @fastify/rate-limit can
       // hang a per-route config off them (EX-42); everything else falls through
-      // to the catch-all. Fastify prefers the exact match over the wildcard.
+      // to the catch-all, which takes the §6.4 default. Fastify prefers the
+      // exact match over the wildcard.
       for (const path of THROTTLED_AUTH_PATHS) {
         scope.route({
           method: ['GET', 'POST'],
           url: path,
-          config: { rateLimit: { max: 5, timeWindow: '1 minute' } },
+          config: {
+            rateLimit: {
+              max: AUTH_RATE_LIMIT_MAX,
+              timeWindow: RATE_LIMIT_WINDOW,
+              // Both overrides are load-bearing, because the plugin merges this
+              // over the §6.4 global config rather than replacing it:
+              //
+              //   hook         - the global default runs at preHandler so it can
+              //                  read request.user. These routes must reject
+              //                  before the body is parsed, so credential
+              //                  stuffing costs us nothing (server.ts plugin
+              //                  order).
+              //   keyGenerator - at onRequest the session hook has not run, so
+              //                  the default key function would see no user and
+              //                  bucket by IP anyway. Naming it here means that
+              //                  stays true if the default ever changes; EX-42
+              //                  is a per-IP limit by definition, since the
+              //                  whole point is an attacker with no account.
+              hook: 'onRequest',
+              keyGenerator: (request) => request.ip,
+            },
+          },
           handler: handleAuthRequest,
         });
       }
