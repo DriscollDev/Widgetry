@@ -77,7 +77,7 @@
     // scope. Flagging here explicitly rather than letting it quietly not exist:
     // a follow-up story is needed before US-W2 can be called done for keyboard
     // users, not just mouse/touch users.
-    function onWidgetKeydown(_event: KeyboardEvent, widget: BoardViewFixture['widgets'][number]) {
+    function onWidgetKeydown(_event: KeyboardEvent, _widget: BoardViewFixture['widgets'][number]) {
       // Intentionally no-op for now — see note above.
     }
   </script>
