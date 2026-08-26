@@ -48,7 +48,14 @@ export const populatedBoardFixture: BoardViewFixture = {
     { id: 'w1', widgetType: 'uptime', grid_col: 0, grid_row: 0, grid_width: 4, grid_height: 2 },
     { id: 'w2', widgetType: 'weather', grid_col: 4, grid_row: 0, grid_width: 4, grid_height: 2 },
     { id: 'w3', widgetType: 'clock', grid_col: 8, grid_row: 0, grid_width: 2, grid_height: 2 },
-    { id: 'w4', widgetType: 'custom_json', grid_col: 0, grid_row: 2, grid_width: 6, grid_height: 3 },
+    {
+      id: 'w4',
+      widgetType: 'custom_json',
+      grid_col: 0,
+      grid_row: 2,
+      grid_width: 6,
+      grid_height: 3,
+    },
   ],
 };
 
