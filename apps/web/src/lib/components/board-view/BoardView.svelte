@@ -61,7 +61,7 @@
       previewRow = Math.max(0, row);
     }
   
-    function onPointerUp(event: PointerEvent) {
+    function onPointerUp(_event: PointerEvent) {
       if (draggingId === null) return;
       // Optimistic local update — the widget stays at the dropped cell in the UI.
       // Still zero network calls. Task 2 adds the debounced PATCH + rollback-on-
@@ -77,7 +77,7 @@
     // scope. Flagging here explicitly rather than letting it quietly not exist:
     // a follow-up story is needed before US-W2 can be called done for keyboard
     // users, not just mouse/touch users.
-    function onWidgetKeydown(event: KeyboardEvent, widget: BoardViewFixture['widgets'][number]) {
+    function onWidgetKeydown(_event: KeyboardEvent, widget: BoardViewFixture['widgets'][number]) {
       // Intentionally no-op for now — see note above.
     }
   </script>
