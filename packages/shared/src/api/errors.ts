@@ -38,6 +38,14 @@ export const ApiErrorCode = {
   NOT_FOUND: 'not_found',
   /** Per-route or default rate limit exceeded (Eng §6.4). */
   RATE_LIMITED: 'rate_limited',
+  /**
+   * A per-user or per-board resource cap was reached: 10 boards per user
+   * (FR-2.1), 20 widgets per board (FR-3.5). Distinct from RATE_LIMITED, which
+   * is about request frequency and clears by waiting - this one clears only by
+   * deleting something, and the UI response is different (SCR-APP-01 disables
+   * "New board"; SCR-MOD-04 disables selection). Carries HTTP 409.
+   */
+  LIMIT_EXCEEDED: 'limit_exceeded',
   /** Unhandled server-side failure. */
   INTERNAL: 'internal',
 } as const;

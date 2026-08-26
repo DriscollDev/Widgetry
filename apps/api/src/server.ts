@@ -17,8 +17,10 @@ import { errorBody, isApiError } from './lib/errors.js';
 import { authPlugin } from './plugins/auth.js';
 import { ownershipPlugin } from './plugins/ownership.js';
 import { rateLimitPlugin } from './plugins/rate-limit.js';
+import { boardRoutes } from './routes/boards.js';
 import { healthRoutes } from './routes/health.js';
 import { meRoutes } from './routes/me.js';
+import { widgetRoutes } from './routes/widgets.js';
 
 /**
  * Map an HTTP status onto one of our own error codes.
@@ -112,6 +114,8 @@ export async function buildServer(): Promise<FastifyInstance> {
   await fastify.register(ownershipPlugin);
   await fastify.register(healthRoutes);
   await fastify.register(meRoutes);
+  await fastify.register(boardRoutes);
+  await fastify.register(widgetRoutes);
 
   return fastify;
 }
