@@ -32,7 +32,6 @@
     }
   
     function startDrag(event: PointerEvent, widget: BoardViewFixture['widgets'][number]) {
-      console.log('startDrag fired', widget.id); // TEMP — delete after testing
       const pos = getPos(widget); // read BEFORE setting draggingId, or getPos short-circuits to stale preview values
       previewCol = pos.col;
       previewRow = pos.row;
@@ -48,7 +47,6 @@
   
     function onPointerMove(event: PointerEvent) {
       if (draggingId === null || !gridEl) return;
-      console.log('onPointerMove', draggingId, event.clientX, event.clientY); // TEMP
   
       const gridRect = gridEl.getBoundingClientRect();
       const colWidth = (gridRect.width - GAP * (COLS - 1)) / COLS;
@@ -64,7 +62,6 @@
     }
   
     function onPointerUp(event: PointerEvent) {
-      console.log('onPointerUp fired', draggingId, previewCol, previewRow); // TEMP
       if (draggingId === null) return;
       // Optimistic local update — the widget stays at the dropped cell in the UI.
       // Still zero network calls. Task 2 adds the debounced PATCH + rollback-on-

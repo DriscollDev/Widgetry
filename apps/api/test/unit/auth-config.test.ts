@@ -6,6 +6,7 @@
 // options off the constructed instance, not the literal we passed in.
 
 import { describe, expect, it } from 'vitest';
+import { MIN_PASSWORD_LENGTH } from '@widgetry/shared';
 import { auth, AUTH_BASE_PATH } from '../../src/auth.js';
 
 const DAY = 60 * 60 * 24;
@@ -32,6 +33,13 @@ describe('Better-Auth policy (Feature Spec §5.1)', () => {
 
   it('FR-1.5: rejects passwords under 12 characters', () => {
     expect(options.emailAndPassword?.minPasswordLength).toBe(12);
+  });
+
+  it('FR-1.5: the sign-up form enforces the same floor the api does', () => {
+    // The web sign-up screen validates against MIN_PASSWORD_LENGTH from
+    // @widgetry/shared. If the two ever diverge, the form starts rejecting
+    // passwords the api would take (or worse, accepting ones it will not).
+    expect(options.emailAndPassword?.minPasswordLength).toBe(MIN_PASSWORD_LENGTH);
   });
 
   it('FR-1.5: registers the breached-password blocklist check', () => {

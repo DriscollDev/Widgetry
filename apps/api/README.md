@@ -6,15 +6,41 @@ service directly.
 ```bash
 pnpm --filter @widgetry/api dev          # tsx watch, listens on PORT (default 3000)
 pnpm --filter @widgetry/api test:unit    # no database needed
-pnpm --filter @widgetry/api test:integration  # needs TEST_DATABASE_URL (ci-test)
+pnpm --filter @widgetry/api test:integration  # needs TEST_DATABASE_URL - see below
 ```
+
+Integration tests skip silently unless `DATABASE_URL` resolves to a database
+whose name ends in `_ci_test`. In CI that is the shared `ci-test` environment.
+Locally, point `TEST_DATABASE_URL` at your **own** throwaway Railway Postgres
+(Eng §17.3) rather than the shared one - CI drops the shared database's schemas
+before every run and cannot see your local run. `.env.example` has the setup,
+including why `TEST_REDIS_URL` should stay unset.
 
 ## Routes so far
 
 | Method  | Path            | Auth | Notes                                    |
 | ------- | --------------- | ---- | ---------------------------------------- |
-| GET     | `/v1/health`    | No   | Railway liveness probe (§16.3)           |
+| GET     | `/v1/health`    | No   | Railway liveness probe (§16.3). Exempt from rate limiting. |
 | \*      | `/v1/auth/*`    | Varies | Better-Auth: sign-up, sign-in, sign-out, get-session, verify-email, password reset |
+| GET     | `/v1/me`        | Yes  | Current user + session (F2.2). `MeResponse` in `@widgetry/shared`. |
+| DELETE  | `/v1/me`        | Yes  | Delete account, cascades (US-A5 / FR-1.6). Body `{ confirmEmail }` must match the session's own email. |
+
+Board- and widget-scoped routes are not written yet, but the EX-17 gate they
+must use is: `requireBoardOwnership` / `requireWidgetOwnership` in
+`src/lib/ownership.ts`, as `preHandler`. Mismatch is 404, never 403 (§11.7), and
+widget ownership resolves by joining through `boards.user_id`. The two-user
+isolation suite in `test/integration/isolation.test.ts` currently drives probe
+routes; move each endpoint onto the real handler as it lands.
+
+EX-18 backs that up with lint: reading `widgets`, `widget_snapshots`, or
+`api_credentials` under `src/` without joining through `boards` is an ESLint
+error (see the note at the top of `eslint.config.js`). The worker and the test
+suites are deliberately out of scope - the §8.1 scheduler sweep is unscoped by
+design. Never silence it with a disable comment; use the ownership helpers.
+
+Rate limiting (§6.4): 120/min per user by default on every route, 5/min per IP
+on the credential- and email-bearing `/v1/auth/*` paths, and `/v1/health`
+opted out.
 
 Everything else under `/v1/` is rejected with `401 unauthenticated` by the
 session hook before routing. The public allowlist lives in

@@ -40,7 +40,10 @@ const describeIntegration = targetDb ? describe : describe.skip;
 
 if (!targetDb) {
   console.warn(
-    '[integration] skipping auth-email: DATABASE_URL does not point at a "_ci_test" database.',
+    '[integration] skipping auth-email.test.ts: DATABASE_URL does not resolve ' +
+      'to a database whose name ends in "_ci_test". To run these locally, point ' +
+      'TEST_DATABASE_URL at your own throwaway Railway Postgres - not the ' +
+      'shared ci-test one, which CI resets. See .env.example (Eng §13.2, §17.3).',
   );
 }
 

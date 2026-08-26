@@ -15,8 +15,42 @@ import { ApiErrorCode } from '@widgetry/shared';
 import { env } from './env.js';
 import { errorBody, isApiError } from './lib/errors.js';
 import { authPlugin } from './plugins/auth.js';
+import { ownershipPlugin } from './plugins/ownership.js';
 import { rateLimitPlugin } from './plugins/rate-limit.js';
+import { boardRoutes } from './routes/boards.js';
 import { healthRoutes } from './routes/health.js';
+import { meRoutes } from './routes/me.js';
+import { widgetRoutes } from './routes/widgets.js';
+
+/**
+ * Map an HTTP status onto one of our own error codes.
+ *
+ * Fastify raises its 4xx failures with framework codes - `FST_ERR_VALIDATION`,
+ * `FST_ERR_CTP_EMPTY_JSON_BODY`, `FST_ERR_CTP_INVALID_MEDIA_TYPE`. Those used to
+ * be passed straight through into the response, which quietly broke the §6.1
+ * contract: `code` is the stable discriminator clients branch on, and
+ * `ApiErrorCode` in @widgetry/shared is the closed set of values it may take. A
+ * client cannot switch on a code we never declared, and the framework is free to
+ * rename its own at any minor release.
+ *
+ * The framework code is still logged - it is genuinely useful for debugging,
+ * just not part of the contract.
+ */
+function codeForStatus(status: number): string {
+  switch (status) {
+    case 401:
+      return ApiErrorCode.UNAUTHENTICATED;
+    case 404:
+      return ApiErrorCode.NOT_FOUND;
+    case 429:
+      return ApiErrorCode.RATE_LIMITED;
+    default:
+      // Everything else in the 4xx range is the client sending us something we
+      // could not accept: bad JSON, an empty body, a wrong content-type, an
+      // oversized payload.
+      return ApiErrorCode.VALIDATION_FAILED;
+  }
+}
 
 export async function buildServer(): Promise<FastifyInstance> {
   const fastify = Fastify({
@@ -40,7 +74,14 @@ export async function buildServer(): Promise<FastifyInstance> {
     // Without this, the EX-42 per-IP limit collapses to one shared bucket.
     trustProxy: true,
     requestIdHeader: 'x-request-id',
-    disableRequestLogging: false,
+    // The per-request log line Eng §15.1 asks for is Fastify's default, so
+    // there is nothing to set. `disableRequestLogging: false` used to sit here
+    // saying so out loud, but Fastify 5 deprecates the top-level option
+    // (FSTDEP023) and warns on every boot merely because the key is present -
+    // the value is not even read. Its replacement, a `logController` subclass,
+    // is a lot of machinery for restating a default. If request logging ever
+    // needs to be conditional (per-route, or off for healthchecks), that is
+    // when to reach for `logController`.
   });
 
   fastify.setNotFoundHandler((_request, reply) =>
@@ -63,16 +104,18 @@ export async function buildServer(): Promise<FastifyInstance> {
     }
 
     // 4xx from Fastify's own validation/parsing. Message is safe to surface;
-    // the stack is not.
-    request.log.warn({ err: error }, 'request rejected');
-    return reply
-      .status(status)
-      .send(errorBody(error.code ?? ApiErrorCode.VALIDATION_FAILED, error.message));
+    // the stack is not, and neither is Fastify's `code`.
+    request.log.warn({ err: error, frameworkCode: error.code }, 'request rejected');
+    return reply.status(status).send(errorBody(codeForStatus(status), error.message));
   });
 
   await fastify.register(rateLimitPlugin);
   await fastify.register(authPlugin);
+  await fastify.register(ownershipPlugin);
   await fastify.register(healthRoutes);
+  await fastify.register(meRoutes);
+  await fastify.register(boardRoutes);
+  await fastify.register(widgetRoutes);
 
   return fastify;
 }
