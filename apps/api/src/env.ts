@@ -13,6 +13,7 @@ import { config } from 'dotenv';
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { z } from 'zod';
+import { DEFAULT_MAX_BOARDS_PER_USER } from '@widgetry/shared';
 
 /**
  * Load the workspace-root `.env` (Widgetry/.env) into process.env. pnpm runs
@@ -93,6 +94,22 @@ const EnvSchema = z
           message: 'EMAIL_FROM must be an email address or "Display Name <address@example.com>"',
         },
       ),
+
+    // FR-2.1's soft limit, stated as "configurable server-side". Capped at the
+    // schema level rather than only at the call site so a typo'd env var cannot
+    // quietly hand one user a thousand boards - the cap exists to bound the
+    // §6.1 scale targets, not just to shape the UI.
+    //
+    // The empty-string preprocess is load-bearing, for the same reason
+    // `optionalString` above has one: `.env.example` ships this key blank and
+    // both dotenv and Railway surface an unset variable as `''`. Without it,
+    // `z.coerce.number()` turns `''` into 0, `.min(1)` rejects 0, and the api
+    // refuses to boot for every developer who copied the example file - the
+    // `.default()` never gets a chance to apply, because the key IS present.
+    MAX_BOARDS_PER_USER: z.preprocess(
+      (v) => (v === '' ? undefined : v),
+      z.coerce.number().int().min(1).max(100).default(DEFAULT_MAX_BOARDS_PER_USER),
+    ),
 
     // Escape hatch for the FR-1.5 breached-password check, which calls
     // api.pwnedpasswords.com and fails closed. Set to 'false' only to keep
