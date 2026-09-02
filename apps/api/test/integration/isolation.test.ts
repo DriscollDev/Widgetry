@@ -88,16 +88,19 @@ describeIntegration('multi-tenant isolation (EX-17, Eng §11.7)', () => {
     const { buildServer } = await import('../../src/server.js');
     app = await buildServer();
 
-    // Probe routes for the widget-scoped family only - see the note at the top
-    // of this file. They exist to put the real pre-handler on a real request
-    // path. Each returns the row the gate resolved, so a passing 200 also proves
-    // the gate hands the handler the right record rather than merely letting it
-    // through. The board-scoped endpoints are real routes registered by
-    // buildServer(); nothing here shadows them.
+    // Probe routes for the widget-scoped endpoints that do not exist yet - see
+    // the note at the top of this file. They exist to put the real pre-handler
+    // on a real request path. Each returns the row the gate resolved, so a
+    // passing 200 also proves the gate hands the handler the right record rather
+    // than merely letting it through. The board-scoped endpoints are real routes
+    // registered by buildServer(); nothing here shadows them.
+    //
+    // PATCH /v1/widgets/:id has NO probe: it is a real route now (US-H2, F8.2),
+    // and Fastify refuses a duplicate registration - which is the good kind of
+    // failure, since a probe silently shadowing a real route would mean this
+    // suite proving the gate on a stub while the shipped handler went untested.
+    // Delete each probe below as its endpoint lands, for the same reason.
     app.get('/v1/widgets/:id', { preHandler: requireWidgetOwnership }, async (request) => ({
-      id: request.widget?.id,
-    }));
-    app.patch('/v1/widgets/:id', { preHandler: requireWidgetOwnership }, async (request) => ({
       id: request.widget?.id,
     }));
     app.delete('/v1/widgets/:id', { preHandler: requireWidgetOwnership }, async (request) => ({

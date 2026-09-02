@@ -136,19 +136,48 @@ export async function widgetRoutes(fastify: FastifyInstance): Promise<void> {
 
       const { widgetType, gridCol, gridRow, gridWidth, gridHeight } = parsed.data;
 
-      // EX-19. Two-step validation, and the second step is not optional: the
-      // request contract types `config` as `unknown`, so this call is the only
-      // thing standing between user input and a jsonb column. See the note on
-      // `CreateWidgetRequest.config` for why the check cannot live in that
-      // schema.
       const def = getWidgetTypeDef(widgetType);
-      const configResult = parseWidgetConfig(widgetType, parsed.data.config ?? {});
-      if (!configResult.success) {
-        throw validationFailed(
-          underConfig(configResult.error),
-          `That configuration is not valid for a ${def.displayName} widget.`,
-        );
+
+      // A widget may be created UNCONFIGURED. SCR-MOD-04 adds a widget to the
+      // board and SCR-MOD-05 configures it afterwards, so requiring a valid
+      // config here would make the add step impossible for every type whose
+      // schema has a required field - an uptime widget needs a `url`, and the
+      // user has not been asked for one yet at the moment they drop it on the
+      // grid.
+      //
+      // So the rule is about PRESENCE, not validity: omit `config` and you get
+      // an empty placeholder; send one and it must be valid for the type. There
+      // is no third option where a malformed config is quietly accepted.
+      const suppliedConfig = parsed.data.config;
+      const isConfigured = suppliedConfig !== undefined;
+
+      let config: Record<string, unknown> = {};
+      if (isConfigured) {
+        // EX-19. The request contract types `config` as `unknown`, so this call
+        // is the only thing standing between user input and a jsonb column. See
+        // the note on `CreateWidgetRequest.config` for why the check cannot
+        // live in that schema.
+        const configResult = parseWidgetConfig(widgetType, suppliedConfig);
+        if (!configResult.success) {
+          throw validationFailed(
+            underConfig(configResult.error),
+            `That configuration is not valid for a ${def.displayName} widget.`,
+          );
+        }
+        config = configResult.data as Record<string, unknown>;
       }
+
+      // An unconfigured server-polled widget is NOT schedulable, and leaving the
+      // interval null is what keeps it out of the §8.1 sweep (which skips null
+      // intervals explicitly). Without this, an uptime widget with no URL would
+      // be enqueued every hour and write a `config_invalid` error snapshot every
+      // time - noise about a widget the user has not finished creating. It
+      // becomes schedulable when a config is set.
+      //
+      // TODO(US-C6): when PATCH accepts `config`, that handler must set the
+      // interval at the same time, or a widget configured after creation stays
+      // unschedulable forever.
+      const refreshIntervalSeconds = isConfigured ? def.defaultRefreshSeconds : null;
 
       const widget = await db.transaction(async (tx) => {
         await tx
@@ -184,17 +213,17 @@ export async function widgetRoutes(fastify: FastifyInstance): Promise<void> {
             gridRow,
             gridWidth,
             gridHeight,
-            // The PARSED config, not `parsed.data.config`. For a strict schema
+            // The PARSED config, not the raw request value. For a strict schema
             // the two are equal today, but storing the parse output is what
             // makes that a property of this line rather than a coincidence -
             // the moment a type's schema gains a default or a transform, the
             // raw input stops being the value we meant to persist.
-            config: configResult.data as Record<string, unknown>,
-            // Null for client-polled types, which have no worker cadence. The
-            // §8.1 sweep filters on `polling_mode = 'server'` and so never sees
-            // them; it must still treat a null interval on a server-polled row
-            // as "not schedulable" rather than "poll immediately".
-            refreshIntervalSeconds: def.defaultRefreshSeconds,
+            config,
+            // Null for client-polled types, which have no worker cadence, and
+            // null for anything still unconfigured (see above). The §8.1 sweep
+            // filters on `polling_mode = 'server'` and treats a null interval as
+            // "not schedulable" rather than "poll immediately".
+            refreshIntervalSeconds,
             // retentionHours: left at the column default of 168 (FR-5.2's
             // 7-day default). TODO(F8.2/US-H2): accept 12..720 on create/update.
             lastPolledAt: jitteredLastPolledAt(def),
@@ -210,7 +239,8 @@ export async function widgetRoutes(fastify: FastifyInstance): Promise<void> {
           widgetId: widget.id,
           widgetType,
           pollingMode: def.polling,
-          refreshIntervalSeconds: def.defaultRefreshSeconds,
+          refreshIntervalSeconds,
+          configured: isConfigured,
         },
         'widget created (US-W1)',
       );

@@ -16,9 +16,10 @@
 //   GET    /v1/widgets/:id/snapshots  EX-Snapshots-Endpoint, F8.4
 //   PUT/DELETE /v1/widgets/:id/credential  FR-6.x
 
-import { and, eq, inArray } from 'drizzle-orm';
+import { and, eq, inArray, sql } from 'drizzle-orm';
 import { db, schema } from '@widgetry/db';
 import { ApiErrorCode, type BoardWidgetPlacement, UpdateWidgetRequest } from '@widgetry/shared';
+import type { PgUpdateSetSource } from 'drizzle-orm/pg-core';
 import type { FastifyInstance } from 'fastify';
 import { ApiError, validationFailed } from '../lib/errors.js';
 import { requireWidgetOwnership } from '../lib/ownership.js';
@@ -57,11 +58,23 @@ export async function widgetDetailRoutes(fastify: FastifyInstance): Promise<void
 
       const { retentionHours } = parsed.data;
 
-      const changes: Partial<typeof schema.widgets.$inferInsert> = {
+      // PgUpdateSetSource rather than Partial<$inferInsert>: the latter types
+      // updatedAt as Date, and `sql`now()`` is an SQL expression. Drizzle's own
+      // set-type is what .set() actually accepts.
+      const changes: PgUpdateSetSource<typeof schema.widgets> = {
         // `updatedAt` has defaultNow() for inserts only - Drizzle does not touch
         // it on update, so it is set explicitly. Without this the column
         // silently means "created at" forever.
-        updatedAt: new Date(),
+        //
+        // `now()` and NOT `new Date()`: the insert stamped createdAt/updatedAt
+        // from the DATABASE clock via defaultNow(), so stamping the update from
+        // the API process's clock compares two different clocks. Postgres is
+        // remote (locked decision 9) and Railway's server runs tens of
+        // milliseconds ahead of a local dev machine, which makes updatedAt land
+        // BEFORE createdAt on a row updated moments after creation. The
+        // integration suite caught exactly that. One clock, and it has to be the
+        // one that wrote the other timestamps.
+        updatedAt: sql`now()`,
       };
       if (retentionHours !== undefined) changes.retentionHours = retentionHours;
 

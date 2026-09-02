@@ -27,7 +27,7 @@
 // predicate on the driving table, which is also what keeps the EX-18 lint rule
 // satisfied honestly rather than by shape.
 
-import { and, count, desc, eq } from 'drizzle-orm';
+import { and, count, desc, eq, sql } from 'drizzle-orm';
 import { db, schema } from '@widgetry/db';
 import {
   type BoardDetailResponse,
@@ -37,6 +37,7 @@ import {
   type DeleteBoardResponse,
   UpdateBoardRequest,
 } from '@widgetry/shared';
+import type { PgUpdateSetSource } from 'drizzle-orm/pg-core';
 import type { FastifyInstance } from 'fastify';
 import { env } from '../env.js';
 import { limitExceeded, validationFailed } from '../lib/errors.js';
@@ -250,11 +251,21 @@ export async function boardRoutes(fastify: FastifyInstance): Promise<void> {
 
       const { name, refreshMode, refreshIntervalSeconds } = parsed.data;
 
-      const changes: Partial<typeof schema.boards.$inferInsert> = {
+      // PgUpdateSetSource rather than Partial<$inferInsert>: the latter types
+      // updatedAt as Date, and `sql`now()`` is an SQL expression. Drizzle's own
+      // set-type is what .set() actually accepts.
+      const changes: PgUpdateSetSource<typeof schema.boards> = {
         // `updatedAt` has defaultNow() for inserts only - Drizzle does not touch
         // it on update, so it is set explicitly here. Without this the column
         // silently means "created at" forever.
-        updatedAt: new Date(),
+        //
+        // `now()` and NOT `new Date()`: defaultNow() stamped this row's
+        // timestamps from the DATABASE clock on insert, and Postgres is remote
+        // (locked decision 9). Stamping the update from the API process's clock
+        // compares two clocks that differ by tens of milliseconds, which lands
+        // updatedAt BEFORE createdAt on a row patched shortly after creation -
+        // the "updatedAt is not a second createdAt" assertion caught it.
+        updatedAt: sql`now()`,
       };
 
       if (name !== undefined) changes.name = name;
