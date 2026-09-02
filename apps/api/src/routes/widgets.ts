@@ -66,6 +66,7 @@ export function toPlacement(widget: Widget): BoardWidgetPlacement {
     gridRow: widget.gridRow,
     gridWidth: widget.gridWidth,
     gridHeight: widget.gridHeight,
+    retentionHours: widget.retentionHours,
     createdAt: widget.createdAt.toISOString(),
     updatedAt: widget.updatedAt.toISOString(),
   };

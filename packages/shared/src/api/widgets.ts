@@ -149,8 +149,70 @@ export const BoardWidgetPlacement = WidgetPlacement.extend({
    * 'client' covers both api-proxied widgets and purely local ones (Eng §7.2).
    */
   pollingMode: z.enum(['client', 'server']),
+  /**
+   * FR-5.2. Present on every widget because the column is NOT NULL with a
+   * default, even for types that store no history - for those it is simply
+   * inert, and reporting it as null would imply a distinction the column does
+   * not make. Whether the retention control is SHOWN is a frontend decision
+   * driven by the registry's `supportsHistory`, not by this field.
+   */
+  retentionHours: z.number().int(),
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime(),
 });
 
 export type BoardWidgetPlacement = z.infer<typeof BoardWidgetPlacement>;
+
+/**
+ * FR-5.2 / US-H2: how long a widget's snapshots are kept, in hours. 12 hours to
+ * 30 days, default 7 days.
+ *
+ * These mirror the `widgets_retention_hours_check` constraint exactly, so an
+ * out-of-range value is a 400 from the contract rather than a Postgres 23514
+ * surfacing as a 500.
+ */
+export const WIDGET_RETENTION_HOURS_MIN = 12;
+export const WIDGET_RETENTION_HOURS_MAX = 720;
+export const DEFAULT_WIDGET_RETENTION_HOURS = 168;
+
+export const WidgetRetentionHours = z
+  .number()
+  .int()
+  .min(WIDGET_RETENTION_HOURS_MIN)
+  .max(WIDGET_RETENTION_HOURS_MAX);
+
+/**
+ * PATCH /v1/widgets/:id - US-H2 / F8.2, the retention slice.
+ *
+ * Eng §6.2 catalogues this endpoint as "update config / position / size", and
+ * this schema covers NONE of those three yet. That is deliberate scoping rather
+ * than an oversight, and the omissions are not equal:
+ *
+ *   TODO(EX-Overlap-Server): position and size. FR-3.3's locked decision is
+ *     reject-and-snap-back on overlap, never reflow, with the same algorithm
+ *     client- and server-side. The server check has to be race-safe against
+ *     concurrent moves, so it belongs in a transaction alongside the update -
+ *     not bolted on afterwards. Accepting grid fields here BEFORE that check
+ *     exists would let two widgets be moved onto the same cells, which is worse
+ *     than not accepting them at all.
+ *   TODO(F4.2/US-C6): `config`. Needs `parseWidgetConfig` against the stored
+ *     widget's type, the same two-step split `CreateWidgetRequest` uses.
+ *   TODO(US-C5): `refreshIntervalSeconds`, validated against the type's
+ *     `minRefreshSeconds` from the registry.
+ *
+ * Adding any of them is a contract change - extend this schema, not the handler.
+ */
+export const UpdateWidgetRequest = z
+  .object({
+    retentionHours: WidgetRetentionHours.optional(),
+  })
+  .superRefine((value, ctx) => {
+    // Same rule as UpdateBoardRequest: a PATCH that changes nothing is a client
+    // bug, and answering 200 to it hides that bug behind a successful-looking
+    // round trip.
+    if (value.retentionHours === undefined) {
+      ctx.addIssue({ code: 'custom', message: 'Provide at least one field to update.' });
+    }
+  });
+
+export type UpdateWidgetRequest = z.infer<typeof UpdateWidgetRequest>;

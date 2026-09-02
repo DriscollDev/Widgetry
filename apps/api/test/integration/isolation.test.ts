@@ -204,8 +204,11 @@ describeIntegration('multi-tenant isolation (EX-17, Eng §11.7)', () => {
     {
       name: 'PATCH /v1/widgets/:id',
       method: 'PATCH' as const,
+      // Was `{}`, which this endpoint now rejects with a 400 - an empty PATCH
+      // changes nothing and answering 200 to it would hide a client bug. The
+      // owner case needs a body that actually updates something (US-H2).
       url: `/v1/widgets/${widgetId}`,
-      payload: {},
+      payload: { retentionHours: 24 },
       ownerStatus: 200,
     },
     {
