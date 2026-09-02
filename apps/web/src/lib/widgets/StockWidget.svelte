@@ -1,5 +1,6 @@
 <script lang="ts">
   import { buildSparklinePath } from './sparkline';
+  import { ACCENT_STROKE_CLASS, ACCENT_PRESET_FILLED_CLASS, type AccentColor } from './accent';
 
   type Props = {
     symbol: string;
@@ -7,14 +8,17 @@
     price: number;
     changePct: number;
     points: number[];
+    accent?: AccentColor;
   };
 
-  let { symbol, name, price, changePct, points }: Props = $props();
+  let { symbol, name, price, changePct, points, accent = 'primary' }: Props = $props();
 
   const width = 100;
   const height = 32;
 
   let path = $derived(buildSparklinePath(points, width, height));
+  // Direction still shows via the triangle + sign below - color no longer
+  // has to carry it alone, so it's free to be the user's chosen accent.
   let isUp = $derived(changePct >= 0);
 </script>
 
@@ -27,9 +31,9 @@
       {/if}
     </div>
     <span
-      class="flex items-center gap-1 rounded px-2 py-0.5 text-xs {isUp
-        ? 'preset-filled-success-500'
-        : 'preset-filled-error-500'}"
+      class="flex items-center gap-1 rounded px-2 py-0.5 text-xs {ACCENT_PRESET_FILLED_CLASS[
+        accent
+      ]}"
     >
       {#if isUp}
         <svg viewBox="0 0 10 10" class="h-2.5 w-2.5" fill="currentColor">
@@ -50,7 +54,7 @@
     <path
       d={path}
       fill="none"
-      class={isUp ? 'stroke-success-500' : 'stroke-error-500'}
+      class={ACCENT_STROKE_CLASS[accent]}
       stroke-width="2"
       stroke-linecap="round"
       stroke-linejoin="round"
