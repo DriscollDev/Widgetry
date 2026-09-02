@@ -20,20 +20,22 @@
 //
 // What is NOT settled here, and must not be added to this file casually:
 //
-//   TODO(EX-19): `config`. The per-type config schemas belong in
-//     packages/shared/src/widgets/ alongside the WidgetTypeDef registry, not
-//     here. Until that lands, POST leaves the `config` jsonb column at its `{}`
-//     default and no endpoint accepts or returns it.
-//   TODO(EX-19/EX-20): `pollingMode`. Denormalized onto the row so the §8.1
-//     scheduler sweep needs no join, and it must be derived from the registry at
-//     write time - never accepted from the client, or a caller could park a
-//     client-only widget in the worker's queue. The api currently derives it
-//     from a provisional map (apps/api/src/routes/widgets.ts) that exists only
-//     until the registry does.
-//   TODO(EX-19): `refreshIntervalSeconds` / `retentionHours`. Their valid ranges
-//     are per-type (defaultRefreshSeconds / minRefreshSeconds on WidgetTypeDef),
-//     so they cannot be validated without the registry. Rows take the column
-//     defaults for now.
+//   DONE(EX-19): `config` is now accepted on create, as `unknown` here and
+//     validated against the chosen type's schema by `parseWidgetConfig` from
+//     ../widgets/registry.js. It is NOT validated by a refinement on this
+//     schema, and that is deliberate: registry.ts imports WIDGET_TYPES from this
+//     module, so a refinement here that reached into the registry would close an
+//     import cycle. Both callers run the two checks in sequence instead - see
+//     the note on `CreateWidgetRequest.config`.
+//   DONE(EX-19): `pollingMode` is derived from `WidgetTypeDef.polling`. It is
+//     denormalized onto the row so the §8.1 scheduler sweep needs no join, and
+//     it is never accepted from the client - a caller who could set
+//     `polling_mode: 'server'` on a clock widget could enqueue worker jobs for a
+//     widget with no upstream to poll.
+//   DONE(EX-19): `refreshIntervalSeconds` is seeded from the type's
+//     `defaultRefreshSeconds` (null for client-polled types).
+//   TODO(F8.2): `retentionHours`. US-H2 makes it user-configurable in 12..720;
+//     rows take the column default of 168 until PATCH /v1/widgets/:id lands.
 //   TODO: latest snapshot value. Needs the snapshot contract (F5), which needs
 //     the value shape, which needs the registry.
 //   TODO(EX-Overlap-Server): FR-3.3 overlap rejection. Not in this file - it is
@@ -87,20 +89,30 @@ export const WidgetPlacement = z.object({
 export type WidgetPlacement = z.infer<typeof WidgetPlacement>;
 
 /**
- * POST /v1/boards/:id/widgets (US-W1) - the stub form.
+ * POST /v1/boards/:id/widgets (US-W1).
  *
- * Type plus placement, nothing else. `config` is absent on purpose (see the
- * TODOs at the top): a client cannot configure a widget through this endpoint
- * yet, and a widget created through it is an empty placeholder that renders as
- * its type's loading/unconfigured state.
- *
- * TODO(EX-19): once the registry lands this gains a `config` field validated
- * against the chosen type's schema, and probably `refreshIntervalSeconds` /
- * `retentionHours` validated against that type's bounds. Adding them is a
- * contract change - update this schema, not the handler.
+ * Type, placement, and the type's own configuration.
  */
 export const CreateWidgetRequest = WidgetPlacement.extend({
   widgetType: WidgetType,
+  /**
+   * The widget's type-specific configuration, landing verbatim in the
+   * `widgets.config` jsonb column.
+   *
+   * `unknown` here and nowhere near a `passthrough()`: this schema cannot know
+   * what a valid config is, because that answer lives on the chosen type's
+   * `WidgetTypeDef.configSchema`. Validating it is a SECOND, mandatory step -
+   * `parseWidgetConfig(widgetType, config)` from ../widgets/registry.js - and
+   * both the api handler and the config form run it. A caller that parses this
+   * schema and writes `config` to the database without that second call has
+   * written unvalidated user input into jsonb.
+   *
+   * Optional, defaulting to `{}`, because most types are not configurable yet
+   * (their registry entry accepts `{}` and nothing else) and an unconfigured
+   * widget is a legitimate thing to create - it renders as its type's
+   * unconfigured state.
+   */
+  config: z.unknown().optional(),
 }).superRefine((value, ctx) => {
   // FR-3.1: the widget must fit inside the 12 columns. This is a rule about the
   // SUM of two fields, which is why it is here and not a column CHECK in the
