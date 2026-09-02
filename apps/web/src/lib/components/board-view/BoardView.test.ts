@@ -27,11 +27,13 @@ describe('BoardView', () => {
     expect(screen.getByText('Your board awaits its first widget.')).toBeInTheDocument();
   });
 
-  it('renders the populated state with the widget count', () => {
+  it('renders the populated state with all widgets', () => {
     render(BoardView, { props: { board: populatedBoardFixture, state: 'populated' } });
-    expect(screen.getByText('4 widgets')).toBeInTheDocument();
+    expect(screen.getByText('uptime')).toBeInTheDocument();
+    expect(screen.getByText('weather')).toBeInTheDocument();
+    expect(screen.getByText('clock')).toBeInTheDocument();
+    expect(screen.getByText('custom_json')).toBeInTheDocument();
   });
-
   it('renders the error state', () => {
     render(BoardView, { props: { board: errorBoardFixture, state: 'error' } });
     expect(screen.getByText('Something went wrong loading this board.')).toBeInTheDocument();
