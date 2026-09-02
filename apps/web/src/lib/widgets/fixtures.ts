@@ -4,6 +4,7 @@
 
 import type { WidgetStatus } from './status';
 import type { WeatherCondition } from './weather';
+import type { AccentColor } from './accent';
 
 export type RingValueFixture = {
   title: string;
@@ -34,6 +35,9 @@ export const lineGraphFixture: LineGraphFixture = {
 export type StatBarFixture = {
   title: string;
   stats: { label: string; value: number; max: number; unit?: string }[];
+  accent?: AccentColor;
+  thresholdPct?: number;
+  thresholdColor?: AccentColor;
 };
 
 export const statBarFixture: StatBarFixture = {
@@ -44,6 +48,9 @@ export const statBarFixture: StatBarFixture = {
     { label: 'Network', value: 312, max: 1000, unit: ' Mbps' },
     { label: 'GPU', value: 91, max: 100, unit: '%' },
   ],
+  accent: 'success',
+  thresholdPct: 90,
+  thresholdColor: 'error',
 };
 
 export type UptimeHistoryFixture = {

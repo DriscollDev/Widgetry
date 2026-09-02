@@ -1,13 +1,15 @@
 <script lang="ts">
   import { buildSparklinePath } from './sparkline';
+  import { ACCENT_STROKE_CLASS, type AccentColor } from './accent';
 
   type Props = {
     title: string;
     unit?: string;
     points: number[];
+    accent?: AccentColor;
   };
 
-  let { title, unit = '', points }: Props = $props();
+  let { title, unit = '', points, accent = 'primary' }: Props = $props();
 
   const width = 100;
   const height = 32;
@@ -25,7 +27,7 @@
     <path
       d={path}
       fill="none"
-      class="stroke-primary-500"
+      class={ACCENT_STROKE_CLASS[accent]}
       stroke-width="2"
       stroke-linecap="round"
       stroke-linejoin="round"

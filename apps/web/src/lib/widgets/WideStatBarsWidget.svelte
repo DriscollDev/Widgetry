@@ -1,5 +1,6 @@
 <script lang="ts">
   import { Progress } from '@skeletonlabs/skeleton-svelte';
+  import { ACCENT_BG_CLASS, type AccentColor } from './accent';
 
   type Stat = {
     label: string;
@@ -11,15 +12,27 @@
   type Props = {
     title: string;
     stats: Stat[];
+    accent?: AccentColor;
+    /** Percent of a bar's own max at which it switches to `thresholdColor`.
+     * Undefined means every bar just stays `accent`. */
+    thresholdPct?: number;
+    thresholdColor?: AccentColor;
   };
 
-  let { title, stats }: Props = $props();
+  let {
+    title,
+    stats,
+    accent = 'primary',
+    thresholdPct,
+    thresholdColor = 'error',
+  }: Props = $props();
 
   function meterColor(value: number, max: number): string {
     const pct = (value / max) * 100;
-    if (pct >= 90) return 'bg-error-500';
-    if (pct >= 70) return 'bg-warning-500';
-    return 'bg-success-500';
+    if (thresholdPct !== undefined && pct >= thresholdPct) {
+      return ACCENT_BG_CLASS[thresholdColor];
+    }
+    return ACCENT_BG_CLASS[accent];
   }
 </script>
 
