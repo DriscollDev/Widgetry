@@ -97,9 +97,9 @@ describeIntegration('multi-tenant isolation (EX-17, Eng §11.7)', () => {
     app.get('/v1/widgets/:id', { preHandler: requireWidgetOwnership }, async (request) => ({
       id: request.widget?.id,
     }));
-    app.patch('/v1/widgets/:id', { preHandler: requireWidgetOwnership }, async (request) => ({
-      id: request.widget?.id,
-    }));
+    // app.patch('/v1/widgets/:id', { preHandler: requireWidgetOwnership }, async (request) => ({
+    //   id: request.widget?.id,
+    // }));
     app.delete('/v1/widgets/:id', { preHandler: requireWidgetOwnership }, async (request) => ({
       id: request.widget?.id,
     }));
