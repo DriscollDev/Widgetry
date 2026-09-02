@@ -120,6 +120,37 @@ export const CreateWidgetRequest = WidgetPlacement.extend({
 export type CreateWidgetRequest = z.infer<typeof CreateWidgetRequest>;
 
 /**
+ * PATCH /v1/widgets/:id - the placement-only slice (US-W2 drag, US-W3 resize;
+ * Task #170 / #158 respectively).
+ *
+ * `.partial()` because drag sends only `{gridCol, gridRow}` and resize sends
+ * only `{gridWidth, gridHeight}` (or all four, for a combined move+resize) -
+ * the two features share this one endpoint and neither should be forced to
+ * echo back fields it did not change. At least one field is required, or a
+ * PATCH with an empty body would silently succeed and do nothing, which is a
+ * confusing 200 to debug.
+ *
+ * The FR-3.1 "fits inside 12 columns" cross-field check from
+ * `CreateWidgetRequest` is deliberately NOT reapplied here in the same form -
+ * a partial update might supply only `gridWidth` without `gridCol`, and there
+ * is no way to check "does it still fit" without also knowing the field(s) the
+ * caller did NOT send. The handler re-derives the full post-update rectangle
+ * from the existing row before validating that boundary (see
+ * apps/api/src/routes/widgets.ts).
+ *
+ * TODO(EX-Overlap-Server): FR-3.3 overlap rejection is not encoded in this
+ * schema - shape validation and conflict validation are different concerns.
+ * The reject-and-snap-back check runs in the handler, race-safe, once #73
+ * lands. Until then this endpoint will happily let two widgets overlap.
+ */
+export const UpdateWidgetPlacementRequest = WidgetPlacement.partial().refine(
+  (value) => Object.keys(value).length > 0,
+  { message: 'At least one placement field must be provided.' },
+);
+
+export type UpdateWidgetPlacementRequest = z.infer<typeof UpdateWidgetPlacementRequest>;
+
+/**
  * A widget as the board endpoints currently return it: enough to place it on the
  * grid and know what it will eventually be, and nothing more.
  *
