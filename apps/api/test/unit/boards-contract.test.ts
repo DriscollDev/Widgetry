@@ -1,7 +1,7 @@
 // apps/api/test/unit/boards-contract.test.ts
 //
 // CreateBoardRequest / UpdateBoardRequest (F3.1, FR-2.2, FR-2.3) and the widget
-// placement stub. Pure schema, no database - which matters here more than usual,
+// create contract. Pure schema, no database - which matters here more than usual,
 // because the integration suite that would otherwise cover this is gated on a
 // `_ci_test` database and currently skips on every developer machine (see the
 // note in boards.test.ts). These rules have to be asserted somewhere that always
@@ -17,6 +17,7 @@ import {
   BOARD_REFRESH_INTERVALS_SECONDS,
   CreateBoardRequest,
   CreateWidgetRequest,
+  parseWidgetConfig,
   UpdateBoardRequest,
   WIDGET_TYPES,
 } from '@widgetry/shared';
@@ -138,7 +139,7 @@ describe('UpdateBoardRequest (US-B3, US-B5, SCR-MOD-02)', () => {
   });
 });
 
-describe('CreateWidgetRequest (stub - placement only)', () => {
+describe('CreateWidgetRequest (placement + type + carried config)', () => {
   const placement = { gridCol: 0, gridRow: 0, gridWidth: 2, gridHeight: 2 };
 
   it('accepts every widget type in the FR-3.6 catalog', () => {
@@ -185,18 +186,43 @@ describe('CreateWidgetRequest (stub - placement only)', () => {
     ).toBe(false);
   });
 
-  it('ignores a config field rather than storing one', () => {
-    // The stub must not quietly start accepting widget config through an
-    // unvalidated passthrough - that is the decision EX-19 owns. Zod strips
-    // unknown keys by default; this pins that behaviour so a later `.passthrough()`
-    // has to be a deliberate, visible change.
+  // EX-19 has landed, so `config` is now carried by this schema - but only
+  // carried. It is typed `unknown` here and validated separately by
+  // `parseWidgetConfig`, because the registry imports WIDGET_TYPES from this
+  // module and a refinement reaching back into the registry would close an
+  // import cycle. The pair of tests below pins both halves of that split: this
+  // schema must PASS config through, and it must NOT be the thing that approves
+  // it.
+  it('carries a config field through rather than stripping it', () => {
     const result = CreateWidgetRequest.safeParse({
       ...placement,
-      widgetType: 'custom_json',
-      config: { url: 'https://example.test/data.json' },
+      widgetType: 'uptime',
+      config: { url: 'https://example.test/health' },
     });
 
     expect(result.success).toBe(true);
-    expect(result.data).not.toHaveProperty('config');
+    expect(result.data?.config).toEqual({ url: 'https://example.test/health' });
+  });
+
+  it('does not itself validate config - that is parseWidgetConfig’s job', () => {
+    // Nonsense for an uptime widget, and this schema still accepts it. That is
+    // correct and is exactly why every caller MUST run `parseWidgetConfig`
+    // before writing to the jsonb column; the api handler does, in
+    // src/routes/widgets.ts.
+    const carried = CreateWidgetRequest.safeParse({
+      ...placement,
+      widgetType: 'uptime',
+      config: { totally: 'wrong' },
+    });
+    expect(carried.success).toBe(true);
+
+    // ...and here is the check that actually rejects it.
+    expect(parseWidgetConfig('uptime', { totally: 'wrong' }).success).toBe(false);
+  });
+
+  it('treats config as optional - an unconfigured widget is legitimate', () => {
+    const result = CreateWidgetRequest.safeParse({ ...placement, widgetType: 'clock' });
+    expect(result.success).toBe(true);
+    expect(result.data?.config).toBeUndefined();
   });
 });

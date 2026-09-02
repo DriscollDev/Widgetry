@@ -20,6 +20,7 @@ import { rateLimitPlugin } from './plugins/rate-limit.js';
 import { boardRoutes } from './routes/boards.js';
 import { healthRoutes } from './routes/health.js';
 import { meRoutes } from './routes/me.js';
+import { widgetDetailRoutes } from './routes/widget-detail.js';
 import { widgetRoutes } from './routes/widgets.js';
 
 /**
@@ -116,6 +117,7 @@ export async function buildServer(): Promise<FastifyInstance> {
   await fastify.register(meRoutes);
   await fastify.register(boardRoutes);
   await fastify.register(widgetRoutes);
+  await fastify.register(widgetDetailRoutes);
 
   return fastify;
 }
