@@ -30,7 +30,11 @@
         <p class="text-xs text-surface-600-400">{name}</p>
       {/if}
     </div>
-    <span class="flex items-center gap-1 rounded px-2 py-0.5 text-xs {ACCENT_PRESET_FILLED_CLASS[accent]}">
+    <span
+      class="flex items-center gap-1 rounded px-2 py-0.5 text-xs {ACCENT_PRESET_FILLED_CLASS[
+        accent
+      ]}"
+    >
       {#if isUp}
         <svg viewBox="0 0 10 10" class="h-2.5 w-2.5" fill="currentColor">
           <path d="M5 1l4 6H1z" />

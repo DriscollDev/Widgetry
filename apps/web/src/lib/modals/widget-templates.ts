@@ -81,15 +81,16 @@ export const WIDGET_TEMPLATES: WidgetTemplate[] = [
     description: 'A number inside a progress ring, like players online.',
     // The ring's current value is whatever the endpoint reports; only the
     // max it is measured against is a user decision.
-    fields: withCommonFields(
-      'API endpoint URL',
-      'e.g. https://mc.yourserver.com/api/players',
-      [
-        { key: 'title', label: 'Title', type: 'text', placeholder: 'e.g. Minecraft — players online' },
-        { key: 'max', label: 'Max value', type: 'number', placeholder: 'e.g. 12' },
-        { key: 'unit', label: 'Unit label', type: 'text', placeholder: 'e.g. online' },
-      ],
-    ),
+    fields: withCommonFields('API endpoint URL', 'e.g. https://mc.yourserver.com/api/players', [
+      {
+        key: 'title',
+        label: 'Title',
+        type: 'text',
+        placeholder: 'e.g. Minecraft — players online',
+      },
+      { key: 'max', label: 'Max value', type: 'number', placeholder: 'e.g. 12' },
+      { key: 'unit', label: 'Unit label', type: 'text', placeholder: 'e.g. online' },
+    ]),
   },
   {
     id: 'line-graph',
@@ -110,47 +111,68 @@ export const WIDGET_TEMPLATES: WidgetTemplate[] = [
     description: 'Up to 4 named metric bars, each with its own endpoint. 2 grid spaces wide.',
     // Each bar polls its own endpoint, so there is no single shared one and
     // no bar values to type in - only each bar's name, source, and scale.
-    fields: withCommonFields(
-      null,
-      '',
-      [
-        { key: 'title', label: 'Title', type: 'text', placeholder: 'e.g. Home server — system stats' },
+    fields: withCommonFields(null, '', [
+      {
+        key: 'title',
+        label: 'Title',
+        type: 'text',
+        placeholder: 'e.g. Home server — system stats',
+      },
 
-        { key: 'stat1Name', label: 'Metric 1 name', type: 'text', placeholder: 'e.g. CPU' },
-        { key: 'stat1Endpoint', label: 'Metric 1 endpoint', type: 'text', placeholder: 'e.g. https://home-server.local/api/cpu' },
-        { key: 'stat1Max', label: 'Metric 1 max', type: 'number', placeholder: 'e.g. 100' },
-        { key: 'stat1Unit', label: 'Metric 1 unit', type: 'text', placeholder: 'e.g. %' },
+      { key: 'stat1Name', label: 'Metric 1 name', type: 'text', placeholder: 'e.g. CPU' },
+      {
+        key: 'stat1Endpoint',
+        label: 'Metric 1 endpoint',
+        type: 'text',
+        placeholder: 'e.g. https://home-server.local/api/cpu',
+      },
+      { key: 'stat1Max', label: 'Metric 1 max', type: 'number', placeholder: 'e.g. 100' },
+      { key: 'stat1Unit', label: 'Metric 1 unit', type: 'text', placeholder: 'e.g. %' },
 
-        { key: 'stat2Name', label: 'Metric 2 name', type: 'text', placeholder: 'e.g. RAM' },
-        { key: 'stat2Endpoint', label: 'Metric 2 endpoint', type: 'text', placeholder: 'e.g. https://home-server.local/api/ram' },
-        { key: 'stat2Max', label: 'Metric 2 max', type: 'number', placeholder: 'e.g. 100' },
-        { key: 'stat2Unit', label: 'Metric 2 unit', type: 'text', placeholder: 'e.g. %' },
+      { key: 'stat2Name', label: 'Metric 2 name', type: 'text', placeholder: 'e.g. RAM' },
+      {
+        key: 'stat2Endpoint',
+        label: 'Metric 2 endpoint',
+        type: 'text',
+        placeholder: 'e.g. https://home-server.local/api/ram',
+      },
+      { key: 'stat2Max', label: 'Metric 2 max', type: 'number', placeholder: 'e.g. 100' },
+      { key: 'stat2Unit', label: 'Metric 2 unit', type: 'text', placeholder: 'e.g. %' },
 
-        { key: 'stat3Name', label: 'Metric 3 name', type: 'text', placeholder: 'Optional — e.g. Network' },
-        { key: 'stat3Endpoint', label: 'Metric 3 endpoint', type: 'text', placeholder: 'Optional' },
-        { key: 'stat3Max', label: 'Metric 3 max', type: 'number', placeholder: 'e.g. 1000' },
-        { key: 'stat3Unit', label: 'Metric 3 unit', type: 'text', placeholder: 'e.g. Mbps' },
+      {
+        key: 'stat3Name',
+        label: 'Metric 3 name',
+        type: 'text',
+        placeholder: 'Optional — e.g. Network',
+      },
+      { key: 'stat3Endpoint', label: 'Metric 3 endpoint', type: 'text', placeholder: 'Optional' },
+      { key: 'stat3Max', label: 'Metric 3 max', type: 'number', placeholder: 'e.g. 1000' },
+      { key: 'stat3Unit', label: 'Metric 3 unit', type: 'text', placeholder: 'e.g. Mbps' },
 
-        { key: 'stat4Name', label: 'Metric 4 name', type: 'text', placeholder: 'Optional — e.g. GPU' },
-        { key: 'stat4Endpoint', label: 'Metric 4 endpoint', type: 'text', placeholder: 'Optional' },
-        { key: 'stat4Max', label: 'Metric 4 max', type: 'number', placeholder: 'e.g. 100' },
-        { key: 'stat4Unit', label: 'Metric 4 unit', type: 'text', placeholder: 'e.g. %' },
+      {
+        key: 'stat4Name',
+        label: 'Metric 4 name',
+        type: 'text',
+        placeholder: 'Optional — e.g. GPU',
+      },
+      { key: 'stat4Endpoint', label: 'Metric 4 endpoint', type: 'text', placeholder: 'Optional' },
+      { key: 'stat4Max', label: 'Metric 4 max', type: 'number', placeholder: 'e.g. 100' },
+      { key: 'stat4Unit', label: 'Metric 4 unit', type: 'text', placeholder: 'e.g. %' },
 
-        {
-          key: 'thresholdPct',
-          label: 'Switch color above (% of max)',
-          type: 'number',
-          placeholder: 'e.g. 90',
-        },
-        {
-          key: 'thresholdColor',
-          label: 'Color above threshold',
-          type: 'color',
-          options: ACCENT_COLORS,
-          defaultValue: 'error',
-        },
-      ],
-    ),
+      {
+        key: 'thresholdPct',
+        label: 'Switch color above (% of max)',
+        type: 'number',
+        placeholder: 'e.g. 90',
+      },
+      {
+        key: 'thresholdColor',
+        label: 'Color above threshold',
+        type: 'color',
+        options: ACCENT_COLORS,
+        defaultValue: 'error',
+      },
+    ]),
   },
   {
     id: 'uptime-history',
@@ -177,20 +199,55 @@ export const WIDGET_TEMPLATES: WidgetTemplate[] = [
       [
         { key: 'title', label: 'Title', type: 'text', placeholder: 'e.g. Pokémon Center — status' },
 
-        { key: 'service1Name', label: 'Service 1 name', type: 'text', placeholder: 'e.g. Storefront' },
-        { key: 'service1Endpoint', label: 'Service 1 endpoint', type: 'text', placeholder: 'e.g. https://pokemoncenter.com/health' },
+        {
+          key: 'service1Name',
+          label: 'Service 1 name',
+          type: 'text',
+          placeholder: 'e.g. Storefront',
+        },
+        {
+          key: 'service1Endpoint',
+          label: 'Service 1 endpoint',
+          type: 'text',
+          placeholder: 'e.g. https://pokemoncenter.com/health',
+        },
 
-        { key: 'service2Name', label: 'Service 2 name', type: 'text', placeholder: 'e.g. Checkout' },
-        { key: 'service2Endpoint', label: 'Service 2 endpoint', type: 'text', placeholder: 'e.g. https://pokemoncenter.com/api/checkout/health' },
+        {
+          key: 'service2Name',
+          label: 'Service 2 name',
+          type: 'text',
+          placeholder: 'e.g. Checkout',
+        },
+        {
+          key: 'service2Endpoint',
+          label: 'Service 2 endpoint',
+          type: 'text',
+          placeholder: 'e.g. https://pokemoncenter.com/api/checkout/health',
+        },
 
         { key: 'service3Name', label: 'Service 3 name', type: 'text', placeholder: 'Optional' },
-        { key: 'service3Endpoint', label: 'Service 3 endpoint', type: 'text', placeholder: 'Optional' },
+        {
+          key: 'service3Endpoint',
+          label: 'Service 3 endpoint',
+          type: 'text',
+          placeholder: 'Optional',
+        },
 
         { key: 'service4Name', label: 'Service 4 name', type: 'text', placeholder: 'Optional' },
-        { key: 'service4Endpoint', label: 'Service 4 endpoint', type: 'text', placeholder: 'Optional' },
+        {
+          key: 'service4Endpoint',
+          label: 'Service 4 endpoint',
+          type: 'text',
+          placeholder: 'Optional',
+        },
 
         { key: 'service5Name', label: 'Service 5 name', type: 'text', placeholder: 'Optional' },
-        { key: 'service5Endpoint', label: 'Service 5 endpoint', type: 'text', placeholder: 'Optional' },
+        {
+          key: 'service5Endpoint',
+          label: 'Service 5 endpoint',
+          type: 'text',
+          placeholder: 'Optional',
+        },
       ],
       true,
     ),

@@ -17,7 +17,13 @@
   class="flex flex-col items-center gap-3 rounded-xl border border-surface-200-800 bg-surface-50-950 p-4"
 >
   <p class="w-full text-xs text-surface-600-400">{title}</p>
-  <ProgressRing {value} {max} size="size-28" strokeWidth="8px" meterStroke={ACCENT_STROKE_CLASS[accent]}>
+  <ProgressRing
+    {value}
+    {max}
+    size="size-28"
+    strokeWidth="8px"
+    meterStroke={ACCENT_STROKE_CLASS[accent]}
+  >
     <span class="font-mono text-2xl font-semibold text-surface-950-50">{value}</span>
   </ProgressRing>
   {#if unit}
