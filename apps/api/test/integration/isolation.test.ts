@@ -5,14 +5,14 @@
 // widget-scoped endpoint User B must receive 404 - never 403, never 200, never
 // a 500 that betrays a database error on a crafted id.
 //
-// The four board-scoped endpoints below are now REAL routes from routes/boards.ts
-// and routes/widgets.ts - the probes they replaced are gone. What remains a
-// probe is the widget-scoped family (`/v1/widgets/:id` and its sub-paths), which
-// still has no handlers: EX-17 landed before the routes it guards, and the
-// widget data model is not settled.
+// The board-scoped endpoints below are real routes from routes/boards.ts and
+// routes/widgets.ts - the probes they replaced are gone. PATCH /v1/widgets/:id
+// (Task #170) is now real too. What remains a probe is GET/DELETE
+// /v1/widgets/:id and the rest of the widget-scoped family
+// (refresh/snapshots/credential), which still has no handlers.
 //
-// NOTE FOR WHOEVER ADDS THE FIRST REAL WIDGET ROUTE: as each of
-// PATCH/DELETE /v1/widgets/:id, POST /v1/widgets/:id/refresh,
+// NOTE FOR WHOEVER ADDS THE NEXT REAL WIDGET ROUTE: as each of
+// DELETE /v1/widgets/:id, POST /v1/widgets/:id/refresh,
 // GET /v1/widgets/:id/snapshots and PUT/DELETE /v1/widgets/:id/credential lands,
 // add it to `endpointsFor` below and delete the matching probe. §11.7 requires
 // EVERY scoped endpoint to appear here, and this suite runs on every PR.
@@ -88,18 +88,14 @@ describeIntegration('multi-tenant isolation (EX-17, Eng §11.7)', () => {
     const { buildServer } = await import('../../src/server.js');
     app = await buildServer();
 
-    // Probe routes for the widget-scoped family only - see the note at the top
-    // of this file. They exist to put the real pre-handler on a real request
-    // path. Each returns the row the gate resolved, so a passing 200 also proves
-    // the gate hands the handler the right record rather than merely letting it
-    // through. The board-scoped endpoints are real routes registered by
-    // buildServer(); nothing here shadows them.
+    // Probe routes for the widget-scoped family that still have no real
+    // handler - see the note at the top of this file. PATCH /v1/widgets/:id
+    // is now a REAL route, registered by buildServer() via routes/widgets.ts;
+    // registering a second handler on the same method+path here would throw
+    // FST_ERR_DUPLICATE_ROUTE. GET and DELETE remain probes.
     app.get('/v1/widgets/:id', { preHandler: requireWidgetOwnership }, async (request) => ({
       id: request.widget?.id,
     }));
-    // app.patch('/v1/widgets/:id', { preHandler: requireWidgetOwnership }, async (request) => ({
-    //   id: request.widget?.id,
-    // }));
     app.delete('/v1/widgets/:id', { preHandler: requireWidgetOwnership }, async (request) => ({
       id: request.widget?.id,
     }));
@@ -205,7 +201,11 @@ describeIntegration('multi-tenant isolation (EX-17, Eng §11.7)', () => {
       name: 'PATCH /v1/widgets/:id',
       method: 'PATCH' as const,
       url: `/v1/widgets/${widgetId}`,
-      payload: {},
+      // UpdateWidgetPlacementRequest requires at least one field (Task #170) -
+      // an empty body 400s before ownership is even relevant to the response,
+      // which would make the owner-path assertion below fail for the wrong
+      // reason. Real placement values exercise the actual write path.
+      payload: { gridCol: 3, gridRow: 3 },
       ownerStatus: 200,
     },
     {
