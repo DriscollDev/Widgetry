@@ -4,22 +4,29 @@
 // STUB. Creates an EMPTY widget owned by a board. Nothing configures it yet.
 // ===========================================================================
 //
-// One verb from the Eng §6.2 catalog, in reduced form:
+// Two verbs from the Eng §6.2 catalog, in reduced form:
 //
-//   POST /v1/boards/:id/widgets   US-W1, SCR-MOD-04/05 - add widget
+//   POST  /v1/boards/:id/widgets   US-W1, SCR-MOD-04/05 - add widget
+//   PATCH /v1/widgets/:id          US-W2 drag (#170), US-W3 resize (#158) -
+//                                  placement fields ONLY, nothing else
 //
-// What it does today: proves the caller owns the board, checks the FR-3.5 cap,
-// and inserts a row whose `config` column stays at its `{}` default. The widget
-// exists, it belongs to a board, and the board belongs to a user - which is the
-// whole ownership chain (Eng §11.7) exercised end to end. What it does NOT do is
-// decide anything about widget content; see the header of
-// packages/shared/src/api/widgets.ts for the list.
+// What it does today: proves the caller owns the board (POST) or widget
+// (PATCH) via the Eng §11.7 gate, checks the FR-3.5 cap on create, and writes
+// only grid_col/grid_row/grid_width/grid_height. `config` stays at its `{}`
+// default. The widget exists, it belongs to a board, and the board belongs to
+// a user - which is the whole ownership chain exercised end to end. What
+// neither verb does is decide anything about widget CONTENT; see the header
+// of packages/shared/src/api/widgets.ts for that list.
 //
-// The rest of the widget family - PATCH/DELETE /v1/widgets/:id, refresh,
-// snapshots, credential - is not here. Those are widget-scoped
-// (`requireWidgetOwnership`, not `requireBoardOwnership`) and every one of them
-// needs the data model this file is deliberately not inventing. When they land
-// they go in their own file and each must be added to the isolation suite.
+// DELETE /v1/widgets/:id, refresh, snapshots, credential are still not here -
+// this file was originally going to defer PATCH to "its own file" too, but
+// placement-only PATCH shares every ownership/mapping helper POST already
+// defines in this file (toPlacement, Widget type, requireWidgetOwnership
+// import) and splitting it out would mean importing half this file back in.
+// The remaining verbs are a different story - they touch credentials,
+// polling state, and snapshot data this file doesn't model - so THEY still
+// belong in their own file(s) when they land, each added to the isolation
+// suite (Eng §11.7) same as this one must be.
 //
 // TODO(EX-Overlap-Server): FR-3.3 overlap rejection is NOT implemented here.
 //   Two widgets posted to the same cells will both be created. The locked
@@ -31,16 +38,25 @@
 //   SCR-MOD-04 is wired up.
 
 import { and, count, eq } from 'drizzle-orm';
+import { ZodError } from 'zod';
 import { db, schema } from '@widgetry/db';
 import {
+  ApiErrorCode,
   type BoardWidgetPlacement,
   CreateWidgetRequest,
+  GRID_COLUMNS,
   MAX_WIDGETS_PER_BOARD,
+  UpdateWidgetPlacementRequest,
   type WidgetType,
 } from '@widgetry/shared';
 import type { FastifyInstance } from 'fastify';
-import { limitExceeded, validationFailed } from '../lib/errors.js';
-import { requireBoardOwnership, type Widget } from '../lib/ownership.js';
+import { ApiError, limitExceeded, validationFailed } from '../lib/errors.js';
+import {
+  findOwnedWidget,
+  requireBoardOwnership,
+  requireWidgetOwnership,
+  type Widget,
+} from '../lib/ownership.js';
 import { requireSession } from '../lib/session.js';
 
 /**
@@ -210,6 +226,98 @@ export async function widgetRoutes(fastify: FastifyInstance): Promise<void> {
       );
 
       return reply.status(201).send(toPlacement(widget));
+    },
+  );
+
+  /**
+   * PATCH /v1/widgets/:id - placement only. US-W2 drag (Task #170), US-W3
+   * resize (#158). 200 on success.
+   *
+   * `:id` is the WIDGET id, so the gate is `requireWidgetOwnership` -
+   * `requireBoardOwnership` would check the wrong resource entirely (Eng
+   * §11.7). This is the first route in the file that needs it.
+   *
+   * Every field is optional on the wire (see UpdateWidgetPlacementRequest),
+   * so the FR-3.1 "fits inside 12 columns" boundary can only be checked
+   * against the widget's state AFTER merging in whatever the caller sent -
+   * not against the request body alone, and not against the stale row either.
+   *
+   * TODO(EX-Overlap-Server): no overlap check yet. Two widgets PATCHed onto
+   * the same cells will both succeed. Reject-and-snap-back lands with #73 and
+   * has to run inside this same transaction, alongside the boundary check
+   * below, for the same race-safety reason the FR-3.5 count is transactional
+   * in the POST handler above - two concurrent PATCHes must not both see a
+   * clear board.
+   */
+  fastify.patch(
+    '/v1/widgets/:id',
+    { preHandler: requireWidgetOwnership },
+    async (request): Promise<BoardWidgetPlacement> => {
+      const { user } = requireSession(request);
+      // Non-null because the pre-handler either set it or ended the request.
+      const widget = request.widget!;
+
+      const parsed = UpdateWidgetPlacementRequest.safeParse(request.body);
+      if (!parsed.success) {
+        throw validationFailed(parsed.error, 'The widget could not be repositioned as described.');
+      }
+
+      const { gridCol, gridRow, gridWidth, gridHeight } = parsed.data;
+
+      // Merge onto the CURRENT row, not onto an empty object - a drag PATCH
+      // sends only {gridCol, gridRow} and must not clobber the existing
+      // width/height (and vice versa for a resize-only PATCH from #158).
+      const nextCol = gridCol ?? widget.gridCol;
+      const nextRow = gridRow ?? widget.gridRow;
+      const nextWidth = gridWidth ?? widget.gridWidth;
+      const nextHeight = gridHeight ?? widget.gridHeight;
+
+      // Same FR-3.1 cross-field rule as CreateWidgetRequest's superRefine,
+      // re-checked here against the MERGED rectangle because that is the only
+      // rectangle this handler actually knows exists after the write.
+      if (nextCol + nextWidth > GRID_COLUMNS) {
+        throw validationFailed(
+          new ZodError([
+            {
+              code: 'custom',
+              path: ['gridWidth'],
+              message: `A widget at column ${nextCol} may span at most ${GRID_COLUMNS - nextCol} columns (FR-3.1).`,
+            },
+          ]),
+          'The widget could not be repositioned as described.',
+        );
+      }
+
+      // Re-affirm ownership through the boards join immediately before the
+      // write, rather than trusting `request.widget` across the pre-handler
+      // boundary for a MUTATING query. `widgets` carries no user_id of its
+      // own (Eng §11.7) - findOwnedWidget's join is the only way to re-scope
+      // it, so re-querying (not just re-checking the id) is the point here,
+      // not a redundant lookup.
+      const stillOwned = await findOwnedWidget(widget.id, user.id);
+      if (!stillOwned) {
+        request.log.info({ widgetId: widget.id }, 'widget no longer owned between gate and write');
+        throw new ApiError(404, ApiErrorCode.NOT_FOUND, 'Widget not found.');
+      }
+
+      const [updated] = await db
+        .update(schema.widgets)
+        .set({
+          gridCol: nextCol,
+          gridRow: nextRow,
+          gridWidth: nextWidth,
+          gridHeight: nextHeight,
+          updatedAt: new Date(),
+        })
+        .where(eq(schema.widgets.id, widget.id))
+        .returning();
+
+      request.log.info(
+        { widgetId: widget.id, gridCol: nextCol, gridRow: nextRow },
+        'widget placement updated (US-W2/US-W3)',
+      );
+
+      return toPlacement(updated!);
     },
   );
 }

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onDestroy } from 'svelte';
   import type { BoardViewFixture, BoardViewState } from './fixtures';
 
   export let board: BoardViewFixture; // sole data input — no fetch, no store, no auth
@@ -10,9 +11,10 @@
       : 'Manual refresh';
 
   // --- Task #166 scope: cursor-follow + snap preview only. No SERVER persistence
-  // — that's Task 2's debounced PATCH (Eng Doc §9.3). Local/optimistic position
-  // updates on release DO belong here — the drop needs to visually stick before
-  // any network call exists, otherwise every drag silently no-ops. ---
+  // — that's Task #170's debounced PATCH (Eng Doc §9.3), directly below. Local/
+  // optimistic position updates on release DO belong here — the drop needs to
+  // visually stick before any network call exists, otherwise every drag
+  // silently no-ops. ---
   let gridEl: HTMLDivElement;
   let draggingId: string | null = null;
   let previewCol = 0;
@@ -24,6 +26,96 @@
   const COLS = 12;
   const ROW_HEIGHT = 80; // px, matches grid-auto-rows minmax(80px, auto)
   const GAP = 8; // px, matches grid gap
+
+  // --- Task #170 scope: persist a drag to the server. FR-3.4's 500ms budget is
+  // debounce (300ms, Eng §9.3) + the PATCH round trip, so the debounce alone
+  // eats the majority of that budget — a slow network hop is the only way to
+  // blow it, which is a backend/infra concern, not something to compensate for
+  // here by shrinking the debounce below spec. ---
+
+  /** One pending timer per widget id, so dragging widget A mid-debounce on
+   *  widget B cannot cancel B's pending save — each widget's persistence is
+   *  independent of every other widget's. */
+  const pendingPatchTimers: Record<string, ReturnType<typeof setTimeout>> = {};
+
+  const DEBOUNCE_MS = 300;
+
+  /**
+   * PATCH the widget's placement. Kept separate from the debounce wrapper so
+   * a future resize (#158, Task 3) can reuse this exact function with
+   * {width, height} added to the body — same endpoint, same error handling,
+   * same rollback contract, per UpdateWidgetPlacementRequest's `.partial()`
+   * shape (packages/shared/src/api/widgets.ts).
+   */
+  async function patchWidgetPlacement(
+    widgetId: string,
+    placement: { gridCol: number; gridRow: number },
+    previousPosition: { col: number; row: number },
+  ): Promise<void> {
+    let response: Response;
+    try {
+      response = await fetch(`/v1/widgets/${widgetId}`, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(placement),
+      });
+    } catch {
+      // Network failure (offline, DNS, etc.) — same rollback as a rejected
+      // response below. The optimistic UI must not claim a position the
+      // server never actually recorded.
+      rollbackPosition(widgetId, previousPosition);
+      return;
+    }
+
+    if (!response.ok) {
+      // Covers both a validation failure (this widget's own placement is
+      // somehow invalid) and — once #73 lands — an FR-3.3 overlap rejection.
+      // Either way the server did not accept the drop, so the optimistic
+      // local state is now a lie and has to be corrected, not left standing.
+      rollbackPosition(widgetId, previousPosition);
+    }
+    // On success, localPositions already holds the value the server just
+    // confirmed (set optimistically in onPointerUp) — nothing further to do.
+  }
+
+  function rollbackPosition(widgetId: string, previousPosition: { col: number; row: number }) {
+    localPositions = { ...localPositions, [widgetId]: previousPosition };
+  }
+
+  /**
+   * Debounce a placement PATCH for one widget. Call this from onPointerUp
+   * with the position that was just committed to localPositions (the new
+   * target) and the position it replaced (the rollback target). Debouncing —
+   * not just delaying — matters here: a rapid re-drag of the same widget
+   * before the timer fires must cancel the stale PATCH rather than let two
+   * requests race and let the server's response order decide which position
+   * wins.
+   */
+  function scheduleDragPatch(
+    widgetId: string,
+    nextPosition: { col: number; row: number },
+    previousPosition: { col: number; row: number },
+  ) {
+    clearTimeout(pendingPatchTimers[widgetId]);
+
+    pendingPatchTimers[widgetId] = setTimeout(() => {
+      delete pendingPatchTimers[widgetId];
+      void patchWidgetPlacement(
+        widgetId,
+        { gridCol: nextPosition.col, gridRow: nextPosition.row },
+        previousPosition,
+      );
+    }, DEBOUNCE_MS);
+  }
+
+  // Leaving the board mid-debounce (nav away, harness state switch) should not
+  // fire a PATCH into a view nobody is looking at anymore. Does not attempt to
+  // flush pending saves synchronously on unmount — that is a real UX tradeoff
+  // (a very-last-moment drag could be lost) but forcing a beforeunload-style
+  // flush is out of scope for #170's stated ACs.
+  onDestroy(() => {
+    for (const timer of Object.values(pendingPatchTimers)) clearTimeout(timer);
+  });
 
   function getPos(widget: BoardViewFixture['widgets'][number]) {
     if (draggingId === widget.id) return { col: previewCol, row: previewRow };
@@ -61,13 +153,25 @@
     previewRow = Math.max(0, row);
   }
 
-  function onPointerUp(_event: PointerEvent) {
+  function onPointerUp(_event: PointerEvent, widget: BoardViewFixture['widgets'][number]) {
     if (draggingId === null) return;
-    // Optimistic local update — the widget stays at the dropped cell in the UI.
-    // Still zero network calls. Task 2 adds the debounced PATCH + rollback-on-
-    // reject on top of this same localPositions state.
-    localPositions = { ...localPositions, [draggingId]: { col: previewCol, row: previewRow } };
+
+    // Read the PRE-drop position before overwriting localPositions — this is
+    // the rollback target if the server rejects the new one. Falls back to
+    // the widget's server-known position when there is no prior local
+    // override (i.e. its first-ever drag this session).
+    const previousPosition = localPositions[widget.id] ?? {
+      col: widget.grid_col,
+      row: widget.grid_row,
+    };
+    const nextPosition = { col: previewCol, row: previewRow };
+
+    // Optimistic local update — the widget stays at the dropped cell in the UI
+    // immediately, before the network round trip even starts.
+    localPositions = { ...localPositions, [draggingId]: nextPosition };
     draggingId = null;
+
+    scheduleDragPatch(widget.id, nextPosition, previousPosition);
   }
 
   // Keyboard equivalent for the a11y linter / WCAG 2.1 AA (Feature Spec §6.5).
@@ -150,7 +254,7 @@
             tabindex="0"
             on:pointerdown={(e) => startDrag(e, widget)}
             on:pointermove={onPointerMove}
-            on:pointerup={onPointerUp}
+            on:pointerup={(e) => onPointerUp(e, widget)}
             on:keydown={(e) => onWidgetKeydown(e, widget)}
           >
             <!-- widget content renderer is a separate ticket (E4) — placeholder body for now -->
