@@ -16,16 +16,44 @@
   // visually stick before any network call exists, otherwise every drag
   // silently no-ops. ---
   let gridEl: HTMLDivElement;
-  let draggingId: string | null = null;
   let previewCol = 0;
   let previewRow = 0;
   let pointerOffsetX = 0;
   let pointerOffsetY = 0;
-  let localPositions: Record<string, { col: number; row: number }> = {};
+
+  // Extended in Task #178 to optionally carry width/height alongside col/row,
+  // anticipating #179 (persistence) — same object, same commit-on-release
+  // pattern as drag already established, just with two more optional fields
+  // that only get set once a resize actually completes.
+  let localPositions: Record<
+    string,
+    { col: number; row: number; width?: number; height?: number }
+  > = {};
 
   const COLS = 12;
   const ROW_HEIGHT = 80; // px, matches grid-auto-rows minmax(80px, auto)
   const GAP = 8; // px, matches grid gap
+
+  // --- Task #178 scope (US-W3): which single mode is active right now, if any.
+  // Both drag (#166/#170) and resize (#178) funnel through this one flag so
+  // onPointerMove/onPointerUp have exactly one branch point each, rather than
+  // two parallel and easily-divergent sets of pointer handlers. ---
+  type InteractionMode = 'drag' | 'resize' | null;
+  let interactionMode: InteractionMode = null;
+  let activeWidgetId: string | null = null;
+  let activeHandle: ResizeHandlePosition | null = null;
+
+  // The widget's rect at the MOMENT a resize starts, captured once and never
+  // mutated during the drag. Every frame's new rect is computed fresh from
+  // this origin + the pointer's current cell, not incrementally from the
+  // previous frame — incremental math accumulates rounding drift over a long
+  // drag; recomputing from a fixed origin every time doesn't.
+  let resizeOrigin = { col: 0, row: 0, width: 1, height: 1 };
+  let previewWidth = 1;
+  let previewHeight = 1;
+
+  const MIN_SPAN = 1;
+  const MAX_SPAN = 6; // FR-3.2
 
   // --- Task #170 scope: persist a drag to the server. FR-3.4's 500ms budget is
   // debounce (300ms, Eng §9.3) + the PATCH round trip, so the debounce alone
@@ -117,17 +145,70 @@
     for (const timer of Object.values(pendingPatchTimers)) clearTimeout(timer);
   });
 
-  function getPos(widget: BoardViewFixture['widgets'][number]) {
-    if (draggingId === widget.id) return { col: previewCol, row: previewRow };
-    if (localPositions[widget.id]) return localPositions[widget.id];
+  // --- FIX (Svelte reactivity gotcha, same class of bug as #166's original
+  // grid-position issue): getPos/getSpan used to read previewCol, previewRow,
+  // interactionMode, activeWidgetId, and localPositions directly off the
+  // component's own scope. That's invisible to Svelte's compiler when the
+  // call is embedded in a template {@const} — the compiler only tracks
+  // identifiers it can see literally inside the template expression, not
+  // identifiers read inside a called function's body. Passing every reactive
+  // value in as an explicit argument puts those identifiers directly in the
+  // template expression, so Svelte correctly reruns {@const pos}/{@const span}
+  // (and therefore the grid-column/grid-row style binding) whenever any of
+  // them change during a drag or resize. ---
+  function getPos(
+    widget: BoardViewFixture['widgets'][number],
+    mode: InteractionMode,
+    activeId: string | null,
+    pCol: number,
+    pRow: number,
+    positions: typeof localPositions,
+  ) {
+    if (mode === 'drag' && activeId === widget.id) {
+      return { col: pCol, row: pRow };
+    }
+    if (positions[widget.id]) return positions[widget.id];
     return { col: widget.grid_col, row: widget.grid_row };
   }
 
+  /**
+   * Same idea as `getPos` but for width/height. A widget being actively
+   * resized reads its live preview span; otherwise it reads whatever was
+   * last locally committed (Task #178's onPointerUp, below), falling back to
+   * the widget's server-known span.
+   */
+  function getSpan(
+    widget: BoardViewFixture['widgets'][number],
+    mode: InteractionMode,
+    activeId: string | null,
+    pWidth: number,
+    pHeight: number,
+    positions: typeof localPositions,
+  ) {
+    if (mode === 'resize' && activeId === widget.id) {
+      return { width: pWidth, height: pHeight };
+    }
+    const local = positions[widget.id];
+    if (local?.width !== undefined && local?.height !== undefined) {
+      return { width: local.width, height: local.height };
+    }
+    return { width: widget.grid_width, height: widget.grid_height };
+  }
+
   function startDrag(event: PointerEvent, widget: BoardViewFixture['widgets'][number]) {
-    const pos = getPos(widget); // read BEFORE setting draggingId, or getPos short-circuits to stale preview values
+    // read BEFORE setting activeWidgetId, or getPos short-circuits to stale preview values
+    const pos = getPos(
+      widget,
+      interactionMode,
+      activeWidgetId,
+      previewCol,
+      previewRow,
+      localPositions,
+    );
     previewCol = pos.col;
     previewRow = pos.row;
-    draggingId = widget.id;
+    interactionMode = 'drag';
+    activeWidgetId = widget.id;
 
     const target = event.currentTarget as HTMLElement;
     const rect = target.getBoundingClientRect();
@@ -138,8 +219,15 @@
   }
 
   function onPointerMove(event: PointerEvent) {
-    if (draggingId === null || !gridEl) return;
+    if (interactionMode === null || !gridEl) return;
+    if (interactionMode === 'drag') {
+      onDragPointerMove(event);
+    } else {
+      onResizePointerMove(event);
+    }
+  }
 
+  function onDragPointerMove(event: PointerEvent) {
     const gridRect = gridEl.getBoundingClientRect();
     const colWidth = (gridRect.width - GAP * (COLS - 1)) / COLS;
 
@@ -154,8 +242,14 @@
   }
 
   function onPointerUp(_event: PointerEvent, widget: BoardViewFixture['widgets'][number]) {
-    if (draggingId === null) return;
+    if (interactionMode === 'drag') {
+      onDragPointerUp(widget);
+    } else if (interactionMode === 'resize') {
+      onResizePointerUp(widget);
+    }
+  }
 
+  function onDragPointerUp(widget: BoardViewFixture['widgets'][number]) {
     // Read the PRE-drop position before overwriting localPositions — this is
     // the rollback target if the server rejects the new one. Falls back to
     // the widget's server-known position when there is no prior local
@@ -167,9 +261,15 @@
     const nextPosition = { col: previewCol, row: previewRow };
 
     // Optimistic local update — the widget stays at the dropped cell in the UI
-    // immediately, before the network round trip even starts.
-    localPositions = { ...localPositions, [draggingId]: nextPosition };
-    draggingId = null;
+    // immediately, before the network round trip even starts. Spread the
+    // existing entry first so a prior resize's width/height (if any) survives
+    // a later drag instead of being silently dropped.
+    localPositions = {
+      ...localPositions,
+      [widget.id]: { ...localPositions[widget.id], ...nextPosition },
+    };
+    interactionMode = null;
+    activeWidgetId = null;
 
     scheduleDragPatch(widget.id, nextPosition, previousPosition);
   }
@@ -185,13 +285,9 @@
     // Intentionally no-op for now — see note above.
   }
 
-  // --- Task #177 scope (US-W3): render + hit-target only. No anchor math, no
-  // clamping, no persistence — those are Tasks #178 and #179. A handle's
-  // pointerdown here only stops propagation so grabbing a corner doesn't
-  // accidentally start a whole-widget DRAG (the parent's own pointerdown
-  // listener would otherwise catch the bubbled event) — it deliberately does
-  // NOT yet do anything resize-related. #178 replaces this stub with real
-  // logic keyed off the same `position` value. ---
+  // --- Task #177 established the handles themselves; Task #178 (below) is the
+  // actual anchor math + clamping. Kept in the same file/section since the two
+  // Tasks share the RESIZE_HANDLES table and the ResizeHandlePosition type. ---
   type ResizeHandlePosition = 'n' | 'ne' | 'e' | 'se' | 's' | 'sw' | 'w' | 'nw';
 
   const RESIZE_HANDLES: { position: ResizeHandlePosition; cursor: string }[] = [
@@ -205,8 +301,137 @@
     { position: 'nw', cursor: 'nwse-resize' },
   ];
 
-  function onResizeHandlePointerDown(event: PointerEvent, _position: ResizeHandlePosition) {
+  /**
+   * For each axis (col/row), does this handle keep the START edge fixed and
+   * grow the END edge ('fixed-start' — e.g. dragging `se` right/down grows
+   * width/height while col/row don't move), keep the END edge fixed and move
+   * the START edge ('fixed-end' — e.g. dragging `nw` shrinks the rect from
+   * the top-left, so col/row themselves change), or leave that axis
+   * untouched entirely ('none' — edge handles only ever touch one axis).
+   * Encoding this as a table means the math below is written once and reused
+   * for all 8 handles, instead of 8 near-duplicate branches that drift apart
+   * over time.
+   */
+  const HANDLE_AXES: Record<
+    ResizeHandlePosition,
+    { col: 'fixed-start' | 'fixed-end' | 'none'; row: 'fixed-start' | 'fixed-end' | 'none' }
+  > = {
+    n: { col: 'none', row: 'fixed-end' },
+    ne: { col: 'fixed-start', row: 'fixed-end' },
+    e: { col: 'fixed-start', row: 'none' },
+    se: { col: 'fixed-start', row: 'fixed-start' },
+    s: { col: 'none', row: 'fixed-start' },
+    sw: { col: 'fixed-end', row: 'fixed-start' },
+    w: { col: 'fixed-end', row: 'none' },
+    nw: { col: 'fixed-end', row: 'fixed-end' },
+  };
+
+  function onResizeHandlePointerDown(
+    event: PointerEvent,
+    position: ResizeHandlePosition,
+    widget: BoardViewFixture['widgets'][number],
+  ) {
+    // Stops the parent widget's own pointerdown (startDrag) from also firing
+    // on the same bubbled event — a resize must never simultaneously start a
+    // whole-widget drag. This is the one piece of #177's stub that's still
+    // exactly right; everything else below is new.
     event.stopPropagation();
+
+    const pos = getPos(
+      widget,
+      interactionMode,
+      activeWidgetId,
+      previewCol,
+      previewRow,
+      localPositions,
+    );
+    const span = getSpan(
+      widget,
+      interactionMode,
+      activeWidgetId,
+      previewWidth,
+      previewHeight,
+      localPositions,
+    );
+    resizeOrigin = { col: pos.col, row: pos.row, width: span.width, height: span.height };
+    previewCol = pos.col;
+    previewRow = pos.row;
+    previewWidth = span.width;
+    previewHeight = span.height;
+
+    interactionMode = 'resize';
+    activeWidgetId = widget.id;
+    activeHandle = position;
+
+    const target = event.currentTarget as HTMLElement;
+    target.setPointerCapture(event.pointerId);
+  }
+
+  function clampSpan(value: number, maxAllowed: number): number {
+    return Math.max(MIN_SPAN, Math.min(value, MAX_SPAN, maxAllowed));
+  }
+
+  function onResizePointerMove(event: PointerEvent) {
+    if (activeHandle === null) return;
+
+    const gridRect = gridEl.getBoundingClientRect();
+    const colWidth = (gridRect.width - GAP * (COLS - 1)) / COLS;
+
+    // The pointer's current cell — no drag-grab offset here, unlike drag:
+    // there's no "where within the widget did you grab it," the handle IS
+    // the edge being positioned.
+    const pointerCol = Math.round((event.clientX - gridRect.left) / (colWidth + GAP));
+    const pointerRow = Math.round((event.clientY - gridRect.top) / (ROW_HEIGHT + GAP));
+
+    const axes = HANDLE_AXES[activeHandle];
+
+    // --- Column axis ---
+    if (axes.col === 'fixed-start') {
+      // Anchor is the origin's left edge; width grows/shrinks toward the
+      // pointer. Capped both by MAX_SPAN and by how much room is left before
+      // the grid's own right boundary (FR-3.1's 12 columns).
+      const roomToRightEdge = COLS - resizeOrigin.col;
+      previewWidth = clampSpan(pointerCol - resizeOrigin.col + 1, roomToRightEdge);
+      previewCol = resizeOrigin.col;
+    } else if (axes.col === 'fixed-end') {
+      // Anchor is the origin's right edge; col itself shifts as width
+      // changes. Capped so col can never go negative.
+      const anchorCol = resizeOrigin.col + resizeOrigin.width - 1;
+      previewWidth = clampSpan(anchorCol - pointerCol + 1, anchorCol + 1);
+      previewCol = anchorCol - previewWidth + 1;
+    }
+    // 'none': col/width for this handle are untouched — already correct from
+    // the values set in onResizeHandlePointerDown.
+
+    // --- Row axis --- (mirrors column axis; rows have no upper grid bound
+    // per FR-3.1 "rows grow as needed," so no room-to-edge cap here, only
+    // MIN_SPAN/MAX_SPAN and the non-negative floor.)
+    if (axes.row === 'fixed-start') {
+      previewHeight = clampSpan(pointerRow - resizeOrigin.row + 1, Infinity);
+      previewRow = resizeOrigin.row;
+    } else if (axes.row === 'fixed-end') {
+      const anchorRow = resizeOrigin.row + resizeOrigin.height - 1;
+      previewHeight = clampSpan(anchorRow - pointerRow + 1, anchorRow + 1);
+      previewRow = anchorRow - previewHeight + 1;
+    }
+  }
+
+  function onResizePointerUp(widget: BoardViewFixture['widgets'][number]) {
+    // Local-only commit, no PATCH — persisting a resize to the server is
+    // Task #179's job, same division of labor #166 (local commit) had with
+    // #170 (server persistence) for drag.
+    localPositions = {
+      ...localPositions,
+      [widget.id]: {
+        col: previewCol,
+        row: previewRow,
+        width: previewWidth,
+        height: previewHeight,
+      },
+    };
+    interactionMode = null;
+    activeWidgetId = null;
+    activeHandle = null;
   }
 </script>
 
@@ -261,18 +486,31 @@
     {:else}
       <div class="board-view__grid" bind:this={gridEl}>
         {#each board.widgets as widget (widget.id)}
+          {@const pos = getPos(
+            widget,
+            interactionMode,
+            activeWidgetId,
+            previewCol,
+            previewRow,
+            localPositions,
+          )}
+          {@const span = getSpan(
+            widget,
+            interactionMode,
+            activeWidgetId,
+            previewWidth,
+            previewHeight,
+            localPositions,
+          )}
           <div
             class="board-view__widget"
-            class:board-view__widget--dragging={draggingId === widget.id}
+            class:board-view__widget--dragging={interactionMode === 'drag' &&
+              activeWidgetId === widget.id}
+            class:board-view__widget--resizing={interactionMode === 'resize' &&
+              activeWidgetId === widget.id}
             style="
-                grid-column: {(draggingId === widget.id
-              ? previewCol
-              : (localPositions[widget.id]?.col ?? widget.grid_col)) +
-              1} / span {widget.grid_width};
-                grid-row: {(draggingId === widget.id
-              ? previewRow
-              : (localPositions[widget.id]?.row ?? widget.grid_row)) +
-              1} / span {widget.grid_height};
+                grid-column: {pos.col + 1} / span {span.width};
+                grid-row: {pos.row + 1} / span {span.height};
               "
             role="button"
             tabindex="0"
@@ -284,15 +522,15 @@
             <!-- widget content renderer is a separate ticket (E4) — placeholder body for now -->
             <span class="board-view__widget-label">{widget.widgetType}</span>
 
-            <!-- Task #177: hit targets only. Visibility is hover/focus-within
-                 driven in CSS below, not a tracked JS state — cheaper and
-                 correct here since there's no other reason to re-render on
-                 hover. tabindex="-1": deliberately NOT in the tab order yet —
-                 same honest gap as onWidgetKeydown above: full keyboard-driven
-                 resize is a separate, not-yet-built feature, and a
-                 focusable-but-inert handle would be worse than an
-                 unreachable one. Flagging explicitly rather than silently
-                 shipping partial a11y support. -->
+            <!-- Task #177/#178: pointermove and pointerup are NOT attached
+                 here on the handle itself. setPointerCapture (in
+                 onResizeHandlePointerDown) redirects where move/up events
+                 TARGET, but they still bubble from the handle up through this
+                 parent div same as any DOM event — so the parent's existing
+                 on:pointermove/on:pointerup above are sufficient and already
+                 branch on `interactionMode` to route to the resize handlers.
+                 Duplicating listeners on each of the 8 handles would just be
+                 redundant. -->
             {#each RESIZE_HANDLES as handle (handle.position)}
               <span
                 class="board-view__resize-handle board-view__resize-handle--{handle.position}"
@@ -300,7 +538,7 @@
                 role="button"
                 tabindex="-1"
                 aria-label="Resize {handle.position}"
-                on:pointerdown={(e) => onResizeHandlePointerDown(e, handle.position)}
+                on:pointerdown={(e) => onResizeHandlePointerDown(e, handle.position, widget)}
                 data-resize-handle={handle.position}
               ></span>
             {/each}
@@ -366,6 +604,15 @@
 
   .board-view__widget--dragging {
     cursor: grabbing;
+    opacity: 0.85;
+    border-color: light-dark(var(--color-primary-500), var(--color-primary-400));
+    z-index: 10;
+  }
+
+  /* No cursor override here, unlike --dragging — the active resize handle's
+     own cursor (set inline per-handle in Task #177) is what should show
+     during a resize, not a whole-widget grabbing cursor. */
+  .board-view__widget--resizing {
     opacity: 0.85;
     border-color: light-dark(var(--color-primary-500), var(--color-primary-400));
     z-index: 10;
