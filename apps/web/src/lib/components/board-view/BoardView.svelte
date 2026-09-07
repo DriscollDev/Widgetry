@@ -184,6 +184,30 @@
   function onWidgetKeydown(_event: KeyboardEvent, _widget: BoardViewFixture['widgets'][number]) {
     // Intentionally no-op for now — see note above.
   }
+
+  // --- Task #177 scope (US-W3): render + hit-target only. No anchor math, no
+  // clamping, no persistence — those are Tasks #178 and #179. A handle's
+  // pointerdown here only stops propagation so grabbing a corner doesn't
+  // accidentally start a whole-widget DRAG (the parent's own pointerdown
+  // listener would otherwise catch the bubbled event) — it deliberately does
+  // NOT yet do anything resize-related. #178 replaces this stub with real
+  // logic keyed off the same `position` value. ---
+  type ResizeHandlePosition = 'n' | 'ne' | 'e' | 'se' | 's' | 'sw' | 'w' | 'nw';
+
+  const RESIZE_HANDLES: { position: ResizeHandlePosition; cursor: string }[] = [
+    { position: 'n', cursor: 'ns-resize' },
+    { position: 'ne', cursor: 'nesw-resize' },
+    { position: 'e', cursor: 'ew-resize' },
+    { position: 'se', cursor: 'nwse-resize' },
+    { position: 's', cursor: 'ns-resize' },
+    { position: 'sw', cursor: 'nesw-resize' },
+    { position: 'w', cursor: 'ew-resize' },
+    { position: 'nw', cursor: 'nwse-resize' },
+  ];
+
+  function onResizeHandlePointerDown(event: PointerEvent, _position: ResizeHandlePosition) {
+    event.stopPropagation();
+  }
 </script>
 
 <section class="board-view" data-board-id={board.id} data-state={state}>
@@ -259,6 +283,27 @@
           >
             <!-- widget content renderer is a separate ticket (E4) — placeholder body for now -->
             <span class="board-view__widget-label">{widget.widgetType}</span>
+
+            <!-- Task #177: hit targets only. Visibility is hover/focus-within
+                 driven in CSS below, not a tracked JS state — cheaper and
+                 correct here since there's no other reason to re-render on
+                 hover. tabindex="-1": deliberately NOT in the tab order yet —
+                 same honest gap as onWidgetKeydown above: full keyboard-driven
+                 resize is a separate, not-yet-built feature, and a
+                 focusable-but-inert handle would be worse than an
+                 unreachable one. Flagging explicitly rather than silently
+                 shipping partial a11y support. -->
+            {#each RESIZE_HANDLES as handle (handle.position)}
+              <span
+                class="board-view__resize-handle board-view__resize-handle--{handle.position}"
+                style="cursor: {handle.cursor};"
+                role="button"
+                tabindex="-1"
+                aria-label="Resize {handle.position}"
+                on:pointerdown={(e) => onResizeHandlePointerDown(e, handle.position)}
+                data-resize-handle={handle.position}
+              ></span>
+            {/each}
           </div>
         {/each}
       </div>
@@ -303,6 +348,7 @@
   }
 
   .board-view__widget {
+    position: relative; /* anchors the absolutely-positioned resize handles */
     display: flex;
     align-items: center;
     justify-content: center;
@@ -330,6 +376,83 @@
     font-size: 0.8rem;
     color: light-dark(var(--color-surface-700), var(--color-surface-200));
     pointer-events: none;
+  }
+
+  /* --- Task #177: resize handles ---
+     Hidden by default; shown on hover OR keyboard focus (`:focus-within`
+     covers the widget itself since it's the tabindex="0" element, not a
+     handle - handles aren't independently focusable in this Task, that's
+     a11y scope for a later pass). Corner handles are small squares that
+     straddle the border; edge handles are thin strips centered on their
+     side. `nwse`/`nesw`/`ns`/`ew`-resize cursors match standard OS resize
+     affordances so the cursor alone hints the drag axis even before #178
+     wires up real behavior. */
+  .board-view__resize-handle {
+    position: absolute;
+    z-index: 5;
+    opacity: 0;
+    background: light-dark(var(--color-primary-500), var(--color-primary-400));
+    border-radius: 2px;
+    transition: opacity 120ms ease;
+  }
+
+  .board-view__widget:hover .board-view__resize-handle,
+  .board-view__widget:focus-within .board-view__resize-handle {
+    opacity: 1;
+  }
+
+  /* Corners: 10px squares, centered on the exact corner point. */
+  .board-view__resize-handle--nw,
+  .board-view__resize-handle--ne,
+  .board-view__resize-handle--se,
+  .board-view__resize-handle--sw {
+    width: 10px;
+    height: 10px;
+  }
+
+  .board-view__resize-handle--nw {
+    top: -5px;
+    left: -5px;
+  }
+  .board-view__resize-handle--ne {
+    top: -5px;
+    right: -5px;
+  }
+  .board-view__resize-handle--se {
+    bottom: -5px;
+    right: -5px;
+  }
+  .board-view__resize-handle--sw {
+    bottom: -5px;
+    left: -5px;
+  }
+
+  /* Edges: thin strips centered along the middle third of their side, so
+     they don't collide with the corner handles at each end. */
+  .board-view__resize-handle--n,
+  .board-view__resize-handle--s {
+    left: 33%;
+    width: 34%;
+    height: 6px;
+  }
+  .board-view__resize-handle--n {
+    top: -3px;
+  }
+  .board-view__resize-handle--s {
+    bottom: -3px;
+  }
+
+  .board-view__resize-handle--e,
+  .board-view__resize-handle--w {
+    top: 33%;
+    height: 34%;
+    width: 6px;
+  }
+  .board-view__resize-handle--e {
+    right: -3px;
+  }
+  .board-view__resize-handle--w {
+    left: -3px;
   }
 
   .board-view__skeleton-line {
