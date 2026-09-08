@@ -222,9 +222,16 @@
       // Only include width/height when this interaction actually set them —
       // keeps a plain drag's PATCH body identical to what #170 always sent,
       // rather than growing every drag's payload just because the type now
-      // technically allows width/height to be present.
-      if (nextPosition.width !== undefined) placement.gridWidth = nextPosition.width;
-      if (nextPosition.height !== undefined) placement.gridHeight = nextPosition.height;
+      // technically allows width/height to be present. Deliberately checking
+      // the explicit `includeSpan` flag here, NOT `nextPosition.width !==
+      // undefined` — that check is always true in practice (currentPlacement
+      // always fills in width/height), which was the exact bug fixed once
+      // already; regressing to it would silently start sending width/height
+      // on every plain drag again.
+      if (includeSpan) {
+        placement.gridWidth = nextPosition.width;
+        placement.gridHeight = nextPosition.height;
+      }
 
       void patchWidgetPlacement(widgetId, placement, previousPosition);
     }, DEBOUNCE_MS);
