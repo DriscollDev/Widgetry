@@ -317,7 +317,11 @@ export async function widgetRoutes(fastify: FastifyInstance): Promise<void> {
         // widget on the SAME board blocks here until this transaction
         // commits or rolls back — so its own overlap check always sees this
         // widget's FINAL position, never a stale one.
-        await tx.select({ id: schema.boards.id }).from(schema.boards).where(eq(schema.boards.id, widget.boardId)).for('update');
+        await tx
+          .select({ id: schema.boards.id })
+          .from(schema.boards)
+          .where(eq(schema.boards.id, widget.boardId))
+          .for('update');
 
         // Re-affirm ownership through the boards join immediately before the
         // write, rather than trusting `request.widget` across the
@@ -349,8 +353,21 @@ export async function widgetRoutes(fastify: FastifyInstance): Promise<void> {
             gridHeight: schema.widgets.gridHeight,
           })
           .from(schema.widgets)
+          // Joined through `boards` and scoped by userId, per EX-18 (Eng
+          // §11.7) — a bare `widgets` query filtered by boardId alone is
+          // scoped by an id, not by owner. The board row is already locked
+          // and ownership already re-verified two lines above, but the
+          // lint rule can't see that context and is right to insist every
+          // widgets query carries its own explicit ownership predicate
+          // rather than borrowing safety from a check elsewhere in the
+          // function.
+          .innerJoin(schema.boards, eq(schema.widgets.boardId, schema.boards.id))
           .where(
-            and(eq(schema.widgets.boardId, widget.boardId), ne(schema.widgets.id, widget.id)),
+            and(
+              eq(schema.boards.id, widget.boardId),
+              eq(schema.boards.userId, user.id),
+              ne(schema.widgets.id, widget.id),
+            ),
           );
 
         const candidate = { col: nextCol, row: nextRow, width: nextWidth, height: nextHeight };
