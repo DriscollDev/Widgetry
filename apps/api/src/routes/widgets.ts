@@ -37,7 +37,7 @@
 //   gap is not reachable in the product today; it becomes reachable the moment
 //   SCR-MOD-04 is wired up.
 
-import { and, count, eq } from 'drizzle-orm';
+import { and, count, eq, ne } from 'drizzle-orm';
 import { ZodError } from 'zod';
 import { db, schema } from '@widgetry/db';
 import {
@@ -50,7 +50,7 @@ import {
   type WidgetType,
 } from '@widgetry/shared';
 import type { FastifyInstance } from 'fastify';
-import { ApiError, limitExceeded, validationFailed } from '../lib/errors.js';
+import { ApiError, limitExceeded, overlapRejected, validationFailed } from '../lib/errors.js';
 import {
   findOwnedWidget,
   requireBoardOwnership,
@@ -140,6 +140,27 @@ const MIN_POLL_INTERVAL_SECONDS = 3600;
 function jitteredLastPolledAt(): Date {
   const windowMs = MIN_POLL_INTERVAL_SECONDS * 1000;
   return new Date(Date.now() - Math.floor(Math.random() * windowMs));
+}
+
+/**
+ * Standard axis-aligned rectangle overlap test — the exact same algorithm as
+ * the client-side check (apps/web/.../board-view/BoardView.svelte, Task
+ * #187), per the locked decision that reject-and-snap-back uses one
+ * algorithm on both sides. Kept local rather than moved into
+ * @widgetry/shared: it operates on plain {col,row,width,height} numbers with
+ * no schema of its own, and promoting it is a one-function change if a third
+ * caller ever needs it — not worth doing speculatively for two.
+ */
+function rectanglesOverlap(
+  a: { col: number; row: number; width: number; height: number },
+  b: { col: number; row: number; width: number; height: number },
+): boolean {
+  return (
+    a.col < b.col + b.width &&
+    a.col + a.width > b.col &&
+    a.row < b.row + b.height &&
+    a.row + a.height > b.row
+  );
 }
 
 export async function widgetRoutes(fastify: FastifyInstance): Promise<void> {
@@ -242,12 +263,14 @@ export async function widgetRoutes(fastify: FastifyInstance): Promise<void> {
    * against the widget's state AFTER merging in whatever the caller sent -
    * not against the request body alone, and not against the stale row either.
    *
-   * TODO(EX-Overlap-Server): no overlap check yet. Two widgets PATCHed onto
-   * the same cells will both succeed. Reject-and-snap-back lands with #73 and
-   * has to run inside this same transaction, alongside the boundary check
-   * below, for the same race-safety reason the FR-3.5 count is transactional
-   * in the POST handler above - two concurrent PATCHes must not both see a
-   * clear board.
+   * Task #188 (EX-Overlap-Server): the whole ownership re-check, overlap
+   * check, and write now run inside one transaction with the BOARD row
+   * locked first. Locking the widget's own row would not help — the race
+   * this guards against is two DIFFERENT widgets on the same board being
+   * PATCHed at the same moment, each reading the other's pre-move position
+   * as "clear" before either write lands. Locking the shared board row is
+   * what serializes that, same pattern as the FR-3.5 count in the POST
+   * handler above.
    */
   fastify.patch(
     '/v1/widgets/:id',
@@ -288,36 +311,85 @@ export async function widgetRoutes(fastify: FastifyInstance): Promise<void> {
         );
       }
 
-      // Re-affirm ownership through the boards join immediately before the
-      // write, rather than trusting `request.widget` across the pre-handler
-      // boundary for a MUTATING query. `widgets` carries no user_id of its
-      // own (Eng §11.7) - findOwnedWidget's join is the only way to re-scope
-      // it, so re-querying (not just re-checking the id) is the point here,
-      // not a redundant lookup.
-      const stillOwned = await findOwnedWidget(widget.id, user.id);
-      if (!stillOwned) {
-        request.log.info({ widgetId: widget.id }, 'widget no longer owned between gate and write');
-        throw new ApiError(404, ApiErrorCode.NOT_FOUND, 'Widget not found.');
-      }
+      const updated = await db.transaction(async (tx) => {
+        // Lock the board row before reading or writing anything else in this
+        // transaction. A second, concurrent PATCH targeting a different
+        // widget on the SAME board blocks here until this transaction
+        // commits or rolls back — so its own overlap check always sees this
+        // widget's FINAL position, never a stale one.
+        await tx.select({ id: schema.boards.id }).from(schema.boards).where(eq(schema.boards.id, widget.boardId)).for('update');
 
-      const [updated] = await db
-        .update(schema.widgets)
-        .set({
-          gridCol: nextCol,
-          gridRow: nextRow,
-          gridWidth: nextWidth,
-          gridHeight: nextHeight,
-          updatedAt: new Date(),
-        })
-        .where(eq(schema.widgets.id, widget.id))
-        .returning();
+        // Re-affirm ownership through the boards join immediately before the
+        // write, rather than trusting `request.widget` across the
+        // pre-handler boundary for a MUTATING query. `widgets` carries no
+        // user_id of its own (Eng §11.7) - findOwnedWidget's join is the
+        // only way to re-scope it, so re-querying (not just re-checking the
+        // id) is the point here, not a redundant lookup.
+        const stillOwned = await findOwnedWidget(widget.id, user.id);
+        if (!stillOwned) {
+          request.log.info(
+            { widgetId: widget.id },
+            'widget no longer owned between gate and write',
+          );
+          throw new ApiError(404, ApiErrorCode.NOT_FOUND, 'Widget not found.');
+        }
+
+        // --- Task #188 (FR-3.3, EX-Overlap-Server): the server-side half of
+        // overlap rejection, and the actual correctness backstop — the
+        // client-side check (#187) is UX-only and can be bypassed (a caller
+        // hitting this endpoint directly) or lose a race with another tab or
+        // device. Every OTHER widget on the same board is read fresh here,
+        // inside the transaction, now that the board row above is locked and
+        // no concurrent PATCH on this board can interleave with this read. ---
+        const siblings = await tx
+          .select({
+            gridCol: schema.widgets.gridCol,
+            gridRow: schema.widgets.gridRow,
+            gridWidth: schema.widgets.gridWidth,
+            gridHeight: schema.widgets.gridHeight,
+          })
+          .from(schema.widgets)
+          .where(
+            and(eq(schema.widgets.boardId, widget.boardId), ne(schema.widgets.id, widget.id)),
+          );
+
+        const candidate = { col: nextCol, row: nextRow, width: nextWidth, height: nextHeight };
+        const overlapsSibling = siblings.some((sibling) =>
+          rectanglesOverlap(candidate, {
+            col: sibling.gridCol,
+            row: sibling.gridRow,
+            width: sibling.gridWidth,
+            height: sibling.gridHeight,
+          }),
+        );
+
+        if (overlapsSibling) {
+          throw overlapRejected(
+            'That position or size overlaps another widget on this board (FR-3.3).',
+          );
+        }
+
+        const [row] = await tx
+          .update(schema.widgets)
+          .set({
+            gridCol: nextCol,
+            gridRow: nextRow,
+            gridWidth: nextWidth,
+            gridHeight: nextHeight,
+            updatedAt: new Date(),
+          })
+          .where(eq(schema.widgets.id, widget.id))
+          .returning();
+
+        return row!;
+      });
 
       request.log.info(
         { widgetId: widget.id, gridCol: nextCol, gridRow: nextRow },
         'widget placement updated (US-W2/US-W3)',
       );
 
-      return toPlacement(updated!);
+      return toPlacement(updated);
     },
   );
 }
