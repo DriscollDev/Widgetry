@@ -25,6 +25,10 @@
   // Task #179 is what actually makes use of those fields for persistence —
   // same object, same commit-on-release pattern as drag already established.
   type WidgetPlacement = { col: number; row: number; width?: number; height?: number };
+  // A placement where width/height are always known, never optional. Used
+  // wherever a full rectangle is required — overlap checks (#187) and the
+  // rollback target both need concrete numbers, never "maybe."
+  type FullPlacement = { col: number; row: number; width: number; height: number };
   let localPositions: Record<string, WidgetPlacement> = {};
 
   const COLS = 12;
@@ -51,6 +55,72 @@
 
   const MIN_SPAN = 1;
   const MAX_SPAN = 6; // FR-3.2
+
+  // --- Task #187 scope (US-W6 / FR-3.3): the widget currently flashing a
+  // rejected-overlap conflict, if any. A single id (not a set) is enough —
+  // only one widget can be actively dragged/resized at a time, so only one
+  // can ever be mid-rejection at once. Cleared automatically after
+  // CONFLICT_FLASH_MS; the timer is tracked so a second rapid rejection on
+  // the same widget restarts the flash instead of the first timer cutting
+  // the second flash short. ---
+  let conflictWidgetId: string | null = null;
+  let conflictTimer: ReturnType<typeof setTimeout> | null = null;
+
+  /** Kept in sync with the `board-view-conflict-flash` keyframe duration below. */
+  const CONFLICT_FLASH_MS = 400;
+
+  function flashConflict(widgetId: string) {
+    if (conflictTimer) clearTimeout(conflictTimer);
+    conflictWidgetId = widgetId;
+    conflictTimer = setTimeout(() => {
+      conflictWidgetId = null;
+      conflictTimer = null;
+    }, CONFLICT_FLASH_MS);
+  }
+
+  /** Standard axis-aligned rectangle overlap test — true if the two rectangles
+   *  share any area, false if they merely touch at an edge or corner. */
+  function rectanglesOverlap(a: FullPlacement, b: FullPlacement): boolean {
+    return (
+      a.col < b.col + b.width &&
+      a.col + a.width > b.col &&
+      a.row < b.row + b.height &&
+      a.row + a.height > b.row
+    );
+  }
+
+  /**
+   * Would placing `candidateWidgetId` at `candidate` overlap any OTHER widget
+   * on the board? Siblings are read at their current RESTING placement
+   * (localPositions override, falling back to the widget's server-known
+   * rect) — never their preview state, because only the widget actually
+   * being dragged/resized ever has a preview; every sibling is at rest for
+   * the entire duration of that gesture.
+   *
+   * This is the client-side half of FR-3.3 (EX-Overlap-Client) — UX-only,
+   * no network round trip. It does not replace the server-side check
+   * (EX-Overlap-Server, a separate Task): this can be bypassed by a caller
+   * that skips the UI, or race with a second tab. The server has the final
+   * word; this exists so the common case never needs to ask it.
+   */
+  function overlapsAnySibling(
+    candidateWidgetId: string,
+    candidate: FullPlacement,
+    widgets: BoardViewFixture['widgets'],
+    positions: typeof localPositions,
+  ): boolean {
+    return widgets.some((widget) => {
+      if (widget.id === candidateWidgetId) return false;
+      const local = positions[widget.id];
+      const rect: FullPlacement = {
+        col: local?.col ?? widget.grid_col,
+        row: local?.row ?? widget.grid_row,
+        width: local?.width ?? widget.grid_width,
+        height: local?.height ?? widget.grid_height,
+      };
+      return rectanglesOverlap(candidate, rect);
+    });
+  }
 
   // --- Task #170 scope: persist a drag to the server. FR-3.4's 500ms budget is
   // debounce (300ms, Eng §9.3) + the PATCH round trip, so the debounce alone
@@ -103,9 +173,10 @@
 
     if (!response.ok) {
       // Covers both a validation failure (this widget's own placement is
-      // somehow invalid) and an FR-3.3 overlap rejection. Either way the
-      // server did not accept the drop/resize, so the optimistic local state
-      // is now a lie and has to be corrected, not left standing.
+      // somehow invalid) and an FR-3.3 overlap rejection FROM THE SERVER —
+      // the backstop half (EX-Overlap-Server), distinct from the client-side
+      // check above. Either way the server did not accept the drop/resize,
+      // so the optimistic local state is now a lie and has to be corrected.
       rollbackPosition(widgetId, previousPosition);
     }
     // On success, localPositions already holds the value the server just
@@ -116,15 +187,6 @@
     localPositions = { ...localPositions, [widgetId]: previousPosition };
   }
 
-  /**
-   * Debounce a placement PATCH for one widget — shared by drag (#170) and
-   * resize (#179). Call this from onPointerUp with the position that was just
-   * committed to localPositions (the new target) and the position it replaced
-   * (the rollback target). Debouncing — not just delaying — matters here: a
-   * rapid re-drag/re-resize of the same widget before the timer fires must
-   * cancel the stale PATCH rather than let two requests race and let the
-   * server's response order decide which position wins.
-   */
   /**
    * `includeSpan` is passed explicitly by the caller (true for resize, false
    * for drag) rather than inferred from whether nextPosition.width is
@@ -157,10 +219,12 @@
         gridCol: nextPosition.col,
         gridRow: nextPosition.row,
       };
-      if (includeSpan) {
-        placement.gridWidth = nextPosition.width;
-        placement.gridHeight = nextPosition.height;
-      }
+      // Only include width/height when this interaction actually set them —
+      // keeps a plain drag's PATCH body identical to what #170 always sent,
+      // rather than growing every drag's payload just because the type now
+      // technically allows width/height to be present.
+      if (nextPosition.width !== undefined) placement.gridWidth = nextPosition.width;
+      if (nextPosition.height !== undefined) placement.gridHeight = nextPosition.height;
 
       void patchWidgetPlacement(widgetId, placement, previousPosition);
     }, DEBOUNCE_MS);
@@ -173,6 +237,7 @@
   // beforeunload-style flush is out of scope for #170/#179's stated ACs.
   onDestroy(() => {
     for (const timer of Object.values(pendingPatchTimers)) clearTimeout(timer);
+    if (conflictTimer) clearTimeout(conflictTimer);
   });
 
   // --- FIX (Svelte reactivity gotcha): getPos/getSpan used to read
@@ -226,11 +291,12 @@
 
   /**
    * The full known placement for a widget right now — used as the "previous
-   * position" rollback target for BOTH drag and resize. Falls back through
-   * localPositions to the widget's server-known values so a rollback never
-   * has to guess at width/height it doesn't have.
+   * position" rollback target for BOTH drag and resize, and as each
+   * sibling's resting rectangle in the #187 overlap check. Falls back
+   * through localPositions to the widget's server-known values, so this
+   * always returns concrete numbers, never a partial guess.
    */
-  function currentPlacement(widget: BoardViewFixture['widgets'][number]): WidgetPlacement {
+  function currentPlacement(widget: BoardViewFixture['widgets'][number]): FullPlacement {
     const local = localPositions[widget.id];
     return {
       col: local?.col ?? widget.grid_col,
@@ -294,23 +360,35 @@
   }
 
   function onDragPointerUp(widget: BoardViewFixture['widgets'][number]) {
-    // Read the PRE-drop placement before overwriting localPositions — this is
-    // the rollback target if the server rejects the new one. Carries
-    // whatever width/height the widget already had (from a prior resize, or
-    // its server-known span) so a rollback after a drag never drops a
-    // previously-set size.
     const previousPosition = currentPlacement(widget);
-    const nextPosition: WidgetPlacement = {
-      ...previousPosition,
+    const candidate: FullPlacement = {
       col: previewCol,
       row: previewRow,
+      width: previousPosition.width,
+      height: previousPosition.height,
     };
+
+    // Clear interaction state regardless of outcome — a rejected drop is
+    // still a finished gesture, not a stuck one.
+    interactionMode = null;
+    activeWidgetId = null;
+
+    // --- Task #187 (FR-3.3): reject-and-snap-back. Skipping the
+    // localPositions write below is what MAKES this a snap-back — getPos
+    // falls through to the widget's last-known-good rest position the
+    // instant interactionMode clears, since nothing here ever told it
+    // otherwise. There is no separate "undo" step because nothing was ever
+    // committed to undo. ---
+    if (overlapsAnySibling(widget.id, candidate, board.widgets, localPositions)) {
+      flashConflict(widget.id);
+      return;
+    }
+
+    const nextPosition: WidgetPlacement = { ...previousPosition, col: previewCol, row: previewRow };
 
     // Optimistic local update — the widget stays at the dropped cell in the
     // UI immediately, before the network round trip even starts.
     localPositions = { ...localPositions, [widget.id]: nextPosition };
-    interactionMode = null;
-    activeWidgetId = null;
 
     schedulePlacementPatch(widget.id, nextPosition, previousPosition, false);
   }
@@ -448,12 +526,27 @@
   }
 
   function onResizePointerUp(widget: BoardViewFixture['widgets'][number]) {
-    // Task #179: local commit + server persistence, same division of labor
-    // #166/#170 established for drag — optimistic update first, debounced
-    // PATCH after. Read the PRE-resize placement before overwriting
-    // localPositions, exactly as onDragPointerUp does, so a server rejection
-    // has a correct rollback target for all four fields at once.
     const previousPosition = currentPlacement(widget);
+    const candidate: FullPlacement = {
+      col: previewCol,
+      row: previewRow,
+      width: previewWidth,
+      height: previewHeight,
+    };
+
+    interactionMode = null;
+    activeWidgetId = null;
+    activeHandle = null;
+
+    // --- Task #187 (FR-3.3): same reject-and-snap-back reasoning as drag,
+    // above — a resize that would overlap a sibling never gets committed, so
+    // getSpan/getPos fall back to the widget's last-known-good size the
+    // moment interactionMode clears. ---
+    if (overlapsAnySibling(widget.id, candidate, board.widgets, localPositions)) {
+      flashConflict(widget.id);
+      return;
+    }
+
     const nextPosition: WidgetPlacement = {
       col: previewCol,
       row: previewRow,
@@ -462,9 +555,6 @@
     };
 
     localPositions = { ...localPositions, [widget.id]: nextPosition };
-    interactionMode = null;
-    activeWidgetId = null;
-    activeHandle = null;
 
     schedulePlacementPatch(widget.id, nextPosition, previousPosition, true);
   }
@@ -543,6 +633,7 @@
               activeWidgetId === widget.id}
             class:board-view__widget--resizing={interactionMode === 'resize' &&
               activeWidgetId === widget.id}
+            class:board-view__widget--conflict={conflictWidgetId === widget.id}
             style="
                 grid-column: {pos.col + 1} / span {span.width};
                 grid-row: {pos.row + 1} / span {span.height};
@@ -651,6 +742,27 @@
     opacity: 0.85;
     border-color: light-dark(var(--color-primary-500), var(--color-primary-400));
     z-index: 10;
+  }
+
+  /* --- Task #187 (FR-3.3): the rejected-overlap flash. A border-color pulse
+     using the same error token every other error state in the app uses
+     (matches .board-view__error below), not a bespoke red — consistent
+     status-color vocabulary rather than a one-off. Duration must match
+     CONFLICT_FLASH_MS in the script block; the JS timer, not the CSS
+     animation, is what actually clears the class, so a mismatch here would
+     just make the flash look slightly off, not break functionally. */
+  .board-view__widget--conflict {
+    animation: board-view-conflict-flash 400ms ease;
+  }
+
+  @keyframes board-view-conflict-flash {
+    0%,
+    100% {
+      border-color: light-dark(var(--color-surface-300), var(--color-surface-700));
+    }
+    50% {
+      border-color: light-dark(var(--color-error-600), var(--color-error-400));
+    }
   }
 
   .board-view__widget-label {
