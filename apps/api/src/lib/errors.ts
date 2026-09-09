@@ -100,3 +100,14 @@ export function validationFailed(error: ZodError, message: string): ApiError {
 export function limitExceeded(message: string, details?: Record<string, unknown>): ApiError {
   return new ApiError(409, ApiErrorCode.LIMIT_EXCEEDED, message, details);
 }
+
+/**
+ * FR-3.3: the requested placement/resize overlaps another widget on the same
+ * board. 409, same reasoning as limitExceeded — the caller isn't going too
+ * fast, they're asking for a rectangle that conflicts with one that already
+ * exists, and retrying the identical request cannot succeed without the
+ * conflicting widget moving first.
+ */
+export function overlapRejected(message: string, details?: Record<string, unknown>): ApiError {
+  return new ApiError(409, ApiErrorCode.OVERLAP_REJECTED, message, details);
+}

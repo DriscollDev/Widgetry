@@ -5,14 +5,14 @@
 // widget-scoped endpoint User B must receive 404 - never 403, never 200, never
 // a 500 that betrays a database error on a crafted id.
 //
-// The four board-scoped endpoints below are now REAL routes from routes/boards.ts
-// and routes/widgets.ts - the probes they replaced are gone. What remains a
-// probe is the widget-scoped family (`/v1/widgets/:id` and its sub-paths), which
-// still has no handlers: EX-17 landed before the routes it guards, and the
-// widget data model is not settled.
+// The board-scoped endpoints below are real routes from routes/boards.ts and
+// routes/widgets.ts - the probes they replaced are gone. PATCH /v1/widgets/:id
+// (Task #170 placement, US-H2 retention) is now real too. What remains a probe
+// is GET/DELETE /v1/widgets/:id and the rest of the widget-scoped family
+// (refresh/snapshots/credential), which still has no handlers.
 //
-// NOTE FOR WHOEVER ADDS THE FIRST REAL WIDGET ROUTE: as each of
-// PATCH/DELETE /v1/widgets/:id, POST /v1/widgets/:id/refresh,
+// NOTE FOR WHOEVER ADDS THE NEXT REAL WIDGET ROUTE: as each of
+// DELETE /v1/widgets/:id, POST /v1/widgets/:id/refresh,
 // GET /v1/widgets/:id/snapshots and PUT/DELETE /v1/widgets/:id/credential lands,
 // add it to `endpointsFor` below and delete the matching probe. §11.7 requires
 // EVERY scoped endpoint to appear here, and this suite runs on every PR.
@@ -88,18 +88,21 @@ describeIntegration('multi-tenant isolation (EX-17, Eng §11.7)', () => {
     const { buildServer } = await import('../../src/server.js');
     app = await buildServer();
 
-    // Probe routes for the widget-scoped endpoints that do not exist yet - see
-    // the note at the top of this file. They exist to put the real pre-handler
-    // on a real request path. Each returns the row the gate resolved, so a
-    // passing 200 also proves the gate hands the handler the right record rather
-    // than merely letting it through. The board-scoped endpoints are real routes
-    // registered by buildServer(); nothing here shadows them.
+    // Probe routes for the widget-scoped family that still has no real handler
+    // - see the note at the top of this file. They exist to put the real
+    // pre-handler on a real request path. Each returns the row the gate
+    // resolved, so a passing 200 also proves the gate hands the handler the
+    // right record rather than merely letting it through. The board-scoped
+    // endpoints are real routes registered by buildServer(); nothing here
+    // shadows them.
     //
-    // PATCH /v1/widgets/:id has NO probe: it is a real route now (US-H2, F8.2),
-    // and Fastify refuses a duplicate registration - which is the good kind of
-    // failure, since a probe silently shadowing a real route would mean this
-    // suite proving the gate on a stub while the shipped handler went untested.
-    // Delete each probe below as its endpoint lands, for the same reason.
+    // PATCH /v1/widgets/:id has NO probe: it is a real route now (placement per
+    // Task #170/#158, retention per US-H2), registered by buildServer() via
+    // routes/widgets.ts. A second handler on the same method+path here would
+    // throw FST_ERR_DUPLICATE_ROUTE - which is the good kind of failure, since
+    // a probe silently shadowing a real route would mean this suite proving the
+    // gate on a stub while the shipped handler went untested. Delete each probe
+    // below as its endpoint lands, for the same reason. GET and DELETE remain.
     app.get('/v1/widgets/:id', { preHandler: requireWidgetOwnership }, async (request) => ({
       id: request.widget?.id,
     }));
@@ -207,11 +210,13 @@ describeIntegration('multi-tenant isolation (EX-17, Eng §11.7)', () => {
     {
       name: 'PATCH /v1/widgets/:id',
       method: 'PATCH' as const,
-      // Was `{}`, which this endpoint now rejects with a 400 - an empty PATCH
-      // changes nothing and answering 200 to it would hide a client bug. The
-      // owner case needs a body that actually updates something (US-H2).
       url: `/v1/widgets/${widgetId}`,
-      payload: { retentionHours: 24 },
+      // Was `{}`. UpdateWidgetRequest requires at least one field, so an empty
+      // body 400s before ownership is even relevant to the response - which
+      // would make the owner-path assertion below fail for the wrong reason.
+      // One field from each slice, so the owner case exercises the real write
+      // path for both placement (#170/#158) and retention (US-H2).
+      payload: { gridCol: 3, gridRow: 3, retentionHours: 24 },
       ownerStatus: 200,
     },
     {

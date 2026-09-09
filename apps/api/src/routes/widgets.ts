@@ -1,46 +1,63 @@
 // apps/api/src/routes/widgets.ts
 //
-// One verb from the Eng §6.2 catalog:
+// Two verbs from the Eng §6.2 catalog:
 //
-//   POST /v1/boards/:id/widgets   US-W1, SCR-MOD-04/05 - add widget
+//   POST  /v1/boards/:id/widgets   US-W1, SCR-MOD-04/05 - add widget
+//   PATCH /v1/widgets/:id          US-W2 drag (#170), US-W3 resize (#158),
+//                                  US-H2 retention (F8.2)
 //
-// It proves the caller owns the board, checks the FR-3.5 cap, validates the
+// POST proves the caller owns the board, checks the FR-3.5 cap, validates the
 // submitted config against the widget type's registry schema, and inserts the
-// row with its scheduler columns derived from the registry (EX-19). The widget
-// exists, it belongs to a board, and the board belongs to a user - the whole
-// ownership chain (Eng §11.7) exercised end to end.
+// row with its scheduler columns derived from the registry (EX-19). PATCH
+// proves the caller owns the WIDGET, then updates placement and/or retention
+// under a board-row lock with the FR-3.3 overlap check. The widget exists, it
+// belongs to a board, and the board belongs to a user - the whole ownership
+// chain (Eng §11.7) exercised end to end.
 //
-// The rest of the widget family - PATCH/DELETE /v1/widgets/:id, refresh,
-// snapshots, credential - is not here. Those are widget-scoped
-// (`requireWidgetOwnership`, not `requireBoardOwnership`) and every one of them
-// needs the data model this file is deliberately not inventing. When they land
-// they go in their own file and each must be added to the isolation suite.
+// PATCH lived briefly in its own routes/widget-detail.ts, added in parallel on
+// another branch for the retention slice alone. Both handlers registered the
+// same method+path, which Fastify refuses outright - so they are one handler
+// again, here. The reason to keep it here rather than there is unchanged from
+// when this file first argued for it: PATCH shares every ownership/mapping
+// helper POST already defines (toPlacement, the Widget type, the ownership
+// imports), and splitting it out means importing half this file back in.
 //
-// TODO(EX-Overlap-Server): FR-3.3 overlap rejection is NOT implemented here.
-//   Two widgets posted to the same cells will both be created. The locked
-//   decision is reject-and-snap-back with the same algorithm client- and
-//   server-side, and the server check has to be race-safe against concurrent
-//   posts - so it belongs in a transaction here alongside the count below, not
-//   bolted on afterwards. Nothing on the client can add a widget yet, so the
-//   gap is not reachable in the product today; it becomes reachable the moment
-//   SCR-MOD-04 is wired up.
+// DELETE /v1/widgets/:id, refresh, snapshots, credential are still not here.
+// They are a different story - they touch credentials, polling state, and
+// snapshot data this file doesn't model - so THEY belong in their own file(s)
+// when they land, each added to the isolation suite (Eng §11.7) same as these.
+//
+// TODO(EX-Overlap-Server): FR-3.3 overlap rejection is implemented for PATCH
+//   below, but NOT for POST. Two widgets posted to the same cells will both be
+//   created. The check belongs in POST's transaction alongside the count, using
+//   the same rectanglesOverlap helper and the same board-row lock PATCH takes.
+//   Nothing on the client can add a widget yet, so the gap is not reachable in
+//   the product today; it becomes reachable the moment SCR-MOD-04 is wired up.
 
-import { and, count, eq } from 'drizzle-orm';
+import { and, count, eq, ne, sql } from 'drizzle-orm';
 import { ZodError } from 'zod';
 import { db, schema } from '@widgetry/db';
 import {
+  ApiErrorCode,
   type BoardWidgetPlacement,
   CreateWidgetRequest,
   getWidgetTypeDef,
+  GRID_COLUMNS,
   MAX_WIDGETS_PER_BOARD,
   MIN_SERVER_POLL_SECONDS,
   parseWidgetConfig,
+  UpdateWidgetRequest,
   type WidgetType,
   type WidgetTypeDef,
 } from '@widgetry/shared';
 import type { FastifyInstance } from 'fastify';
-import { limitExceeded, validationFailed } from '../lib/errors.js';
-import { requireBoardOwnership, type Widget } from '../lib/ownership.js';
+import { ApiError, limitExceeded, overlapRejected, validationFailed } from '../lib/errors.js';
+import {
+  findOwnedWidget,
+  requireBoardOwnership,
+  requireWidgetOwnership,
+  type Widget,
+} from '../lib/ownership.js';
 import { requireSession } from '../lib/session.js';
 
 /**
@@ -106,6 +123,27 @@ function jitteredLastPolledAt(def: WidgetTypeDef): Date {
  */
 function underConfig(error: ZodError): ZodError {
   return new ZodError(error.issues.map((issue) => ({ ...issue, path: ['config', ...issue.path] })));
+}
+
+/**
+ * Standard axis-aligned rectangle overlap test — the exact same algorithm as
+ * the client-side check (apps/web/.../board-view/BoardView.svelte, Task
+ * #187), per the locked decision that reject-and-snap-back uses one
+ * algorithm on both sides. Kept local rather than moved into
+ * @widgetry/shared: it operates on plain {col,row,width,height} numbers with
+ * no schema of its own, and promoting it is a one-function change if a third
+ * caller ever needs it — not worth doing speculatively for two.
+ */
+function rectanglesOverlap(
+  a: { col: number; row: number; width: number; height: number },
+  b: { col: number; row: number; width: number; height: number },
+): boolean {
+  return (
+    a.col < b.col + b.width &&
+    a.col + a.width > b.col &&
+    a.row < b.row + b.height &&
+    a.row + a.height > b.row
+  );
 }
 
 export async function widgetRoutes(fastify: FastifyInstance): Promise<void> {
@@ -246,6 +284,209 @@ export async function widgetRoutes(fastify: FastifyInstance): Promise<void> {
       );
 
       return reply.status(201).send(toPlacement(widget));
+    },
+  );
+
+  /**
+   * PATCH /v1/widgets/:id - placement and retention. US-W2 drag (Task #170),
+   * US-W3 resize (#158), US-H2 retention (F8.2). 200 on success.
+   *
+   * `:id` is the WIDGET id, so the gate is `requireWidgetOwnership` -
+   * `requireBoardOwnership` would check the wrong resource entirely (Eng
+   * §11.7). This is the first route in the file that needs it.
+   *
+   * Every field is optional on the wire (see UpdateWidgetRequest), so the
+   * FR-3.1 "fits inside 12 columns" boundary can only be checked against the
+   * widget's state AFTER merging in whatever the caller sent - not against the
+   * request body alone, and not against the stale row either.
+   *
+   * Task #188 (EX-Overlap-Server): the whole ownership re-check, overlap
+   * check, and write now run inside one transaction with the BOARD row
+   * locked first. Locking the widget's own row would not help — the race
+   * this guards against is two DIFFERENT widgets on the same board being
+   * PATCHed at the same moment, each reading the other's pre-move position
+   * as "clear" before either write lands. Locking the shared board row is
+   * what serializes that, same pattern as the FR-3.5 count in the POST
+   * handler above.
+   *
+   * A retention-only PATCH (US-H2) skips the FR-3.1 and FR-3.3 checks and the
+   * sibling read that feeds them. Not an optimisation: re-running an overlap
+   * check against a rectangle that is not moving would compare the widget's
+   * current position to its neighbours' current positions, and any pre-existing
+   * overlap in the data - a row written before #188 landed - would make an
+   * unrelated retention change unfixable. The checks belong to the fields that
+   * trigger them.
+   */
+  fastify.patch(
+    '/v1/widgets/:id',
+    { preHandler: requireWidgetOwnership },
+    async (request): Promise<BoardWidgetPlacement> => {
+      const { user } = requireSession(request);
+      // Non-null because the pre-handler either set it or ended the request.
+      const widget = request.widget!;
+
+      const parsed = UpdateWidgetRequest.safeParse(request.body);
+      if (!parsed.success) {
+        throw validationFailed(parsed.error, 'The widget could not be updated as described.');
+      }
+
+      const { gridCol, gridRow, gridWidth, gridHeight, retentionHours } = parsed.data;
+
+      // Whether this PATCH is a move/resize at all. A retention-only body
+      // leaves the rectangle exactly where it is, and the two grid checks below
+      // are about a rectangle that CHANGED - see the note on this handler.
+      const movesOrResizes =
+        gridCol !== undefined ||
+        gridRow !== undefined ||
+        gridWidth !== undefined ||
+        gridHeight !== undefined;
+
+      // Merge onto the CURRENT row, not onto an empty object - a drag PATCH
+      // sends only {gridCol, gridRow} and must not clobber the existing
+      // width/height (and vice versa for a resize-only PATCH from #158).
+      const nextCol = gridCol ?? widget.gridCol;
+      const nextRow = gridRow ?? widget.gridRow;
+      const nextWidth = gridWidth ?? widget.gridWidth;
+      const nextHeight = gridHeight ?? widget.gridHeight;
+
+      // Same FR-3.1 cross-field rule as CreateWidgetRequest's superRefine,
+      // re-checked here against the MERGED rectangle because that is the only
+      // rectangle this handler actually knows exists after the write.
+      if (movesOrResizes && nextCol + nextWidth > GRID_COLUMNS) {
+        throw validationFailed(
+          new ZodError([
+            {
+              code: 'custom',
+              path: ['gridWidth'],
+              message: `A widget at column ${nextCol} may span at most ${GRID_COLUMNS - nextCol} columns (FR-3.1).`,
+            },
+          ]),
+          'The widget could not be updated as described.',
+        );
+      }
+
+      const updated = await db.transaction(async (tx) => {
+        // Lock the board row before reading or writing anything else in this
+        // transaction. A second, concurrent PATCH targeting a different
+        // widget on the SAME board blocks here until this transaction
+        // commits or rolls back — so its own overlap check always sees this
+        // widget's FINAL position, never a stale one.
+        await tx
+          .select({ id: schema.boards.id })
+          .from(schema.boards)
+          .where(eq(schema.boards.id, widget.boardId))
+          .for('update');
+
+        // Re-affirm ownership through the boards join immediately before the
+        // write, rather than trusting `request.widget` across the
+        // pre-handler boundary for a MUTATING query. `widgets` carries no
+        // user_id of its own (Eng §11.7) - findOwnedWidget's join is the
+        // only way to re-scope it, so re-querying (not just re-checking the
+        // id) is the point here, not a redundant lookup.
+        const stillOwned = await findOwnedWidget(widget.id, user.id);
+        if (!stillOwned) {
+          request.log.info(
+            { widgetId: widget.id },
+            'widget no longer owned between gate and write',
+          );
+          throw new ApiError(404, ApiErrorCode.NOT_FOUND, 'Widget not found.');
+        }
+
+        // --- Task #188 (FR-3.3, EX-Overlap-Server): the server-side half of
+        // overlap rejection, and the actual correctness backstop — the
+        // client-side check (#187) is UX-only and can be bypassed (a caller
+        // hitting this endpoint directly) or lose a race with another tab or
+        // device. Every OTHER widget on the same board is read fresh here,
+        // inside the transaction, now that the board row above is locked and
+        // no concurrent PATCH on this board can interleave with this read. ---
+        const siblings = movesOrResizes
+          ? await tx
+              .select({
+                gridCol: schema.widgets.gridCol,
+                gridRow: schema.widgets.gridRow,
+                gridWidth: schema.widgets.gridWidth,
+                gridHeight: schema.widgets.gridHeight,
+              })
+              .from(schema.widgets)
+              // Joined through `boards` and scoped by userId, per EX-18 (Eng
+              // §11.7) — a bare `widgets` query filtered by boardId alone is
+              // scoped by an id, not by owner. The board row is already locked
+              // and ownership already re-verified two lines above, but the
+              // lint rule can't see that context and is right to insist every
+              // widgets query carries its own explicit ownership predicate
+              // rather than borrowing safety from a check elsewhere in the
+              // function.
+              .innerJoin(schema.boards, eq(schema.widgets.boardId, schema.boards.id))
+              .where(
+                and(
+                  eq(schema.boards.id, widget.boardId),
+                  eq(schema.boards.userId, user.id),
+                  ne(schema.widgets.id, widget.id),
+                ),
+              )
+          : [];
+
+        const candidate = { col: nextCol, row: nextRow, width: nextWidth, height: nextHeight };
+        const overlapsSibling = siblings.some((sibling) =>
+          rectanglesOverlap(candidate, {
+            col: sibling.gridCol,
+            row: sibling.gridRow,
+            width: sibling.gridWidth,
+            height: sibling.gridHeight,
+          }),
+        );
+
+        if (overlapsSibling) {
+          throw overlapRejected(
+            'That position or size overlaps another widget on this board (FR-3.3).',
+          );
+        }
+
+        const [row] = await tx
+          .update(schema.widgets)
+          .set({
+            // The merged rectangle, written unconditionally: for a
+            // retention-only PATCH every one of these four is the value already
+            // in the row, so the write is a no-op on those columns rather than
+            // a special case to maintain.
+            gridCol: nextCol,
+            gridRow: nextRow,
+            gridWidth: nextWidth,
+            gridHeight: nextHeight,
+            // Only when the caller actually sent it - `?? widget.retentionHours`
+            // would work too, but spelling the absence out keeps a retention
+            // PATCH and a placement PATCH visibly different at the write.
+            ...(retentionHours !== undefined ? { retentionHours } : {}),
+            // `now()` and NOT `new Date()`: the insert stamped
+            // createdAt/updatedAt from the DATABASE clock via defaultNow(), so
+            // stamping the update from the API process's clock compares two
+            // different clocks. Postgres is remote (locked decision 9) and
+            // Railway's server runs tens of milliseconds ahead of a local dev
+            // machine, which makes updatedAt land BEFORE createdAt on a row
+            // updated moments after creation. The integration suite caught
+            // exactly that. One clock, and it has to be the one that wrote the
+            // other timestamps.
+            updatedAt: sql`now()`,
+          })
+          .where(eq(schema.widgets.id, widget.id))
+          .returning();
+
+        return row!;
+      });
+
+      request.log.info(
+        {
+          widgetId: widget.id,
+          gridCol: nextCol,
+          gridRow: nextRow,
+          gridWidth: nextWidth,
+          gridHeight: nextHeight,
+          retentionHours,
+        },
+        'widget updated (US-W2/US-W3 placement, US-H2 retention)',
+      );
+
+      return toPlacement(updated);
     },
   );
 }

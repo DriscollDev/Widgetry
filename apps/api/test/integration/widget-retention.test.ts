@@ -210,9 +210,11 @@ describeIntegration('PATCH /v1/widgets/:id - retention (US-H2, FR-5.2)', () => {
     expect(row?.retentionHours).toBe(DEFAULT_WIDGET_RETENTION_HOURS);
   });
 
-  it('does not move a widget, even when grid fields are sent alongside retention', async () => {
-    // EX-Overlap-Server is not implemented, so placement must not be writable
-    // through this endpoint yet - FR-3.3's overlap check has to land first.
+  it('moves a widget and changes retention in the same request', async () => {
+    // Placement used to be withheld here, pending FR-3.3's server-side overlap
+    // check. That check landed (#188) and the two PATCH handlers that had grown
+    // up separately became one, so a body carrying both slices must apply BOTH
+    // - the merge is only correct if neither slice narrowed the other.
     const widgetId = await createWidget();
     const response = await patchWidget(widgetId, {
       retentionHours: 36,
@@ -225,7 +227,24 @@ describeIntegration('PATCH /v1/widgets/:id - retention (US-H2, FR-5.2)', () => {
     expect(response.statusCode, response.body).toBe(200);
     const body = response.json();
     expect(body.retentionHours, 'the retention change applies').toBe(36);
-    expect(body.gridCol, 'the move is ignored').toBe(0);
+    expect(body.gridCol, 'the move applies too').toBe(9);
+    expect(body.gridRow).toBe(7);
+    expect(body.gridWidth).toBe(1);
+    expect(body.gridHeight).toBe(1);
+  });
+
+  it('leaves placement untouched on a retention-only PATCH', async () => {
+    // The other half of the same rule: folding placement into this endpoint
+    // must not make a retention change start writing grid columns from stale
+    // or defaulted values. The handler merges onto the CURRENT row, so these
+    // four come back exactly as createWidget() left them.
+    const widgetId = await createWidget();
+    const response = await patchWidget(widgetId, { retentionHours: 48 });
+
+    expect(response.statusCode, response.body).toBe(200);
+    const body = response.json();
+    expect(body.retentionHours).toBe(48);
+    expect(body.gridCol).toBe(0);
     expect(body.gridRow).toBe(0);
     expect(body.gridWidth).toBe(2);
     expect(body.gridHeight).toBe(2);

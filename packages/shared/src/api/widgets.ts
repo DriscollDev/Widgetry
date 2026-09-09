@@ -34,13 +34,14 @@
 //     widget with no upstream to poll.
 //   DONE(EX-19): `refreshIntervalSeconds` is seeded from the type's
 //     `defaultRefreshSeconds` (null for client-polled types).
-//   TODO(F8.2): `retentionHours`. US-H2 makes it user-configurable in 12..720;
-//     rows take the column default of 168 until PATCH /v1/widgets/:id lands.
+//   DONE(F8.2): `retentionHours` is user-configurable in 12..720 through
+//     PATCH /v1/widgets/:id (US-H2); rows still default to 168.
 //   TODO: latest snapshot value. Needs the snapshot contract (F5), which needs
 //     the value shape, which needs the registry.
-//   TODO(EX-Overlap-Server): FR-3.3 overlap rejection. Not in this file - it is
-//     a server-side check on POST and on PATCH /v1/widgets/:id, and the locked
-//     decision is reject-and-snap-back, never reflow.
+//   TODO(EX-Overlap-Server): FR-3.3 overlap rejection on POST. Not in this file
+//     either way - it is a server-side check, and the locked decision is
+//     reject-and-snap-back, never reflow. PATCH /v1/widgets/:id has it (#188);
+//     POST /v1/boards/:id/widgets still does not.
 
 import { z } from 'zod';
 
@@ -182,37 +183,57 @@ export const WidgetRetentionHours = z
   .max(WIDGET_RETENTION_HOURS_MAX);
 
 /**
- * PATCH /v1/widgets/:id - US-H2 / F8.2, the retention slice.
+ * PATCH /v1/widgets/:id - placement (US-W2 drag #170, US-W3 resize #158) and
+ * retention (US-H2 / F8.2), in one schema because they are one endpoint.
  *
- * Eng §6.2 catalogues this endpoint as "update config / position / size", and
- * this schema covers NONE of those three yet. That is deliberate scoping rather
- * than an oversight, and the omissions are not equal:
+ * The two slices arrived on separate branches, each with its own schema and its
+ * own handler on the same method+path. Fastify refuses a duplicate route, so
+ * they are one contract now. Nothing about either slice changed in the merge -
+ * a drag still sends `{gridCol, gridRow}` and the retention control still sends
+ * `{retentionHours}`; the schema simply no longer forbids sending both.
  *
- *   TODO(EX-Overlap-Server): position and size. FR-3.3's locked decision is
- *     reject-and-snap-back on overlap, never reflow, with the same algorithm
- *     client- and server-side. The server check has to be race-safe against
- *     concurrent moves, so it belongs in a transaction alongside the update -
- *     not bolted on afterwards. Accepting grid fields here BEFORE that check
- *     exists would let two widgets be moved onto the same cells, which is worse
- *     than not accepting them at all.
+ * `.partial()` because drag sends only `{gridCol, gridRow}` and resize sends
+ * only `{gridWidth, gridHeight}` (or all four, for a combined move+resize) -
+ * no caller should be forced to echo back fields it did not change. At least
+ * one field is required, or a PATCH with an empty body would silently succeed
+ * and do nothing, which is a confusing 200 to debug. Unknown keys are stripped
+ * before that count, so a body of nothing but unknown fields is a 400 too.
+ *
+ * The FR-3.1 "fits inside 12 columns" cross-field check from
+ * `CreateWidgetRequest` is deliberately NOT reapplied here in the same form -
+ * a partial update might supply only `gridWidth` without `gridCol`, and there
+ * is no way to check "does it still fit" without also knowing the field(s) the
+ * caller did NOT send. The handler re-derives the full post-update rectangle
+ * from the existing row before validating that boundary (see
+ * apps/api/src/routes/widgets.ts).
+ *
+ * FR-3.3 overlap rejection is likewise not encoded here - shape validation and
+ * conflict validation are different concerns, and the reject-and-snap-back
+ * check runs race-safe in the handler's transaction (#188).
+ *
+ * Still not accepted, and each is a contract change - extend this schema, not
+ * the handler:
+ *
  *   TODO(F4.2/US-C6): `config`. Needs `parseWidgetConfig` against the stored
  *     widget's type, the same two-step split `CreateWidgetRequest` uses.
  *   TODO(US-C5): `refreshIntervalSeconds`, validated against the type's
  *     `minRefreshSeconds` from the registry.
- *
- * Adding any of them is a contract change - extend this schema, not the handler.
  */
-export const UpdateWidgetRequest = z
-  .object({
+export const UpdateWidgetRequest = WidgetPlacement.partial()
+  .extend({
+    /**
+     * FR-5.2. Accepted on every widget, including client-polled ones whose
+     * snapshots are never written - inert there, and refusing would mean the
+     * contract second-guessing a registry flag the frontend already uses to
+     * decide whether to render the control at all.
+     */
     retentionHours: WidgetRetentionHours.optional(),
   })
-  .superRefine((value, ctx) => {
+  .refine((value) => Object.keys(value).length > 0, {
     // Same rule as UpdateBoardRequest: a PATCH that changes nothing is a client
     // bug, and answering 200 to it hides that bug behind a successful-looking
     // round trip.
-    if (value.retentionHours === undefined) {
-      ctx.addIssue({ code: 'custom', message: 'Provide at least one field to update.' });
-    }
+    message: 'Provide at least one field to update.',
   });
 
 export type UpdateWidgetRequest = z.infer<typeof UpdateWidgetRequest>;
