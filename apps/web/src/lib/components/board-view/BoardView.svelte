@@ -147,7 +147,7 @@
   /**
    * PATCH the widget's placement. Body only includes the fields that actually
    * changed for this interaction — a drag never sends gridWidth/gridHeight,
-   * a resize always sends all four — matching UpdateWidgetPlacementRequest's
+   * a resize always sends all four — matching UpdateWidgetRequest's
    * `.partial()` shape (packages/shared/src/api/widgets.ts) rather than
    * always sending a fully-populated body regardless of what happened.
    */

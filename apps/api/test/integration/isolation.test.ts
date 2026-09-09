@@ -7,8 +7,8 @@
 //
 // The board-scoped endpoints below are real routes from routes/boards.ts and
 // routes/widgets.ts - the probes they replaced are gone. PATCH /v1/widgets/:id
-// (Task #170) is now real too. What remains a probe is GET/DELETE
-// /v1/widgets/:id and the rest of the widget-scoped family
+// (Task #170 placement, US-H2 retention) is now real too. What remains a probe
+// is GET/DELETE /v1/widgets/:id and the rest of the widget-scoped family
 // (refresh/snapshots/credential), which still has no handlers.
 //
 // NOTE FOR WHOEVER ADDS THE NEXT REAL WIDGET ROUTE: as each of
@@ -88,11 +88,21 @@ describeIntegration('multi-tenant isolation (EX-17, Eng §11.7)', () => {
     const { buildServer } = await import('../../src/server.js');
     app = await buildServer();
 
-    // Probe routes for the widget-scoped family that still have no real
-    // handler - see the note at the top of this file. PATCH /v1/widgets/:id
-    // is now a REAL route, registered by buildServer() via routes/widgets.ts;
-    // registering a second handler on the same method+path here would throw
-    // FST_ERR_DUPLICATE_ROUTE. GET and DELETE remain probes.
+    // Probe routes for the widget-scoped family that still has no real handler
+    // - see the note at the top of this file. They exist to put the real
+    // pre-handler on a real request path. Each returns the row the gate
+    // resolved, so a passing 200 also proves the gate hands the handler the
+    // right record rather than merely letting it through. The board-scoped
+    // endpoints are real routes registered by buildServer(); nothing here
+    // shadows them.
+    //
+    // PATCH /v1/widgets/:id has NO probe: it is a real route now (placement per
+    // Task #170/#158, retention per US-H2), registered by buildServer() via
+    // routes/widgets.ts. A second handler on the same method+path here would
+    // throw FST_ERR_DUPLICATE_ROUTE - which is the good kind of failure, since
+    // a probe silently shadowing a real route would mean this suite proving the
+    // gate on a stub while the shipped handler went untested. Delete each probe
+    // below as its endpoint lands, for the same reason. GET and DELETE remain.
     app.get('/v1/widgets/:id', { preHandler: requireWidgetOwnership }, async (request) => ({
       id: request.widget?.id,
     }));
@@ -201,11 +211,12 @@ describeIntegration('multi-tenant isolation (EX-17, Eng §11.7)', () => {
       name: 'PATCH /v1/widgets/:id',
       method: 'PATCH' as const,
       url: `/v1/widgets/${widgetId}`,
-      // UpdateWidgetPlacementRequest requires at least one field (Task #170) -
-      // an empty body 400s before ownership is even relevant to the response,
-      // which would make the owner-path assertion below fail for the wrong
-      // reason. Real placement values exercise the actual write path.
-      payload: { gridCol: 3, gridRow: 3 },
+      // Was `{}`. UpdateWidgetRequest requires at least one field, so an empty
+      // body 400s before ownership is even relevant to the response - which
+      // would make the owner-path assertion below fail for the wrong reason.
+      // One field from each slice, so the owner case exercises the real write
+      // path for both placement (#170/#158) and retention (US-H2).
+      payload: { gridCol: 3, gridRow: 3, retentionHours: 24 },
       ownerStatus: 200,
     },
     {
