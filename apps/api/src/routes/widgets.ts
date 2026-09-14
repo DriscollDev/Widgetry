@@ -162,7 +162,7 @@ export async function widgetRoutes(fastify: FastifyInstance): Promise<void> {
    * count-then-insert lets two concurrent adds both see 19.
    */
 
-  /**
+    /**
    * GET /v1/widgets/catalog - EX-24. Public, no auth (Eng §6.2) - the
    * catalog modal (SCR-MOD-04) needs to list available types before any
    * session concern applies.
@@ -172,16 +172,16 @@ export async function widgetRoutes(fastify: FastifyInstance): Promise<void> {
    * schema-to-form conversion belongs to the config modal (SCR-MOD-05),
    * not here.
    */
-  fastify.get('/v1/widgets/catalog', async (_request, reply) => {
-    const widgetTypes = Object.values(WIDGET_TYPE_DEFS).map((def) => ({
-      id: def.id,
-      displayName: def.displayName,
-      category: def.category,
-      supportsHistory: def.supportsHistory,
-    }));
-
-    return reply.status(200).send({ widgetTypes });
-  });
+    fastify.get('/v1/widgets/catalog', async (_request, reply) => {
+      const widgetTypes = Object.values(WIDGET_TYPE_DEFS).map((def) => ({
+        id: def.id,
+        displayName: def.displayName,
+        category: def.category,
+        supportsHistory: def.supportsHistory,
+      }));
+  
+      return reply.status(200).send({ widgetTypes });
+    });
   fastify.post(
     '/v1/boards/:id/widgets',
     { preHandler: requireBoardOwnership },
