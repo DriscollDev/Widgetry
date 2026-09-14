@@ -37,6 +37,8 @@
 import { and, count, eq, ne, sql } from 'drizzle-orm';
 import { ZodError } from 'zod';
 import { db, schema } from '@widgetry/db';
+// Add to the imports already at the top of the file:
+import { WIDGET_TYPE_DEFS } from '@widgetry/shared';
 import {
   ApiErrorCode,
   type BoardWidgetPlacement,
@@ -159,6 +161,27 @@ export async function widgetRoutes(fastify: FastifyInstance): Promise<void> {
    * the board row locked, for the same reason the board cap is: an unlocked
    * count-then-insert lets two concurrent adds both see 19.
    */
+
+    /**
+   * GET /v1/widgets/catalog - EX-24. Public, no auth (Eng §6.2) - the
+   * catalog modal (SCR-MOD-04) needs to list available types before any
+   * session concern applies.
+   *
+   * Deliberately omits `configSchema`: it's a live Zod object, not a JSON
+   * value, and #191's scope is listing and grouping types only - the
+   * schema-to-form conversion belongs to the config modal (SCR-MOD-05),
+   * not here.
+   */
+    fastify.get('/v1/widgets/catalog', async (_request, reply) => {
+      const widgetTypes = Object.values(WIDGET_TYPE_DEFS).map((def) => ({
+        id: def.id,
+        displayName: def.displayName,
+        category: def.category,
+        supportsHistory: def.supportsHistory,
+      }));
+  
+      return reply.status(200).send({ widgetTypes });
+    });
   fastify.post(
     '/v1/boards/:id/widgets',
     { preHandler: requireBoardOwnership },
