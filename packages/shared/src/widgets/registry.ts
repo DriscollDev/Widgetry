@@ -17,8 +17,8 @@
 // resolvable for all of them - it is what replaced the PROVISIONAL_POLLING_MODE
 // map that used to live in apps/api/src/routes/widgets.ts.
 //
-// The `configSchema` entries are NOT all real. Only `uptime` has one, because
-// uptime is the only type with a fetcher so far. Every other type carries
+// The `configSchema` entries are NOT all real. Only `uptime` and `custom_json`
+// have one, because they are the only types with a fetcher so far. Every other type carries
 // `NOT_YET_CONFIGURABLE` - a strict empty object, which is an exact statement of
 // today's behaviour rather than a placeholder that lies: those widgets really do
 // take no configuration yet, and really are created with `config = {}`. Filling
@@ -31,6 +31,7 @@ import { z } from 'zod';
 import type { WidgetType } from '../api/widgets.js';
 import { WIDGET_TYPES } from '../api/widgets.js';
 import type { ServerPolledWidgetTypeDef, WidgetTypeDef } from './types.js';
+import { CustomJsonConfig } from './custom-json.js';
 import { UptimeConfig } from './uptime.js';
 
 /**
@@ -135,16 +136,15 @@ export const WIDGET_TYPE_DEFS: Record<WidgetType, WidgetTypeDef> = {
     minRefreshSeconds: null,
   },
 
-  // TODO(E6): the highest-complexity type. configSchema needs URL, headers,
-  // optional credential ref, dot-notation path, and display format (US-C1..C5),
-  // and its fetcher is the one that must run the full Eng §11.3 SSRF pipeline
-  // with credential decryption. renderer is 'custom' because US-C4 lets the
-  // user pick between single value, key-value list and timeline at config time.
+  // E6. renderer is 'custom' because US-C4 lets the user pick between single
+  // value, key-value list and timeline at config time.
+  // TODO(E9/US-C2): credential placement joins the config with the credential
+  // work; see ./custom-json.ts.
   custom_json: {
     id: 'custom_json',
     displayName: 'Custom JSON',
     category: 'custom',
-    configSchema: NOT_YET_CONFIGURABLE,
+    configSchema: CustomJsonConfig,
     renderer: 'custom',
     polling: 'server',
     supportsHistory: true,

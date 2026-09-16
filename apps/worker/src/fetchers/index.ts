@@ -12,6 +12,7 @@
 // discovered later as a queue of failing jobs.
 
 import { SERVER_POLLED_WIDGET_TYPES, type WidgetType } from '@widgetry/shared';
+import { customJsonFetcher } from './custom-json.js';
 import type { Fetcher } from './types.js';
 import { uptimeFetcher } from './uptime.js';
 
@@ -25,13 +26,10 @@ import { uptimeFetcher } from './uptime.js';
  */
 export const FETCHERS: Partial<Record<WidgetType, Fetcher>> = {
   uptime: uptimeFetcher,
+  custom_json: customJsonFetcher,
 
   // TODO(F5.5): stock. Server-polled with history (locked decision 8). Needs the
   //   Alpha Vantage / Finnhub decision first (Feature Spec §4.4).
-  // TODO(E6): custom_json. The full §11.3 pipeline is already available in
-  //   ../lib/safe-fetch.ts and is what this fetcher should use, with
-  //   `readBody: true`; what it still needs is the dot-notation resolver
-  //   (§7.3, US-C3) and credential decryption (§10.2).
 };
 
 export function getFetcher(type: WidgetType): Fetcher | undefined {
