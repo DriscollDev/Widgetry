@@ -15,6 +15,7 @@
 import { config } from 'dotenv';
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { parseMasterKey } from '@widgetry/db';
 import { z } from 'zod';
 
 /**
@@ -37,6 +38,15 @@ function loadRootEnv(): void {
   }
 }
 
+function isMasterKey(value: string): boolean {
+  try {
+    parseMasterKey(value);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 const EnvSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
@@ -50,6 +60,16 @@ const EnvSchema = z.object({
    * while polling nothing.
    */
   REDIS_URL: z.string().min(1),
+
+  /**
+   * Eng §10.2 / §16.2. Parsed to the 32-byte key here, so a missing or
+   * malformed value stops the process at boot rather than at the first
+   * credential. Validation messages never include the value.
+   */
+  MASTER_ENCRYPTION_KEY: z
+    .string({ error: 'MASTER_ENCRYPTION_KEY is required (see .env.example)' })
+    .refine(isMasterKey, { message: 'MASTER_ENCRYPTION_KEY must be 32 bytes, base64-encoded' })
+    .transform((value) => parseMasterKey(value)),
 
   /**
    * How many poll jobs run at once (Eng §8.1: "concurrency N (start with N=10)").
@@ -127,3 +147,12 @@ export function loadEnv(): Env {
 export const env: Env = new Proxy({} as Env, {
   get: (_t, prop, receiver) => Reflect.get(loadEnv(), prop, receiver),
 });
+
+/**
+ * The master key, read on first use. A function rather than a module-level
+ * value so importing a module that decrypts does not require the environment -
+ * only decrypting does.
+ */
+export function masterKey(): Buffer {
+  return loadEnv().MASTER_ENCRYPTION_KEY;
+}

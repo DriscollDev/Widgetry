@@ -1,14 +1,14 @@
 <script lang="ts">
   import { onDestroy } from 'svelte';
+  import { formatRefresh } from '$lib/board-forms';
   import type { BoardViewFixture, BoardViewState } from './fixtures';
 
   export let board: BoardViewFixture; // sole data input — no fetch, no store, no auth
   export let state: BoardViewState = 'populated';
+  /** Opens SCR-MOD-02. The route owns the modal; the /dev harness omits it. */
+  export let onOpenSettings: (() => void) | undefined = undefined;
 
-  $: refreshLabel =
-    board.refreshMode === 'auto'
-      ? `Auto · every ${board.refreshIntervalSeconds}s`
-      : 'Manual refresh';
+  $: refreshLabel = formatRefresh(board);
 
   // --- Task #166 scope: cursor-follow + snap preview only. No SERVER persistence
   // — that's Task #170's debounced PATCH (Eng Doc §9.3), directly below. Local/
@@ -573,7 +573,7 @@
     <span class="board-view__refresh-mode">{refreshLabel}</span>
 
     <div class="board-view__actions">
-      <button type="button" on:click={() => console.log('open board settings (stub)')}>
+      <button type="button" on:click={() => onOpenSettings?.()} disabled={!onOpenSettings}>
         Settings
       </button>
       <button type="button" on:click={() => console.log('open widget catalog (stub)')}>

@@ -112,6 +112,20 @@ describe('uptime fetcher - failures that are OURS are errors', () => {
     }
   });
 
+  it.each(['invalid_url', 'invalid_request'] as const)(
+    'turns %s into a config_invalid error',
+    async (failure) => {
+      safeFetch.mockResolvedValue({ ok: false, failure, detail: 'x', elapsedMs: 0 });
+
+      const outcome = await uptimeFetcher(CONFIG, ctx);
+      expect(outcome).toMatchObject({
+        ok: false,
+        error: { kind: 'config_invalid' },
+        retryable: false,
+      });
+    },
+  );
+
   it('turns an unusable URL into a config_invalid error', async () => {
     safeFetch.mockResolvedValue({
       ok: false,

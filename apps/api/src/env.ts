@@ -13,6 +13,7 @@ import { config } from 'dotenv';
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { z } from 'zod';
+import { parseMasterKey } from '@widgetry/db';
 import { DEFAULT_MAX_BOARDS_PER_USER } from '@widgetry/shared';
 
 /**
@@ -41,6 +42,15 @@ function loadRootEnv(): void {
  * as `''` rather than omitting it - so `''` has to mean "not configured", not
  * "configured as the empty string".
  */
+function isMasterKey(value: string): boolean {
+  try {
+    parseMasterKey(value);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 const optionalString = z.preprocess(
   (v) => (v === '' ? undefined : v),
   z.string().min(1).optional(),
@@ -68,6 +78,16 @@ const EnvSchema = z
 
     // Session signing key. 32+ bytes of randomness; Railway secret in prod.
     BETTER_AUTH_SECRET: z.string().min(32, 'BETTER_AUTH_SECRET must be >= 32 characters'),
+
+    /**
+     * Eng §10.2 / §16.2. Parsed to the 32-byte key here, so a missing or
+     * malformed value stops the process at boot rather than at the first
+     * credential. Validation messages never include the value.
+     */
+    MASTER_ENCRYPTION_KEY: z
+      .string({ error: 'MASTER_ENCRYPTION_KEY is required (see .env.example)' })
+      .refine(isMasterKey, { message: 'MASTER_ENCRYPTION_KEY must be 32 bytes, base64-encoded' })
+      .transform((value) => parseMasterKey(value)),
 
     // p1 (FR-1.3). Google sign-in registers only when both are present.
     GOOGLE_OAUTH_CLIENT_ID: optionalString,
