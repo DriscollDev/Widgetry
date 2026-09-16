@@ -20,7 +20,12 @@
 // TODO(F10.1).
 
 import { describe, expect, it } from 'vitest';
-import { checkAddressAllowed, safeFetch } from '../../src/lib/safe-fetch.js';
+import {
+  checkAddressAllowed,
+  describeLocation,
+  headersForHop,
+  safeFetch,
+} from '../../src/lib/safe-fetch.js';
 
 describe('checkAddressAllowed - Feature Spec §6.3 IPv4 ranges', () => {
   // One or more representatives per blocked range, including each range's
@@ -163,5 +168,102 @@ describe('safeFetch - literal blocked destinations (§11.3 steps 2-4)', () => {
     const result = await safeFetch({ url: 'http://10.0.0.1:6379/', readBody: false });
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.failure).toBe('blocked');
+  });
+});
+
+describe('headersForHop - caller headers stay with the requested origin', () => {
+  const requested = new URL('https://api.example.com/v1/data');
+  const caller = { Authorization: 'Bearer secret', 'X-Api-Key': 'k' };
+
+  it('sends caller headers, lowercased, to the requested origin', () => {
+    const headers = headersForHop(caller, requested, new URL('https://api.example.com/v2/moved'));
+    expect(headers).toMatchObject({ authorization: 'Bearer secret', 'x-api-key': 'k' });
+  });
+
+  it.each([
+    ['another host', 'https://evil.example.net/collect'],
+    ['a subdomain', 'https://cdn.api.example.com/v1/data'],
+    ['a downgrade to http', 'http://api.example.com/v1/data'],
+    ['another port', 'https://api.example.com:8443/v1/data'],
+  ])('drops caller headers on a redirect to %s', (_label, hop) => {
+    const headers = headersForHop(caller, requested, new URL(hop));
+    expect(headers).not.toHaveProperty('authorization');
+    expect(headers).not.toHaveProperty('x-api-key');
+    expect(headers['user-agent']).toBeTruthy();
+  });
+
+  it('lets a caller override accept but never accept-encoding', () => {
+    const headers = headersForHop(
+      { Accept: 'application/json', 'Accept-Encoding': 'gzip' },
+      requested,
+      requested,
+    );
+    expect(headers.accept).toBe('application/json');
+    expect(headers['accept-encoding']).toBe('identity');
+  });
+
+  it('sends the pipeline defaults with no caller headers', () => {
+    expect(headersForHop(undefined, requested, requested)).toEqual({
+      'user-agent': expect.any(String),
+      accept: '*/*',
+      'accept-encoding': 'identity',
+    });
+  });
+});
+
+describe('headersForHop - reserved headers', () => {
+  const requested = new URL('https://api.example.com/v1/data');
+
+  it('drops reserved headers even from a caller that skipped the config schema', () => {
+    const headers = headersForHop(
+      {
+        Host: 'internal.example',
+        'Transfer-Encoding': 'chunked',
+        Connection: 'upgrade',
+        'X-HTTP-Method-Override': 'DELETE',
+        'X-Client': 'dashboard',
+      },
+      requested,
+      requested,
+    );
+    expect(headers).not.toHaveProperty('host');
+    expect(headers).not.toHaveProperty('transfer-encoding');
+    expect(headers).not.toHaveProperty('connection');
+    expect(headers).not.toHaveProperty('x-http-method-override');
+    expect(headers['x-client']).toBe('dashboard');
+  });
+});
+
+describe('safeFetch - header values Node refuses', () => {
+  it('reports invalid_request, not a retryable network error, without opening a socket', async () => {
+    // A public IP literal passes the gate with no DNS; Node then rejects the
+    // header synchronously, before any connection is attempted.
+    const result = await safeFetch({
+      url: 'http://93.184.215.14/',
+      readBody: false,
+      headers: { 'x-price': `${String.fromCharCode(0x20ac)}5` },
+      timeoutMs: 60_000,
+    });
+    expect(result).toMatchObject({ ok: false, failure: 'invalid_request' });
+    // Settled immediately rather than when the (long) deadline fired.
+    expect(result.elapsedMs).toBeLessThan(5_000);
+  });
+});
+
+describe('describeLocation - operator log hygiene', () => {
+  const base = new URL('https://api.example.com/v1/data');
+
+  it('keeps origin and path, and drops query, fragment and userinfo', () => {
+    expect(describeLocation('https://user:pw@cdn.example.net/file.json?token=abc#frag', base)).toBe(
+      'https://cdn.example.net/file.json',
+    );
+  });
+
+  it('resolves a relative Location against the current URL', () => {
+    expect(describeLocation('/v2/data?sig=xyz', base)).toBe('https://api.example.com/v2/data');
+  });
+
+  it('does not echo a Location it cannot parse', () => {
+    expect(describeLocation('http://[bad', base)).toBe('(unparseable Location header)');
   });
 });

@@ -18,6 +18,7 @@ import { authPlugin } from './plugins/auth.js';
 import { ownershipPlugin } from './plugins/ownership.js';
 import { rateLimitPlugin } from './plugins/rate-limit.js';
 import { boardRoutes } from './routes/boards.js';
+import { credentialRoutes } from './routes/credentials.js';
 import { healthRoutes } from './routes/health.js';
 import { meRoutes } from './routes/me.js';
 import { widgetRoutes } from './routes/widgets.js';
@@ -65,7 +66,16 @@ export async function buildServer(): Promise<FastifyInstance> {
       // Belt-and-braces against FR-1.2 / FR-6.2: even a stray `req.headers` log
       // must not carry a session cookie or an upstream API key.
       redact: {
-        paths: ['req.headers.cookie', 'req.headers.authorization', 'res.headers["set-cookie"]'],
+        // `apiKey`: the credential PUT body (FR-6.2). Nothing logs request
+        // bodies today; this keeps it that way if something starts to.
+        paths: [
+          'req.headers.cookie',
+          'req.headers.authorization',
+          'res.headers["set-cookie"]',
+          'apiKey',
+          '*.apiKey',
+          'req.body.apiKey',
+        ],
         censor: '[redacted]',
       },
     },
@@ -116,6 +126,7 @@ export async function buildServer(): Promise<FastifyInstance> {
   await fastify.register(meRoutes);
   await fastify.register(boardRoutes);
   await fastify.register(widgetRoutes);
+  await fastify.register(credentialRoutes);
 
   return fastify;
 }
