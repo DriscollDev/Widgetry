@@ -157,3 +157,21 @@ export function signUpEmail(
 export function signOut(event: RequestEvent): Promise<AuthResult<unknown>> {
   return postAuth(event, '/sign-out', {});
 }
+
+/**
+ * Change the signed-in user's password (SCR-APP-03, security section).
+ *
+ * Distinct from the forgot-password flow: this one proves possession with the
+ * CURRENT password rather than an emailed token, so it is available to
+ * unverified accounts - which FR-1.7 bars from password reset.
+ *
+ * `revokeOtherSessions` is left to the caller rather than hardcoded here.
+ * Better-Auth rotates the calling session's cookie either way, and `postAuth`
+ * relays the Set-Cookie, so the user stays signed in where they are.
+ */
+export function changePassword(
+  event: RequestEvent,
+  body: { currentPassword: string; newPassword: string; revokeOtherSessions?: boolean },
+): Promise<AuthResult<unknown>> {
+  return postAuth(event, '/change-password', body);
+}
