@@ -21,5 +21,7 @@ declare class URL {
   /** Userinfo components; empty strings when absent. */
   readonly username: string;
   readonly password: string;
+  /** The query string including its leading `?`, or an empty string. */
+  readonly search: string;
   readonly href: string;
 }

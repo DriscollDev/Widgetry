@@ -321,6 +321,11 @@ export interface SafeFetchOptions {
   timeoutMs?: number;
   maxBytes?: number;
   maxRedirects?: number;
+  /**
+   * Refuse any hop that is not https - set when the request carries a stored
+   * API key (FR-6.4), so a redirect cannot downgrade it to plain http.
+   */
+  requireHttps?: boolean;
 }
 
 /** Statuses we follow. 303 included; it changes the method to GET, which is all we send anyway. */
@@ -650,6 +655,9 @@ export async function safeFetch(options: SafeFetchOptions): Promise<SafeFetchRes
     // refused exactly as if the user had typed it.
     try {
       currentUrl = parseHttpUrl(new URL(hop.location, currentUrl).toString());
+      if (options.requireHttps && currentUrl.protocol !== 'https:') {
+        throw new BlockedDestinationError('redirect would leave https while carrying an API key');
+      }
     } catch (err) {
       return {
         ok: false,

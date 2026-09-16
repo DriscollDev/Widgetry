@@ -22,7 +22,8 @@
 // helper POST already defines (toPlacement, the Widget type, the ownership
 // imports), and splitting it out means importing half this file back in.
 //
-// DELETE /v1/widgets/:id, refresh, snapshots, credential are still not here.
+// DELETE /v1/widgets/:id, refresh and snapshots are still not here; the
+// credential verbs are in ./credentials.ts.
 // They are a different story - they touch credentials, polling state, and
 // snapshot data this file doesn't model - so THEY belong in their own file(s)
 // when they land, each added to the isolation suite (Eng §11.7) same as these.

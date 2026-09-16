@@ -21,6 +21,13 @@ export interface FetcherContext {
   /** For log correlation only. A fetcher must not query by it. */
   widgetId: string;
   log: Logger;
+  /**
+   * The widget's decrypted API key, or null if none is stored (Eng §10.2 step
+   * 4). Call it only when the request needs the key, immediately before
+   * sending, and never log or return what it gives you. The caller loads and
+   * decrypts on demand and wipes its copy once the fetcher returns.
+   */
+  loadCredential: () => Promise<string | null>;
 }
 
 /**

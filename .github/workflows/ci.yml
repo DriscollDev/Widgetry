@@ -85,7 +85,8 @@ jobs:
       REDIS_URL: ${{ secrets.TEST_REDIS_URL }}
       NODE_ENV: test
       # Throwaway test keys - never reuse outside CI.
-      MASTER_ENCRYPTION_KEY: dGVzdC1tYXN0ZXIta2V5LTMyYnl0ZXMtZG8tbm90LXVzZQ==
+      # Exactly 32 bytes, as the api and worker now require at boot (Eng §10.2).
+      MASTER_ENCRYPTION_KEY: Y2ktdGVzdC1tYXN0ZXIta2V5LWRvLW5vdC11c2UtMzI=
       BETTER_AUTH_SECRET: ci-test-secret-do-not-use-in-prod
 
     steps:

@@ -4,9 +4,9 @@
 // JSON with the configured dot-notation path, and shape it for the chosen
 // display format. Authority: Eng §7.3 runtime steps, US-C1/C3/C4/C7.
 //
-// Eng §7.3 step 2 (decrypt and inject a credential) is not here yet; it lands
-// with the credential work (E9). Steps 3-4 are ../lib/safe-fetch.ts, which is
-// the only way this process sends a request to a user-supplied URL.
+// Eng §7.3 step 2 attaches the stored API key (decrypted by the poll job, on
+// request, via `ctx.loadCredential`). Steps 3-4 are ../lib/safe-fetch.ts, which
+// is the only way this process sends a request to a user-supplied URL.
 //
 // Unlike uptime, a failure here is always an `error` snapshot: there is no
 // reading to record when the data could not be fetched. Transient failures
@@ -135,13 +135,39 @@ export const customJsonFetcher: Fetcher = async (rawConfig, ctx) => {
     return configInvalid('This custom widget’s JSON path is invalid.');
   }
 
+  let url = config.url;
+  const headers: Record<string, string> = {
+    accept: 'application/json',
+    ...Object.fromEntries(config.headers.map((header) => [header.name, header.value])),
+  };
+
+  // Eng §7.3 step 2: attach the stored key where the config says.
+  if (config.apiKey) {
+    const target = new URL(url);
+    // FR-6.4. The schema already requires https with a key; this is the
+    // control, not the convenience.
+    if (target.protocol !== 'https:') {
+      return configInvalid('API keys are only sent over HTTPS. Use an https:// URL.');
+    }
+    const apiKey = await ctx.loadCredential();
+    if (apiKey === null) {
+      return configInvalid('This widget needs an API key. Add one in its settings.');
+    }
+    if (config.apiKey.in === 'header') {
+      headers[config.apiKey.name] = apiKey;
+    } else {
+      target.searchParams.set(config.apiKey.name, apiKey);
+      url = target.toString();
+    }
+  }
+
+  // The key may now be in `headers` or `url`. Neither is logged below: failures
+  // log only safe-fetch's `detail`, which names hosts and addresses, not URLs.
   const result = await safeFetch({
-    url: config.url,
+    url,
     readBody: true,
-    headers: {
-      accept: 'application/json',
-      ...Object.fromEntries(config.headers.map((header) => [header.name, header.value])),
-    },
+    headers,
+    ...(config.apiKey ? { requireHttps: true } : {}),
   });
 
   if (!result.ok) {

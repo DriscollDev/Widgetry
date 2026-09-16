@@ -67,7 +67,9 @@ describe('CustomJsonConfig - rejected', () => {
     ['an unparseable path', { ...VALID, path: 'data..x' }, 'path'],
     ['an empty path', { ...VALID, path: '' }, 'path'],
     ['an unknown display format', { ...VALID, displayFormat: 'gauge' }, 'displayFormat'],
-    ['an unknown key', { ...VALID, apiKey: 'secret' }, ''],
+    ['an unknown key', { ...VALID, token: 'secret' }, ''],
+    // The key itself never lives in config (FR-6.1) - only where it goes.
+    ['a plaintext API key', { ...VALID, apiKey: 'sk_live_secret' }, 'apiKey'],
   ])('rejects %s', (_label, config, path) => {
     expect(issuesFor(config)).toContain(path);
   });
@@ -131,5 +133,59 @@ describe('CustomJsonConfig - rejected', () => {
       value: 'v',
     }));
     expect(issuesFor({ ...VALID, headers })).toContain('headers');
+  });
+});
+
+describe('CustomJsonConfig - API key placement (US-C2)', () => {
+  it.each([
+    [{ in: 'header', name: 'Authorization' }],
+    [{ in: 'header', name: 'X-RapidAPI-Key' }],
+    [{ in: 'query', name: 'apikey' }],
+    [{ in: 'query', name: 'api_key.v2~x' }],
+  ])('accepts %j, including credential-looking header names', (apiKey) => {
+    expect(CustomJsonConfig.safeParse({ ...VALID, apiKey }).success).toBe(true);
+  });
+
+  it('requires https when a key is attached (FR-6.4)', () => {
+    const config = {
+      ...VALID,
+      url: 'http://api.example.com/v1/stats',
+      apiKey: { in: 'header', name: 'X-Api-Key' },
+    };
+    const result = CustomJsonConfig.safeParse(config);
+    expect(result.success).toBe(false);
+    expect(result.error?.issues).toContainEqual(
+      expect.objectContaining({ path: ['url'], message: expect.stringContaining('https://') }),
+    );
+    // Without a key, plain http stays allowed.
+    expect(CustomJsonConfig.safeParse({ ...config, apiKey: undefined }).success).toBe(true);
+  });
+
+  it.each([
+    ['an unknown location', { in: 'body', name: 'key' }, 'apiKey.in'],
+    ['a reserved header', { in: 'header', name: 'Host' }, 'apiKey.name'],
+    ['a malformed header name', { in: 'header', name: 'X Key' }, 'apiKey.name'],
+    ['a query name needing encoding', { in: 'query', name: 'api key' }, 'apiKey.name'],
+    ['an empty name', { in: 'query', name: '' }, 'apiKey.name'],
+    ['an extra field', { in: 'query', name: 'k', value: 'secret' }, 'apiKey'],
+  ])('rejects %s', (_label, apiKey, path) => {
+    expect(issuesFor({ ...VALID, apiKey })).toContain(path);
+  });
+
+  it('rejects a header placement that duplicates a configured header', () => {
+    const config = {
+      ...VALID,
+      headers: [{ name: 'X-Client', value: 'dashboard' }],
+      apiKey: { in: 'header', name: 'x-client' },
+    };
+    expect(issuesFor(config)).toContain('apiKey.name');
+  });
+
+  it.each([
+    'https://api.example.com/v1?apikey=typed-in-secret',
+    'https://api.example.com/v1?symbol=IBM&apikey=',
+    'https://api.example.com/v1?a=1&api%6Bey=x',
+  ])('rejects %s when the key goes in that query parameter', (url) => {
+    expect(issuesFor({ ...VALID, url, apiKey: { in: 'query', name: 'apikey' } })).toContain('url');
   });
 });

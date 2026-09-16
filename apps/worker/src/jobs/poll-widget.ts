@@ -17,7 +17,7 @@
 // only ids reaching this file come from the scheduler's own sweep.
 
 import { eq } from 'drizzle-orm';
-import { db, schema } from '@widgetry/db';
+import { CredentialDecryptError, db, decryptCredential, schema } from '@widgetry/db';
 import {
   getWidgetTypeDef,
   isServerPolled,
@@ -27,6 +27,7 @@ import {
 import type { Job } from 'bullmq';
 import { getFetcher } from '../fetchers/index.js';
 import type { FetchOutcome } from '../fetchers/types.js';
+import { masterKey } from '../env.js';
 import type { Logger } from '../logger.js';
 import type { PollWidgetJobData } from '../queues.js';
 
@@ -118,15 +119,47 @@ export async function processPollWidgetJob(
     return;
   }
 
+  // Eng §10.2 step 4: the key is decrypted only if the fetcher asks for it, and
+  // this buffer is wiped as soon as the fetcher returns (best effort - the
+  // fetcher's string copy cannot be wiped).
+  const decrypted: Buffer[] = [];
+  const loadCredential = async (): Promise<string | null> => {
+    const [row] = await db
+      .select()
+      .from(schema.apiCredentials)
+      .where(eq(schema.apiCredentials.widgetId, widgetId))
+      .limit(1);
+    if (!row) return null;
+    const plaintext = decryptCredential(row, widgetId, masterKey());
+    decrypted.push(plaintext);
+    return plaintext.toString('utf8');
+  };
+
   let outcome: FetchOutcome;
   try {
-    outcome = await fetcher(widget.config, { widgetId, log });
+    outcome = await fetcher(widget.config, { widgetId, log, loadCredential });
   } catch (err) {
-    // A fetcher is contracted not to throw (see ../fetchers/types.ts), so
-    // reaching here means one has a bug. Log the stack per §15.1 and record a
-    // generic error - the user gets an error state, we get the trace.
-    log.error({ err, widgetType }, 'fetcher threw; treating as an internal error');
-    outcome = internalError('Something went wrong while refreshing this widget.');
+    if (err instanceof CredentialDecryptError) {
+      // Tampered, moved, or written under another master key. The row is
+      // useless either way; the user's fix is to save the key again.
+      log.error({ widgetType }, 'stored credential failed to decrypt');
+      outcome = {
+        ok: false,
+        error: {
+          kind: 'config_invalid',
+          message: 'This widget’s saved API key cannot be used. Save the key again.',
+        },
+        retryable: false,
+      };
+    } else {
+      // A fetcher is contracted not to throw (see ../fetchers/types.ts), so
+      // reaching here means one has a bug. Log the stack per §15.1 and record a
+      // generic error - the user gets an error state, we get the trace.
+      log.error({ err, widgetType }, 'fetcher threw; treating as an internal error');
+      outcome = internalError('Something went wrong while refreshing this widget.');
+    }
+  } finally {
+    for (const buffer of decrypted) buffer.fill(0);
   }
 
   // Eng §8.2: three attempts with exponential backoff, and the error snapshot is

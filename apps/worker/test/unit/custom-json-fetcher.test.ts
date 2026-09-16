@@ -12,9 +12,12 @@ vi.mock('../../src/lib/safe-fetch.js', () => ({ safeFetch }));
 
 const { customJsonFetcher } = await import('../../src/fetchers/custom-json.js');
 
+const loadCredential = vi.fn<() => Promise<string | null>>();
+
 const ctx = {
   widgetId: 'w-1',
   log: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+  loadCredential,
 } as unknown as Parameters<typeof customJsonFetcher>[1];
 
 const TARGET = 'https://api.example.com/v1/stats';
@@ -46,6 +49,7 @@ function failed(failure: SafeFetchFailure): SafeFetchResult {
 
 beforeEach(() => {
   safeFetch.mockReset();
+  loadCredential.mockReset();
 });
 
 describe('custom JSON fetcher - request', () => {
@@ -265,5 +269,93 @@ describe('custom JSON fetcher - errors (US-C7)', () => {
       expect(outcome.error.message).not.toContain('10.0.0');
       expect(outcome.error.message.length).toBeGreaterThan(0);
     }
+  });
+});
+
+describe('custom JSON fetcher - API key (US-C2, FR-6.4)', () => {
+  const KEY = 'sk_test_123';
+
+  it('does not load the key when no placement is configured', async () => {
+    safeFetch.mockResolvedValue(responded({ data: { value: 1 } }));
+    await customJsonFetcher(config(), ctx);
+    expect(loadCredential).not.toHaveBeenCalled();
+    expect(safeFetch.mock.calls[0]![0]).not.toHaveProperty('requireHttps');
+  });
+
+  it('sends the key in the configured header, https only', async () => {
+    loadCredential.mockResolvedValue(KEY);
+    safeFetch.mockResolvedValue(responded({ data: { value: 1 } }));
+    await customJsonFetcher(config({ apiKey: { in: 'header', name: 'X-Api-Key' } }), ctx);
+    expect(safeFetch).toHaveBeenCalledWith({
+      url: TARGET,
+      readBody: true,
+      headers: { accept: 'application/json', 'X-Api-Key': KEY },
+      requireHttps: true,
+    });
+  });
+
+  it('sends the key as the configured query parameter, encoded', async () => {
+    loadCredential.mockResolvedValue('a b&c=d');
+    safeFetch.mockResolvedValue(responded({ data: { value: 1 } }));
+    await customJsonFetcher(
+      config({
+        url: 'https://api.example.com/v1/stats?symbol=IBM',
+        apiKey: { in: 'query', name: 'apikey' },
+      }),
+      ctx,
+    );
+    const call = safeFetch.mock.calls[0]![0] as { url: string; requireHttps: boolean };
+    const sent = new URL(call.url);
+    expect(sent.searchParams.get('symbol')).toBe('IBM');
+    expect(sent.searchParams.get('apikey')).toBe('a b&c=d');
+    expect(call.requireHttps).toBe(true);
+  });
+
+  it('reports a missing key without fetching', async () => {
+    loadCredential.mockResolvedValue(null);
+    const outcome = await customJsonFetcher(
+      config({ apiKey: { in: 'header', name: 'Authorization' } }),
+      ctx,
+    );
+    expect(safeFetch).not.toHaveBeenCalled();
+    expect(outcome).toEqual({
+      ok: false,
+      error: {
+        kind: 'config_invalid',
+        message: 'This widget needs an API key. Add one in its settings.',
+      },
+      retryable: false,
+    });
+  });
+
+  it('never loads the key for a stored config that is not https', async () => {
+    // The schema refuses this combination; a row written around it must still
+    // not send the key in the clear.
+    const outcome = await customJsonFetcher(
+      config({ url: 'http://api.example.com/v1', apiKey: { in: 'header', name: 'X-Api-Key' } }),
+      ctx,
+    );
+    expect(loadCredential).not.toHaveBeenCalled();
+    expect(safeFetch).not.toHaveBeenCalled();
+    expect(outcome).toMatchObject({ ok: false, error: { kind: 'config_invalid' } });
+  });
+
+  it('keeps the key out of every log call and the outcome', async () => {
+    loadCredential.mockResolvedValue(KEY);
+    safeFetch.mockResolvedValue({
+      ok: false,
+      failure: 'network',
+      detail: 'ECONNRESET',
+      elapsedMs: 1,
+    });
+    const outcome = await customJsonFetcher(
+      config({ apiKey: { in: 'query', name: 'apikey' } }),
+      ctx,
+    );
+    const logged = JSON.stringify(
+      Object.values(ctx.log).flatMap((fn) => (fn as ReturnType<typeof vi.fn>).mock.calls),
+    );
+    expect(logged).not.toContain(KEY);
+    expect(JSON.stringify(outcome)).not.toContain(KEY);
   });
 });

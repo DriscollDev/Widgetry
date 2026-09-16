@@ -6,9 +6,9 @@
 // path, display format. The refresh interval and retention are widget COLUMNS,
 // not config (FR-4.2, FR-5.2), so they are not here.
 //
-// Not yet here: the API key (US-C2/US-S1). It is stored encrypted in
-// `api_credentials`, never in this jsonb, and the placement setting (header or
-// query parameter, and its name) arrives with the credential work (E9).
+// The API key itself (US-C2/US-S1) is never in this jsonb: it is stored
+// envelope-encrypted in `api_credentials` (FR-6.1). The config holds only
+// WHERE the worker puts it - `apiKey` below.
 
 import { z } from 'zod';
 import { parseJsonPath } from './json-path.js';
@@ -97,6 +97,55 @@ export const CUSTOM_JSON_DISPLAY_FORMATS = ['value', 'key_value', 'timeline'] as
 export const CustomJsonDisplayFormat = z.enum(CUSTOM_JSON_DISPLAY_FORMATS);
 export type CustomJsonDisplayFormat = z.infer<typeof CustomJsonDisplayFormat>;
 
+/** Characters that need no percent-encoding in a query parameter name. */
+const QUERY_PARAM_NAME = /^[A-Za-z0-9._~-]+$/;
+
+/**
+ * US-C2: where the stored API key goes on each request - a header (for example
+ * `Authorization` or `X-Api-Key`) or a query parameter (for example `apikey`).
+ * This is the one place a credential-looking header name is allowed, because
+ * the value comes from the encrypted store rather than from this config.
+ */
+export const CustomJsonApiKeyPlacement = z.discriminatedUnion('in', [
+  z.strictObject({
+    in: z.literal('header'),
+    name: z
+      .string()
+      .min(1, 'Enter a header name.')
+      .max(128)
+      .regex(HEADER_NAME, "Header names can only use letters, digits and -_.!#$%&'*+^`|~")
+      .refine((name) => !RESERVED_HEADER_NAMES.includes(name.toLowerCase()), {
+        message: 'This header is set by Widgetry and cannot be changed.',
+      }),
+  }),
+  z.strictObject({
+    in: z.literal('query'),
+    name: z
+      .string()
+      .min(1, 'Enter a parameter name.')
+      .max(128)
+      .regex(QUERY_PARAM_NAME, 'Parameter names can only use letters, digits and -._~'),
+  }),
+]);
+
+export type CustomJsonApiKeyPlacement = z.infer<typeof CustomJsonApiKeyPlacement>;
+
+/** Query parameter names in a URL's search string, decoded. */
+function queryParamNames(search: string): string[] {
+  return search
+    .replace(/^\?/, '')
+    .split('&')
+    .filter(Boolean)
+    .map((pair) => {
+      const name = pair.split('=')[0] ?? '';
+      try {
+        return decodeURIComponent(name.replace(/\+/g, ' '));
+      } catch {
+        return name;
+      }
+    });
+}
+
 export const CustomJsonConfig = z
   .strictObject({
     url: PollableUrl,
@@ -125,6 +174,47 @@ export const CustomJsonConfig = z
       if (!parsed.ok) ctx.addIssue({ code: 'custom', message: parsed.message });
     }),
     displayFormat: CustomJsonDisplayFormat,
+    /** Absent when the upstream needs no key. */
+    apiKey: CustomJsonApiKeyPlacement.optional(),
+  })
+  .superRefine((config, ctx) => {
+    const placement = config.apiKey;
+    if (!placement) return;
+
+    let url: URL;
+    try {
+      url = new URL(config.url);
+    } catch {
+      return; // `url` already reports this.
+    }
+
+    // FR-6.4: API keys only ever travel over HTTPS.
+    if (url.protocol !== 'https:') {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['url'],
+        message: 'A widget with an API key must use an https:// URL.',
+      });
+    }
+
+    if (
+      placement.in === 'header' &&
+      config.headers.some((header) => header.name.toLowerCase() === placement.name.toLowerCase())
+    ) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['apiKey', 'name'],
+        message: 'This header is already set in the header list.',
+      });
+    }
+
+    if (placement.in === 'query' && queryParamNames(url.search).includes(placement.name)) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['url'],
+        message: `Remove ${placement.name} from the URL. The API key is added to it on each request.`,
+      });
+    }
   })
   .describe('Custom JSON widget configuration');
 
