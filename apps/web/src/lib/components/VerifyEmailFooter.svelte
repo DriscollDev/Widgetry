@@ -40,10 +40,7 @@
 </script>
 
 {#if visible}
-  <div
-    role="status"
-    class="sticky bottom-0 z-40 border-t border-warning-500/40 bg-surface-100-900"
-  >
+  <div role="status" class="sticky bottom-0 z-40 border-t border-warning-500/40 bg-surface-100-900">
     <div class="mx-auto flex max-w-5xl flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3">
       <!-- Colour + icon + text, never colour alone (Design Principles §3.4). -->
       <svg

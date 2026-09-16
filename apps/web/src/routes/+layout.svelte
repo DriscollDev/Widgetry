@@ -12,8 +12,9 @@
   import '../app.css';
   import VerifyEmailFooter from '$lib/components/VerifyEmailFooter.svelte';
   import type { LayoutData } from './$types';
+  import type { Snippet } from 'svelte';
 
-  let { data, children }: { data: LayoutData; children: import('svelte').Snippet } = $props();
+  let { data, children }: { data: LayoutData; children: Snippet } = $props();
 
   // FR-1.7 / EX-16. `data.user` is null on the signed-out routes, so this is
   // also what keeps the notice off /sign-in and /sign-up without needing a

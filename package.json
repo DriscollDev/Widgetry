@@ -2,6 +2,7 @@
   "name": "widgetry",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "description": "Widgetry - customizable widget-based API monitoring dashboards.",
   "engines": {
     "node": ">=20.0.0"
