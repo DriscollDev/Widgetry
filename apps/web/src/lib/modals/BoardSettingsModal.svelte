@@ -1,13 +1,12 @@
 <!--
-  SCR-MOD-01 - create board (Screen Inventory §5.3). US-B1, US-B5's initial
-  setting.
+  SCR-MOD-02 - board settings (Screen Inventory §5.3). US-B3 rename, US-B5
+  refresh mode, and the entry to US-B4's delete confirmation.
 
-  Posts to the `?/create` action on /boards. The action re-validates against
-  CreateBoardRequest and, on success, redirects to the new board; `use:enhance`
-  follows that redirect. On failure the modal stays open and shows the action's
-  field and form messages.
-
-  Fields are the shared BoardFields (FR-2.2, FR-2.3).
+  Posts to the `?/update` action on /boards/:id, which re-validates against
+  UpdateBoardRequest. The whole form is always sent, so the refresh pair moves
+  together as the contract requires. On success the page data reloads (the
+  header shows the new name) and the modal closes; on failure it stays open
+  with the action's messages.
 -->
 <script lang="ts">
   import { Modal } from '@skeletonlabs/skeleton-svelte';
@@ -20,10 +19,17 @@
   type Props = {
     open: boolean;
     onOpenChange: (open: boolean) => void;
+    board: {
+      name: string;
+      refreshMode: BoardRefreshMode;
+      refreshIntervalSeconds: number | null;
+    };
+    /** Opens SCR-MOD-03. The page swaps this modal for that one. */
+    onDelete: () => void;
     result?: BoardFormResult | null;
   };
 
-  let { open, onOpenChange, result = null }: Props = $props();
+  let { open, onOpenChange, board, onDelete, result = null }: Props = $props();
 
   let fields: BoardFields | undefined = $state();
   let name = $state('');
@@ -33,14 +39,17 @@
   /** Server messages are for the submission that produced them only. */
   let showResult = $state(false);
 
-  // Fresh form on every open.
+  // Start from the board's saved settings on every open. `board` is untracked
+  // so the reload after a save does not overwrite a form still being edited.
   $effect(() => {
     if (open) {
-      name = '';
-      refreshMode = 'auto';
-      refreshIntervalSeconds = DEFAULT_REFRESH_INTERVAL_SECONDS;
-      showResult = false;
-      untrack(() => fields?.reset());
+      untrack(() => {
+        name = board.name;
+        refreshMode = board.refreshMode;
+        refreshIntervalSeconds = board.refreshIntervalSeconds ?? DEFAULT_REFRESH_INTERVAL_SECONDS;
+        showResult = false;
+        fields?.reset();
+      });
     }
   });
 
@@ -56,22 +65,25 @@
   {#snippet content()}
     <form
       method="POST"
-      action="/boards?/create"
+      action="?/update"
       novalidate
-      aria-labelledby="create-board-title"
+      aria-labelledby="board-settings-title"
       use:enhance={({ cancel }) => {
         if (fields && !fields.validateName()) return cancel();
         submitting = true;
-        return async ({ update }) => {
-          // reset: false keeps the typed values if the action fails.
+        return async ({ result: actionResult, update }) => {
           await update({ reset: false });
           submitting = false;
-          showResult = true;
+          if (actionResult.type === 'success') {
+            onOpenChange(false);
+          } else {
+            showResult = true;
+          }
         };
       }}
     >
       <div class="flex items-center justify-between border-b border-surface-200-800 p-5">
-        <h2 id="create-board-title" class="text-lg font-semibold">New board</h2>
+        <h2 id="board-settings-title" class="text-lg font-semibold">Board settings</h2>
         <button
           type="button"
           onclick={() => onOpenChange(false)}
@@ -98,7 +110,7 @@
 
         <BoardFields
           bind:this={fields}
-          idPrefix="create-board"
+          idPrefix="board-settings"
           bind:name
           bind:refreshMode
           bind:refreshIntervalSeconds
@@ -106,21 +118,30 @@
         />
       </div>
 
-      <div class="flex justify-end gap-2 border-t border-surface-200-800 p-5">
+      <div class="flex items-center justify-between gap-2 border-t border-surface-200-800 p-5">
         <button
           type="button"
-          onclick={() => onOpenChange(false)}
-          class="preset-tonal rounded-lg px-4 py-2 text-sm font-medium"
+          onclick={onDelete}
+          class="preset-tonal-error rounded-lg px-4 py-2 text-sm font-medium"
         >
-          Cancel
+          Delete board
         </button>
-        <button
-          type="submit"
-          disabled={submitting}
-          class="preset-filled-primary-500 rounded-lg px-4 py-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          {submitting ? 'Creating…' : 'Create board'}
-        </button>
+        <div class="flex gap-2">
+          <button
+            type="button"
+            onclick={() => onOpenChange(false)}
+            class="preset-tonal rounded-lg px-4 py-2 text-sm font-medium"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            disabled={submitting}
+            class="preset-filled-primary-500 rounded-lg px-4 py-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {submitting ? 'Saving…' : 'Save'}
+          </button>
+        </div>
       </div>
     </form>
   {/snippet}

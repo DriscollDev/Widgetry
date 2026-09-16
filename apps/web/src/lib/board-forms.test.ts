@@ -1,8 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { BOARD_REFRESH_INTERVALS_SECONDS, CreateBoardRequest } from '@widgetry/shared';
+import {
+  BOARD_REFRESH_INTERVALS_SECONDS,
+  CreateBoardRequest,
+  UpdateBoardRequest,
+} from '@widgetry/shared';
 import {
   formatRefresh,
-  readCreateBoardForm,
+  readBoardForm,
   REFRESH_INTERVAL_OPTIONS,
   toFieldErrors,
 } from './board-forms';
@@ -13,35 +17,35 @@ function formData(fields: Record<string, string>): FormData {
   return form;
 }
 
-describe('readCreateBoardForm', () => {
-  it('produces a valid auto-refresh request', () => {
-    const { input } = readCreateBoardForm(
+describe('readBoardForm', () => {
+  it('produces a valid auto-refresh create and update request', () => {
+    const input = readBoardForm(
       formData({ name: 'Ops', refreshMode: 'auto', refreshIntervalSeconds: '300' }),
     );
-    const parsed = CreateBoardRequest.safeParse(input);
-    expect(parsed.success).toBe(true);
-    expect(parsed.data).toEqual({ name: 'Ops', refreshMode: 'auto', refreshIntervalSeconds: 300 });
+    const expected = { name: 'Ops', refreshMode: 'auto', refreshIntervalSeconds: 300 };
+    expect(CreateBoardRequest.safeParse(input).data).toEqual(expected);
+    // SCR-MOD-02 sends the same full form as a PATCH.
+    expect(UpdateBoardRequest.safeParse(input).data).toEqual(expected);
   });
 
   it('drops the hidden interval for a manual board, which the contract would reject', () => {
-    const { input, values } = readCreateBoardForm(
+    const input = readBoardForm(
       formData({ name: 'Ops', refreshMode: 'manual', refreshIntervalSeconds: '60' }),
     );
     expect(CreateBoardRequest.safeParse(input).success).toBe(true);
+    expect(UpdateBoardRequest.safeParse(input).success).toBe(true);
     expect(input.refreshIntervalSeconds).toBeNull();
-    // ...but remembers the pick for re-filling the form.
-    expect(values.refreshIntervalSeconds).toBe(60);
   });
 
   it('rejects a whitespace-only name (SCR-MOD-01)', () => {
-    const { input } = readCreateBoardForm(formData({ name: '   ', refreshMode: 'manual' }));
+    const input = readBoardForm(formData({ name: '   ', refreshMode: 'manual' }));
     const parsed = CreateBoardRequest.safeParse(input);
     expect(parsed.success).toBe(false);
     expect(toFieldErrors(parsed.error!.issues).name).toBe('Board name is required.');
   });
 
   it('rejects an interval outside FR-2.3', () => {
-    const { input } = readCreateBoardForm(
+    const input = readBoardForm(
       formData({ name: 'Ops', refreshMode: 'auto', refreshIntervalSeconds: '45' }),
     );
     const parsed = CreateBoardRequest.safeParse(input);
@@ -50,7 +54,7 @@ describe('readCreateBoardForm', () => {
   });
 
   it('does not coerce a tampered refresh mode into a valid one', () => {
-    const { input } = readCreateBoardForm(formData({ name: 'Ops', refreshMode: 'sometimes' }));
+    const input = readBoardForm(formData({ name: 'Ops', refreshMode: 'sometimes' }));
     const parsed = CreateBoardRequest.safeParse(input);
     expect(parsed.success).toBe(false);
     expect(toFieldErrors(parsed.error!.issues).refreshMode).not.toBeNull();
