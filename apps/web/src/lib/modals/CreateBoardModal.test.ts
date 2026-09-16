@@ -51,7 +51,6 @@ describe('CreateBoardModal (SCR-MOD-01)', () => {
         open: true,
         onOpenChange: vi.fn(),
         result: {
-          values: { name: 'x', refreshMode: 'auto', refreshIntervalSeconds: 300 },
           message: 'You can own up to 10 boards.',
           fieldErrors: NO_FIELD_ERRORS,
         },
