@@ -7,13 +7,13 @@
 //
 // The board-scoped endpoints below are real routes from routes/boards.ts and
 // routes/widgets.ts - the probes they replaced are gone. PATCH /v1/widgets/:id
-// (Task #170 placement, US-H2 retention) is now real too. What remains a probe
-// is GET/DELETE /v1/widgets/:id and the rest of the widget-scoped family
-// (refresh/snapshots/credential), which still has no handlers.
+// (Task #170 placement, US-H2 retention) and PUT/DELETE
+// /v1/widgets/:id/credential (US-S1..S4) are real too. What remains a probe is
+// GET/DELETE /v1/widgets/:id; refresh and snapshots have no handlers yet.
 //
 // NOTE FOR WHOEVER ADDS THE NEXT REAL WIDGET ROUTE: as each of
-// DELETE /v1/widgets/:id, POST /v1/widgets/:id/refresh,
-// GET /v1/widgets/:id/snapshots and PUT/DELETE /v1/widgets/:id/credential lands,
+// DELETE /v1/widgets/:id, POST /v1/widgets/:id/refresh and
+// GET /v1/widgets/:id/snapshots lands,
 // add it to `endpointsFor` below and delete the matching probe. §11.7 requires
 // EVERY scoped endpoint to appear here, and this suite runs on every PR.
 //
@@ -81,8 +81,27 @@ describeIntegration('multi-tenant isolation (EX-17, Eng §11.7)', () => {
   let cookieB = '';
   let boardA = '';
   let widgetA = '';
+  /** A custom_json widget: the credential verbs refuse every other type. */
+  let customWidgetA = '';
   /** Hoisted: the owner-path test creates its own throwaway board for User A. */
   let userAId = '';
+
+  const insertCustomWidget = async (boardId: string): Promise<string> => {
+    const [row] = await db
+      .insert(schema.widgets)
+      .values({
+        boardId,
+        widgetType: 'custom_json',
+        pollingMode: 'server',
+        gridCol: 6,
+        gridRow: 0,
+        gridWidth: 2,
+        gridHeight: 2,
+        lastPolledAt: new Date(),
+      })
+      .returning();
+    return row!.id;
+  };
 
   beforeAll(async () => {
     const { buildServer } = await import('../../src/server.js');
@@ -155,6 +174,7 @@ describeIntegration('multi-tenant isolation (EX-17, Eng §11.7)', () => {
       })
       .returning();
     widgetA = widget!.id;
+    customWidgetA = await insertCustomWidget(boardA);
   });
 
   afterAll(async () => {
@@ -178,7 +198,7 @@ describeIntegration('multi-tenant isolation (EX-17, Eng §11.7)', () => {
    * Ordered so the destructive verb comes last - the owner-path test runs the
    * table top to bottom against one board.
    */
-  const endpointsFor = (boardId: string, widgetId: string) => [
+  const endpointsFor = (boardId: string, widgetId: string, customWidgetId: string) => [
     {
       name: 'GET /v1/boards/:id',
       method: 'GET' as const,
@@ -220,6 +240,20 @@ describeIntegration('multi-tenant isolation (EX-17, Eng §11.7)', () => {
       ownerStatus: 200,
     },
     {
+      name: 'PUT /v1/widgets/:id/credential',
+      method: 'PUT' as const,
+      url: `/v1/widgets/${customWidgetId}/credential`,
+      payload: { apiKey: 'sk_isolation_suite' },
+      ownerStatus: 200,
+    },
+    {
+      name: 'DELETE /v1/widgets/:id/credential',
+      method: 'DELETE' as const,
+      url: `/v1/widgets/${customWidgetId}/credential`,
+      payload: undefined,
+      ownerStatus: 200,
+    },
+    {
       name: 'DELETE /v1/widgets/:id',
       method: 'DELETE' as const,
       url: `/v1/widgets/${widgetId}`,
@@ -236,7 +270,7 @@ describeIntegration('multi-tenant isolation (EX-17, Eng §11.7)', () => {
   ];
 
   /** The persistent pair. Never mutated - every request against it is rejected. */
-  const scopedEndpoints = () => endpointsFor(boardA, widgetA);
+  const scopedEndpoints = () => endpointsFor(boardA, widgetA, customWidgetA);
 
   it('lets the owner through and hands the handler the resolved row', async () => {
     // A throwaway pair, because the table now ends in a real DELETE. User A's
@@ -259,7 +293,9 @@ describeIntegration('multi-tenant isolation (EX-17, Eng §11.7)', () => {
       })
       .returning();
 
-    for (const endpoint of endpointsFor(board!.id, widget!.id)) {
+    const customWidget = await insertCustomWidget(board!.id);
+
+    for (const endpoint of endpointsFor(board!.id, widget!.id, customWidget)) {
       const response = await app.inject({
         method: endpoint.method,
         url: endpoint.url,
@@ -271,7 +307,9 @@ describeIntegration('multi-tenant isolation (EX-17, Eng §11.7)', () => {
       expect(response.statusCode, `${endpoint.name} should allow the owner: ${response.body}`).toBe(
         endpoint.ownerStatus ?? 200,
       );
-      expect(response.json().id, `${endpoint.name} should resolve a row`).toBeTruthy();
+      const body = response.json();
+      // The credential verbs answer with `widgetId`; everything else with `id`.
+      expect(body.id ?? body.widgetId, `${endpoint.name} should resolve a row`).toBeTruthy();
     }
   });
 
@@ -292,6 +330,7 @@ describeIntegration('multi-tenant isolation (EX-17, Eng §11.7)', () => {
       expect(response.json().error.code).toBe('not_found');
       expect(response.body).not.toContain(boardA);
       expect(response.body).not.toContain(widgetA);
+      expect(response.body).not.toContain(customWidgetA);
     }
   });
 

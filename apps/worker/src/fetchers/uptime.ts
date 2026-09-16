@@ -103,6 +103,9 @@ export const uptimeFetcher: Fetcher = async (rawConfig, ctx) => {
     // and shape rules on write. Reachable only if a row predates the schema or
     // was written outside the api.
     case 'invalid_url':
+    // Uptime sends no caller headers, so this one is unreachable today; if it
+    // ever happens, the stored config is what is wrong.
+    case 'invalid_request':
       ctx.log.warn(
         { widgetId: ctx.widgetId, detail: result.detail },
         'uptime widget has an unusable URL',
