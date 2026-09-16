@@ -152,7 +152,18 @@ export async function processPollWidgetJob(
     }
   }
 
-  await writeSnapshot(widgetId, outcome, log);
+  try {
+    await writeSnapshot(widgetId, outcome, log);
+  } catch (err) {
+    // The database refused the row itself - upstream content a fetcher failed
+    // to make storable. Record that as an error so the widget shows one
+    // (FR-4.4) instead of silently keeping its last value. If this write fails
+    // too, the database is the problem and BullMQ's retry is the right answer.
+    if (!outcome.ok) throw err;
+    log.error({ err, widgetType }, 'snapshot write failed; recording an internal error instead');
+    outcome = internalError('This widget’s latest data could not be saved.');
+    await writeSnapshot(widgetId, outcome, log);
+  }
 
   // Eng §15.1: "one log line per job completion with jobId, widgetId, duration,
   // success/fail".

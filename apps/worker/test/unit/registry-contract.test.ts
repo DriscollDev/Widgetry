@@ -98,14 +98,7 @@ describe('config schemas', () => {
     // nothing unvalidated can reach the jsonb column ahead of the type being
     // built. If one of these starts passing, someone replaced the placeholder
     // with a passthrough.
-    for (const type of [
-      'weather',
-      'stock',
-      'currency',
-      'clock',
-      'datetime',
-      'custom_json',
-    ] as const) {
+    for (const type of ['weather', 'stock', 'currency', 'clock', 'datetime'] as const) {
       expect(parseWidgetConfig(type, {}).success).toBe(true);
       expect(parseWidgetConfig(type, { anything: 'goes' }).success).toBe(false);
     }
@@ -113,8 +106,9 @@ describe('config schemas', () => {
 });
 
 describe('fetcher coverage', () => {
-  it('has a fetcher for uptime', () => {
+  it('has a fetcher for uptime and custom_json', () => {
     expect(FETCHERS.uptime).toBeTypeOf('function');
+    expect(FETCHERS.custom_json).toBeTypeOf('function');
   });
 
   it('never registers a fetcher for a client-polled type', () => {
@@ -126,9 +120,9 @@ describe('fetcher coverage', () => {
   });
 
   it('reports the server-polled types still awaiting a fetcher', () => {
-    // Not an assertion that the list is empty - stock and custom_json are
-    // legitimately outstanding. This pins the CURRENT state, so finishing one of
+    // Not an assertion that the list is empty - stock is legitimately
+    // outstanding. This pins the CURRENT state, so finishing one of
     // them updates this test deliberately rather than by accident.
-    expect(missingFetchers().sort()).toEqual(['custom_json', 'stock']);
+    expect(missingFetchers().sort()).toEqual(['stock']);
   });
 });

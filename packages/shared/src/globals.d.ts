@@ -18,5 +18,8 @@ declare class URL {
   readonly protocol: string;
   /** Host without port. Empty string for schemes that have no host. */
   readonly hostname: string;
+  /** Userinfo components; empty strings when absent. */
+  readonly username: string;
+  readonly password: string;
   readonly href: string;
 }

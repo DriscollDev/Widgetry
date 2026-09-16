@@ -47,6 +47,7 @@ import { Agent as HttpsAgent } from 'node:https';
 import { isIP, type LookupFunction } from 'node:net';
 import { promises as dns } from 'node:dns';
 import ipaddr from 'ipaddr.js';
+import { RESERVED_HEADER_NAMES } from '@widgetry/shared';
 import {
   OUTBOUND_MAX_BYTES,
   OUTBOUND_MAX_REDIRECTS,
@@ -275,6 +276,8 @@ export const guardedLookup: LookupFunction = (hostname, options, callback) => {
 
 export type SafeFetchFailure =
   | 'invalid_url'
+  /** The caller's headers could not be sent (Node rejected a name or value). */
+  | 'invalid_request'
   | 'blocked'
   | 'timeout'
   | 'network'
@@ -309,6 +312,11 @@ export interface SafeFetchOptions {
    * a 300 MB file is not a 300 MB download every hour.
    */
   readBody: boolean;
+  /**
+   * Caller headers, e.g. a custom widget's configured headers. Sent to the
+   * origin of `url` only - see `headersForHop` - and unable to override the
+   * pipeline's own `accept-encoding`.
+   */
   headers?: Record<string, string>;
   timeoutMs?: number;
   maxBytes?: number;
@@ -395,72 +403,130 @@ function requestOnce(
       });
     }, options.timeoutMs);
 
-    const req = send(
-      {
-        protocol: url.protocol,
-        hostname: hostOf(url),
-        port: url.port ? Number(url.port) : isHttps ? 443 : 80,
-        path: `${url.pathname}${url.search}`,
-        method: 'GET',
-        headers: options.headers,
-        agent,
-        // §11.3 step 4. This is the pin.
-        lookup: guardedLookup,
-      },
-      (res: IncomingMessage) => {
-        const status = res.statusCode ?? 0;
+    // `send` validates header names and values synchronously and throws on a
+    // bad one. Caught here so the timer and agent are released now, not when
+    // the deadline fires.
+    let req: ClientRequest;
+    try {
+      req = send(
+        {
+          protocol: url.protocol,
+          hostname: hostOf(url),
+          port: url.port ? Number(url.port) : isHttps ? 443 : 80,
+          path: `${url.pathname}${url.search}`,
+          method: 'GET',
+          headers: options.headers,
+          agent,
+          // §11.3 step 4. This is the pin.
+          lookup: guardedLookup,
+        },
+        (res: IncomingMessage) => {
+          const status = res.statusCode ?? 0;
 
-        if (REDIRECT_STATUSES.has(status) && res.headers.location) {
-          const location = res.headers.location;
-          res.resume(); // drain, so the socket can close cleanly
-          finish(() => resolve({ kind: 'redirect', status, location }));
-          return;
-        }
-
-        if (!options.readBody) {
-          // We have the status line, which is the whole answer for a ping.
-          // Destroying rather than draining means a large body is never
-          // transferred at all.
-          res.destroy();
-          finish(() => resolve({ kind: 'response', status, body: null }));
-          return;
-        }
-
-        const chunks: Buffer[] = [];
-        let received = 0;
-
-        res.on('data', (chunk: Buffer) => {
-          received += chunk.length;
-          // §11.3 step 5. Enforced as bytes arrive, not by trusting
-          // Content-Length - a lying or absent header is the normal case for a
-          // hostile server, and by the time you could check it you have already
-          // buffered the body.
-          if (received > options.maxBytes) {
-            finish(() => {
-              res.destroy();
-              req.destroy();
-              reject(
-                Object.assign(new Error(`response exceeded ${options.maxBytes} bytes`), {
-                  safeFetch: 'too_large',
-                }),
-              );
-            });
+          if (REDIRECT_STATUSES.has(status) && res.headers.location) {
+            const location = res.headers.location;
+            res.resume(); // drain, so the socket can close cleanly
+            finish(() => resolve({ kind: 'redirect', status, location }));
             return;
           }
-          chunks.push(chunk);
-        });
 
-        res.on('end', () =>
-          finish(() => resolve({ kind: 'response', status, body: Buffer.concat(chunks) })),
-        );
-        res.on('error', (err) => finish(() => reject(err)));
-      },
-    );
+          if (!options.readBody) {
+            // We have the status line, which is the whole answer for a ping.
+            // Destroying rather than draining means a large body is never
+            // transferred at all.
+            res.destroy();
+            finish(() => resolve({ kind: 'response', status, body: null }));
+            return;
+          }
+
+          const chunks: Buffer[] = [];
+          let received = 0;
+
+          res.on('data', (chunk: Buffer) => {
+            received += chunk.length;
+            // §11.3 step 5. Enforced as bytes arrive, not by trusting
+            // Content-Length - a lying or absent header is the normal case for a
+            // hostile server, and by the time you could check it you have already
+            // buffered the body.
+            if (received > options.maxBytes) {
+              finish(() => {
+                res.destroy();
+                req.destroy();
+                reject(
+                  Object.assign(new Error(`response exceeded ${options.maxBytes} bytes`), {
+                    safeFetch: 'too_large',
+                  }),
+                );
+              });
+              return;
+            }
+            chunks.push(chunk);
+          });
+
+          res.on('end', () =>
+            finish(() => resolve({ kind: 'response', status, body: Buffer.concat(chunks) })),
+          );
+          res.on('error', (err) => finish(() => reject(err)));
+        },
+      );
+    } catch (err) {
+      finish(() => reject(err));
+      return;
+    }
 
     state.req = req;
     req.on('error', (err) => finish(() => reject(err)));
     req.end();
   });
+}
+
+/**
+ * A redirect target for the operator log: origin and path only. The query
+ * string and fragment of a Location header can carry tokens (signed URLs, an
+ * echoed API key), and userinfo can carry a password.
+ */
+export function describeLocation(location: string, base: URL): string {
+  try {
+    const url = new URL(location, base);
+    return `${url.protocol}//${url.host}${url.pathname}`;
+  } catch {
+    return '(unparseable Location header)';
+  }
+}
+
+/**
+ * Headers for one hop.
+ *
+ * Caller headers go only to the origin the caller named. An upstream that
+ * redirects to a different origin must not receive them: they are the user's
+ * request to that API, and once credentials are injected (Eng §10.2) they carry
+ * secrets. This is the rule browsers apply to `Authorization`, widened to every
+ * caller header because the pipeline cannot tell which ones matter.
+ *
+ * Reserved names (`host`, `transfer-encoding`, ...) are dropped here as well as
+ * refused by the config schema, so a caller that skips the schema still cannot
+ * steer the request. `accept-encoding` is set last so no caller can undo it: the
+ * §11.3 byte cap only means bytes of content while compression is refused.
+ */
+export function headersForHop(
+  callerHeaders: Record<string, string> | undefined,
+  requestedUrl: URL,
+  hopUrl: URL,
+): Record<string, string> {
+  const sameOrigin = requestedUrl.origin === hopUrl.origin;
+  const headers: Record<string, string> = {
+    'user-agent': OUTBOUND_USER_AGENT,
+    accept: '*/*',
+  };
+  for (const [name, value] of Object.entries(sameOrigin ? (callerHeaders ?? {}) : {})) {
+    const key = name.toLowerCase();
+    if (!RESERVED_HEADER_NAMES.includes(key)) headers[key] = value;
+  }
+  // Identity encoding: the §11.3 byte cap has to mean bytes of content, and a
+  // compressed stream lets a server send 256 KB that decompresses to
+  // gigabytes. Refusing compression makes the cap honest.
+  headers['accept-encoding'] = 'identity';
+  return headers;
 }
 
 /**
@@ -478,16 +544,6 @@ export async function safeFetch(options: SafeFetchOptions): Promise<SafeFetchRes
   const startedAt = Date.now();
   const elapsed = (): number => Date.now() - startedAt;
 
-  const headers: Record<string, string> = {
-    'user-agent': OUTBOUND_USER_AGENT,
-    accept: '*/*',
-    // Identity encoding: the §11.3 byte cap has to mean bytes of content, and a
-    // compressed stream lets a server send 256 KB that decompresses to
-    // gigabytes. Refusing compression makes the cap honest.
-    'accept-encoding': 'identity',
-    ...options.headers,
-  };
-
   let currentUrl: URL;
   try {
     currentUrl = parseHttpUrl(options.url);
@@ -499,6 +555,7 @@ export async function safeFetch(options: SafeFetchOptions): Promise<SafeFetchRes
       elapsedMs: elapsed(),
     };
   }
+  const requestedUrl = currentUrl;
 
   for (let redirects = 0; redirects <= maxRedirects; redirects++) {
     // -----------------------------------------------------------------------
@@ -537,11 +594,20 @@ export async function safeFetch(options: SafeFetchOptions): Promise<SafeFetchRes
         readBody: options.readBody,
         timeoutMs,
         maxBytes,
-        headers,
+        headers: headersForHop(options.headers, requestedUrl, currentUrl),
       });
     } catch (err) {
       if (err instanceof BlockedDestinationError) {
         return { ok: false, failure: 'blocked', detail: err.message, elapsedMs: elapsed() };
+      }
+      const code = (err as { code?: string }).code;
+      if (code === 'ERR_INVALID_CHAR' || code === 'ERR_INVALID_HTTP_TOKEN') {
+        return {
+          ok: false,
+          failure: 'invalid_request',
+          detail: (err as Error).message,
+          elapsedMs: elapsed(),
+        };
       }
       const tag = (err as { safeFetch?: string }).safeFetch;
       if (tag === 'timeout' || tag === 'too_large') {
@@ -588,7 +654,7 @@ export async function safeFetch(options: SafeFetchOptions): Promise<SafeFetchRes
       return {
         ok: false,
         failure: 'blocked',
-        detail: `redirect to ${hop.location}: ${err instanceof Error ? err.message : String(err)}`,
+        detail: `redirect to ${describeLocation(hop.location, currentUrl)}: ${err instanceof Error ? err.message : String(err)}`,
         elapsedMs: elapsed(),
       };
     }
