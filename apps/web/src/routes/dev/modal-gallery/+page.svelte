@@ -2,11 +2,21 @@
   import ErrorModal from '$lib/modals/ErrorModal.svelte';
   import AddWidgetModal from '$lib/modals/AddWidgetModal.svelte';
   import WidgetCatalogModal from '$lib/modals/WidgetCatalogModal.svelte';
+  import WidgetConfigModal from '$lib/modals/WidgetConfigModal.svelte';
   import { connectionErrorFixture } from '$lib/modals/fixtures';
+
+  const TEST_BOARD_ID = 'a1c31b3d-ff13-4d15-a2f0-d4200afef406';
 
   let errorOpen = $state(true);
   let addWidgetOpen = $state(false);
   let catalogOpen = $state(false);
+  let configOpen = $state(false);
+  let selectedType = $state<{
+    id: string;
+    displayName: string;
+    category: 'monitoring' | 'informational' | 'custom';
+    supportsHistory: boolean;
+  } | null>(null);
 </script>
 
 <div class="flex min-h-screen items-center justify-center gap-3 p-8">
@@ -29,7 +39,7 @@
     onclick={() => (catalogOpen = true)}
     class="preset-filled-primary-500 rounded-lg px-4 py-2 text-sm font-medium"
   >
-    Widget catalog (real API)
+    Widget catalog → config (full flow)
   </button>
 </div>
 
@@ -50,5 +60,16 @@
   open={catalogOpen}
   currentWidgetCount={0}
   onOpenChange={(v) => (catalogOpen = v)}
-  onSelect={(widgetType) => console.log('picked widget type (stub)', widgetType)}
+  onSelect={(widgetType) => {
+    selectedType = widgetType;
+    configOpen = true;
+  }}
+/>
+
+<WidgetConfigModal
+  open={configOpen}
+  boardId={TEST_BOARD_ID}
+  widgetType={selectedType}
+  onOpenChange={(v) => (configOpen = v)}
+  onCreated={(widget) => console.log('widget created!', widget)}
 />
