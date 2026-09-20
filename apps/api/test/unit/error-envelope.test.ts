@@ -91,8 +91,9 @@ describe('§6.1 error envelope', () => {
     // /v1/widgets/catalog is a live route (EX-24). Instead, exercise the
     // not-found handler through the one endpoint we know is public and has no
     // GET-body-parsing concern: hit /v1/widgets/catalog with a verb it has no
-    // handler for.
-    const missing = await app.inject({ method: 'DELETE', url: '/v1/widgets/catalog' });
+    // handler for. PUT, because DELETE and PATCH on /v1/widgets/:id are real
+    // routes now and "catalog" matches `:id` - a DELETE here reaches the auth gate.
+    const missing = await app.inject({ method: 'PUT', url: '/v1/widgets/catalog' });
     expect(missing.statusCode).toBe(404);
     expect(missing.json().error.code).toBe(ApiErrorCode.NOT_FOUND);
   });

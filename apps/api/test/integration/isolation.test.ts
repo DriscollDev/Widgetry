@@ -9,10 +9,11 @@
 // routes/widgets.ts - the probes they replaced are gone. PATCH /v1/widgets/:id
 // (Task #170 placement, US-H2 retention) and PUT/DELETE
 // /v1/widgets/:id/credential (US-S1..S4) are real too. What remains a probe is
-// GET/DELETE /v1/widgets/:id; refresh and snapshots have no handlers yet.
+// GET /v1/widgets/:id; refresh and snapshots have no handlers yet.
+// DELETE /v1/widgets/:id (US-W4, Task #210) is real too.
 //
 // NOTE FOR WHOEVER ADDS THE NEXT REAL WIDGET ROUTE: as each of
-// DELETE /v1/widgets/:id, POST /v1/widgets/:id/refresh and
+// POST /v1/widgets/:id/refresh and
 // GET /v1/widgets/:id/snapshots lands,
 // add it to `endpointsFor` below and delete the matching probe. §11.7 requires
 // EVERY scoped endpoint to appear here, and this suite runs on every PR.
@@ -121,11 +122,8 @@ describeIntegration('multi-tenant isolation (EX-17, Eng §11.7)', () => {
     // throw FST_ERR_DUPLICATE_ROUTE - which is the good kind of failure, since
     // a probe silently shadowing a real route would mean this suite proving the
     // gate on a stub while the shipped handler went untested. Delete each probe
-    // below as its endpoint lands, for the same reason. GET and DELETE remain.
+    // below as its endpoint lands, for the same reason. Only GET remains.
     app.get('/v1/widgets/:id', { preHandler: requireWidgetOwnership }, async (request) => ({
-      id: request.widget?.id,
-    }));
-    app.delete('/v1/widgets/:id', { preHandler: requireWidgetOwnership }, async (request) => ({
       id: request.widget?.id,
     }));
 
