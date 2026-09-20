@@ -48,7 +48,7 @@ function cookiesFrom(response: { headers: Record<string, unknown> }): string {
 }
 
 type Placement = { gridCol: number; gridRow: number; gridWidth: number; gridHeight: number };
-type Reply = { statusCode: number; body: string };
+type Reply = { statusCode: number; body: string; json: () => { error: { code: string } } };
 
 const at = (gridCol: number, gridRow: number, gridWidth = 2, gridHeight = 2): Placement => ({
   gridCol,
