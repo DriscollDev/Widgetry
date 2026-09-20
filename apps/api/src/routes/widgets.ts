@@ -374,4 +374,59 @@ export async function widgetRoutes(fastify: FastifyInstance): Promise<void> {
       return toPlacement(updated);
     },
   );
+
+  /**
+   * DELETE /v1/widgets/:id - US-W4 (Task #210). 200 with `{ id }` on success.
+   *
+   * `:id` is the WIDGET id, so the gate is `requireWidgetOwnership`, same as
+   * PATCH. The board row is locked first so a delete serializes with a
+   * concurrent POST (FR-3.5 count) or PATCH (FR-3.3 overlap read) on the same
+   * board, and ownership is re-verified through the boards join immediately
+   * before the write. A second concurrent delete of the same widget blocks on
+   * the lock, then fails that re-check and gets the same 404 a stranger gets.
+   *
+   * Snapshots and the stored credential go with the row via their FK cascades
+   * (Eng §5.2); nothing is deleted by hand here.
+   */
+  fastify.delete(
+    '/v1/widgets/:id',
+    { preHandler: requireWidgetOwnership },
+    async (request, reply) => {
+      const { user } = requireSession(request);
+      // Non-null because the pre-handler either set it or ended the request.
+      const widget = request.widget!;
+
+      await db.transaction(async (tx) => {
+        await tx
+          .select({ id: schema.boards.id })
+          .from(schema.boards)
+          .where(and(eq(schema.boards.id, widget.boardId), eq(schema.boards.userId, user.id)))
+          .for('update');
+
+        const stillOwned = await findOwnedWidget(widget.id, user.id);
+        if (!stillOwned) {
+          request.log.info(
+            { widgetId: widget.id },
+            'widget no longer owned between gate and write',
+          );
+          throw new ApiError(404, ApiErrorCode.NOT_FOUND, 'Widget not found.');
+        }
+
+        const deleted = await tx
+          .delete(schema.widgets)
+          .where(eq(schema.widgets.id, widget.id))
+          .returning({ id: schema.widgets.id });
+        if (deleted.length === 0) {
+          throw new ApiError(404, ApiErrorCode.NOT_FOUND, 'Widget not found.');
+        }
+      });
+
+      request.log.info(
+        { boardId: widget.boardId, widgetId: widget.id, widgetType: widget.widgetType },
+        'widget deleted (US-W4)',
+      );
+
+      return reply.status(200).send({ id: widget.id });
+    },
+  );
 }
