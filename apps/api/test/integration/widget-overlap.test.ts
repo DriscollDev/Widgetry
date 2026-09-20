@@ -84,7 +84,7 @@ describeIntegration('POST /v1/boards/:id/widgets - overlap rejection (FR-3.3)', 
 
   const expectOverlapRejected = (response: Reply) => {
     expect(response.statusCode, response.body).toBe(409);
-    expect(response.body).toContain('OVERLAP_REJECTED');
+    expect(response.json().error.code).toBe('overlap_rejected');
   };
 
   const createBoard = async (name: string): Promise<string> => {
