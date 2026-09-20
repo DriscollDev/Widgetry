@@ -51,6 +51,7 @@ const VALID_PASSWORD = 'a-perfectly-fine-password';
 let ipCounter = 0;
 let gridColCounter = 0;
 let gridRowCounter = 0;
+let lastGridPosition = { gridCol: 0, gridRow: 0 };
 const nextGridPosition = () => {
   const position = { gridCol: gridColCounter, gridRow: gridRowCounter };
   gridColCounter += 2;
@@ -58,6 +59,7 @@ const nextGridPosition = () => {
     gridColCounter = 0;
     gridRowCounter += 2;
   }
+  lastGridPosition = position;
   return position;
 };
 const nextIp = () => `198.51.100.${++ipCounter % 254}`;
@@ -252,13 +254,14 @@ describeIntegration('PATCH /v1/widgets/:id - retention (US-H2, FR-5.2)', () => {
     // or defaulted values. The handler merges onto the CURRENT row, so these
     // four come back exactly as createWidget() left them.
     const widgetId = await createWidget();
+    const created = lastGridPosition;
     const response = await patchWidget(widgetId, { retentionHours: 48 });
 
     expect(response.statusCode, response.body).toBe(200);
     const body = response.json();
     expect(body.retentionHours).toBe(48);
-    expect(body.gridCol).toBe(0);
-    expect(body.gridRow).toBe(0);
+    expect(body.gridCol).toBe(created.gridCol);
+    expect(body.gridRow).toBe(created.gridRow);
     expect(body.gridWidth).toBe(2);
     expect(body.gridHeight).toBe(2);
   });
