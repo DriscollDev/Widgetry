@@ -12,7 +12,6 @@
       view header per the Screen Inventory, not from here.
 -->
 <script lang="ts">
-  import { dev } from '$app/environment';
   import { invalidateAll } from '$app/navigation';
   import BoardList from '$lib/components/board-list/BoardList.svelte';
   import CreateBoardModal from '$lib/modals/CreateBoardModal.svelte';
@@ -26,10 +25,6 @@
 <svelte:head>
   <title>Your boards · Widgetry</title>
 </svelte:head>
-
-{#if dev}
-  <a href="/dev" class="absolute top-2 right-2 text-xs text-surface-600-400 underline">Dev</a>
-{/if}
 
 <BoardList
   list={data.list}
