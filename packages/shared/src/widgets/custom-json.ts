@@ -2,19 +2,34 @@
 //
 // E6 - Custom JSON widget. Authority: Eng §7.3, US-C1/C3/C4, FR-4.2.
 //
-// Config per Eng §7.3: URL, method (GET only), headers as key-value pairs, JSON
-// path, display format. The refresh interval and retention are widget COLUMNS,
-// not config (FR-4.2, FR-5.2), so they are not here.
+// Config per Eng §7.3: URL, method (GET only), headers as key-value pairs, and
+// the presentation model from ./custom-layout.ts - a layout plus one slot per
+// displayed field, each slot naming its own JSON path. The refresh interval and
+// retention are widget COLUMNS, not config (FR-4.2, FR-5.2), so they are not here.
+//
+// SUPERSEDES the single `path` + `displayFormat` pair this file carried before.
+// That model allowed one extracted field shown one of three ways; the slot model
+// allows several fields from the same response, each with its own presentation.
+// US-C3 (a dot-notation path) and US-C4 (choose a display format) are both still
+// satisfied - per slot rather than per widget. US-C4's wording predates this and
+// needs a spec revision through /doc-sync.
 //
 // The API key itself (US-C2/US-S1) is never in this jsonb: it is stored
 // envelope-encrypted in `api_credentials` (FR-6.1). The config holds only
 // WHERE the worker puts it - `apiKey` below.
 
 import { z } from 'zod';
-import { parseJsonPath } from './json-path.js';
 import { PollableUrl } from './url.js';
+import {
+  AccentColor,
+  LayoutId,
+  MAX_SLOTS,
+  SlotConfig,
+  refineSlotsAgainstLayout,
+} from './custom-layout.js';
 
 export const CUSTOM_JSON_MAX_HEADERS = 20;
+export const CUSTOM_JSON_TITLE_MAX_LENGTH = 60;
 
 /** RFC 9110 token characters. */
 const HEADER_NAME = /^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/;
@@ -90,12 +105,11 @@ export const CustomJsonHeader = z.strictObject({
 export type CustomJsonHeader = z.infer<typeof CustomJsonHeader>;
 
 /**
- * US-C4. `value`: one number or string. `key_value`: an object shown as a list.
- * `timeline`: a number, charted over time (FR-5.4).
+ * The widget's presentation lives in `layoutId` + `slots` (./custom-layout.ts).
+ * US-C4's per-widget display format is gone: each slot picks its own primitive,
+ * which is strictly more expressive and covers the same three cases (a number, a
+ * set of labelled fields, a value charted over time).
  */
-export const CUSTOM_JSON_DISPLAY_FORMATS = ['value', 'key_value', 'timeline'] as const;
-export const CustomJsonDisplayFormat = z.enum(CUSTOM_JSON_DISPLAY_FORMATS);
-export type CustomJsonDisplayFormat = z.infer<typeof CustomJsonDisplayFormat>;
 
 /** Characters that need no percent-encoding in a query parameter name. */
 const QUERY_PARAM_NAME = /^[A-Za-z0-9._~-]+$/;
@@ -169,15 +183,18 @@ export const CustomJsonConfig = z
           seen.add(key);
         }
       }),
-    path: z.string().superRefine((path, ctx) => {
-      const parsed = parseJsonPath(path);
-      if (!parsed.ok) ctx.addIssue({ code: 'custom', message: parsed.message });
-    }),
-    displayFormat: CustomJsonDisplayFormat,
+    /** Shown above the slots. Blank is allowed - the board cell is not empty. */
+    title: z.string().trim().max(CUSTOM_JSON_TITLE_MAX_LENGTH).default(''),
+    layoutId: LayoutId,
+    accent: AccentColor.default('primary'),
+    /** One per layout position. `refineSlotsAgainstLayout` holds them to it. */
+    slots: z.array(SlotConfig).min(1).max(MAX_SLOTS),
     /** Absent when the upstream needs no key. */
     apiKey: CustomJsonApiKeyPlacement.optional(),
   })
   .superRefine((config, ctx) => {
+    refineSlotsAgainstLayout(config, ctx);
+
     const placement = config.apiKey;
     if (!placement) return;
 
@@ -229,22 +246,36 @@ export type JsonScalar = z.infer<typeof JsonScalar>;
  * (FR-5.2), so a large extracted object would multiply; these keep a row small.
  */
 export const CUSTOM_JSON_MAX_STRING_LENGTH = 1000;
-export const CUSTOM_JSON_MAX_ENTRIES = 50;
 
 /**
- * The `widget_snapshots.value` payload. Carries its format because US-C6 lets
- * the user change the format later, and older rows keep the shape they were
- * written with.
+ * One slot's outcome for one poll.
+ *
+ * Resolved per slot rather than per widget so a path that stops matching
+ * degrades ITS slot and leaves the others showing data - the whole poll is not a
+ * failure because one field moved. A widget-level failure (DNS, timeout, the
+ * SSRF gate, non-JSON body) is still an error SNAPSHOT, not a row of failed
+ * slots: nothing was fetched, so there is nothing to resolve against.
  */
-export const CustomJsonSnapshotValue = z.discriminatedUnion('format', [
-  z.object({ format: z.literal('value'), value: JsonScalar }),
-  z.object({ format: z.literal('timeline'), value: z.number() }),
-  z.object({
-    format: z.literal('key_value'),
-    entries: z.array(z.object({ key: z.string(), value: JsonScalar })).max(CUSTOM_JSON_MAX_ENTRIES),
-    /** True when the object had more than CUSTOM_JSON_MAX_ENTRIES keys. */
-    truncated: z.boolean(),
-  }),
+export const CustomJsonSlotValue = z.discriminatedUnion('ok', [
+  z.object({ ok: z.literal(true), value: JsonScalar }),
+  z.object({ ok: z.literal(false), reason: z.string().max(200) }),
 ]);
+
+export type CustomJsonSlotValue = z.infer<typeof CustomJsonSlotValue>;
+
+/**
+ * The `widget_snapshots.value` payload: one entry per configured slot, in the
+ * config's slot order.
+ *
+ * Positional rather than keyed by path, matching how the renderer consumes it.
+ * US-C6 lets the config change later, so a stored row can be shorter or longer
+ * than the current slot list - the renderer pads and truncates rather than
+ * assuming they agree. `slotCount` records what the config had when the row was
+ * written, so a mismatch is detectable instead of silent.
+ */
+export const CustomJsonSnapshotValue = z.object({
+  slots: z.array(CustomJsonSlotValue).max(MAX_SLOTS),
+  slotCount: z.number().int().min(0).max(MAX_SLOTS),
+});
 
 export type CustomJsonSnapshotValue = z.infer<typeof CustomJsonSnapshotValue>;
