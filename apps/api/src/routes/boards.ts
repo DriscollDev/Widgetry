@@ -38,6 +38,8 @@ import {
   UpdateBoardRequest,
 } from '@widgetry/shared';
 import type { PgUpdateSetSource } from 'drizzle-orm/pg-core';
+import { toConfigView } from '../widgets/config-view.js';
+import { toLatestSnapshot } from '../widgets/latest-snapshot.js';
 import type { FastifyInstance } from 'fastify';
 import { env } from '../env.js';
 import { limitExceeded, validationFailed } from '../lib/errors.js';
@@ -196,12 +198,11 @@ export async function boardRoutes(fastify: FastifyInstance): Promise<void> {
    * re-polls on the board's own refresh interval (locked decision 3:
    * client-pull only, no sockets).
    *
-   * TODO(EX-19/EX-23): `widgets` is placement-only - see BoardWidgetPlacement.
-   * The catalog calls this "board detail incl. widgets" and it will need each
-   * widget's config and latest snapshot value before the board view can render
-   * anything in the cells. That is the piece FR-2.4's 2s budget actually pays
-   * for, so revisit the query shape then rather than bolting a second round trip
-   * onto this one.
+   * Each widget carries `config` (allowlisted, display-only - see
+   * widgets/config-view.ts) and `latest` (its newest snapshot, or null). The
+   * snapshots come from ONE extra query for the whole board, not one per widget
+   * (docs/decisions/0001-board-payload.md). This is the piece FR-2.4's 2s
+   * budget actually pays for.
    */
   fastify.get(
     '/v1/boards/:id',
@@ -220,9 +221,43 @@ export async function boardRoutes(fastify: FastifyInstance): Promise<void> {
         .where(eq(schema.boards.id, board.id))
         .orderBy(schema.widgets.gridRow, schema.widgets.gridCol);
 
+      // Newest snapshot per widget. DISTINCT ON needs the ORDER BY to lead with
+      // widget_id; `id` breaks a captured_at tie so the pick is deterministic.
+      // Driven from `boards` so the ownership predicate sits on the driving table.
+      const latestRows =
+        widgets.length === 0
+          ? []
+          : await db
+              .selectDistinctOn([schema.widgetSnapshots.widgetId], {
+                widgetId: schema.widgetSnapshots.widgetId,
+                capturedAt: schema.widgetSnapshots.capturedAt,
+                value: schema.widgetSnapshots.value,
+                error: schema.widgetSnapshots.error,
+              })
+              .from(schema.boards)
+              .innerJoin(schema.widgets, eq(schema.widgets.boardId, schema.boards.id))
+              .innerJoin(
+                schema.widgetSnapshots,
+                eq(schema.widgetSnapshots.widgetId, schema.widgets.id),
+              )
+              .where(eq(schema.boards.id, board.id))
+              .orderBy(
+                schema.widgetSnapshots.widgetId,
+                desc(schema.widgetSnapshots.capturedAt),
+                desc(schema.widgetSnapshots.id),
+              );
+
+      const latestByWidget = new Map(
+        latestRows.map((row) => [row.widgetId, toLatestSnapshot(row)] as const),
+      );
+
       return {
         ...toBoardResponse(board, widgets.length),
-        widgets: widgets.map((row) => toPlacement(row.widgets)),
+        widgets: widgets.map((row) => ({
+          ...toPlacement(row.widgets),
+          config: toConfigView(row.widgets.widgetType, row.widgets.config),
+          latest: latestByWidget.get(row.widgets.id) ?? null,
+        })),
       };
     },
   );
