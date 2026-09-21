@@ -7,6 +7,8 @@
 // widget and those props, so replacing a fixture with live data is a change
 // here and never in the components themselves.
 
+import type { LatestSnapshot } from '@widgetry/shared';
+
 export type RenderableWidget = {
   id: string;
   /**
@@ -14,8 +16,11 @@ export type RenderableWidget = {
    * the board payload types it (BoardWidgetSummary.widgetType).
    */
   widgetType: string;
-  /** The saved config. Not on the board payload yet (Story #225). */
+  /** The allowlisted display config the api sends (Story #225). Null when there is none. */
   config?: Record<string, unknown> | null;
-  /** The latest snapshot value of a server-polled widget. Not on the payload yet (Story #225). */
-  latest?: unknown;
+  /**
+   * The widget's newest snapshot: `{ capturedAt, value, error }`, exactly one of
+   * value and error set. Null for a widget never polled and for local widgets.
+   */
+  latest?: LatestSnapshot | null;
 };

@@ -22,6 +22,7 @@ import {
   UpdateBoardRequest,
 } from '@widgetry/shared';
 import { NO_FIELD_ERRORS, readBoardForm, type BoardFormResult } from '$lib/board-forms.js';
+import { toBoardWidgetSummary } from '$lib/board-widgets.js';
 import { apiFetch, readJson } from '$lib/server/api.js';
 import {
   boardFormFailure,
@@ -75,14 +76,7 @@ export const load: PageServerLoad = async (event) => {
     name,
     refreshMode,
     refreshIntervalSeconds,
-    widgets: widgets.map((widget) => ({
-      id: widget.id,
-      widgetType: widget.widgetType,
-      grid_col: widget.gridCol,
-      grid_row: widget.gridRow,
-      grid_width: widget.gridWidth,
-      grid_height: widget.gridHeight,
-    })),
+    widgets: widgets.map(toBoardWidgetSummary),
   };
 
   const state: BoardViewState = board.widgets.length === 0 ? 'empty' : 'populated';

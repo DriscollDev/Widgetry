@@ -1,3 +1,5 @@
+import type { LatestSnapshot } from '@widgetry/shared';
+
 // Mirrors packages/shared BoardResponse shape (Eng Doc §6.3) so swapping
 // these for a live fetch later is a prop-source change, not a rewrite.
 
@@ -15,6 +17,10 @@ export type BoardWidgetSummary = {
   grid_row: number; // >= 0, grows as needed
   grid_width: number; // 1–6
   grid_height: number; // 1–6
+  // Story #225 / Task #236: what the api sends per widget. Optional so fixtures
+  // and tests written before the payload carried them keep compiling.
+  config?: Record<string, unknown> | null;
+  latest?: LatestSnapshot | null;
 };
 
 // Defines the full board shape-- esentially the contract for what data BoardView can recieve
@@ -75,4 +81,58 @@ export const errorBoardFixture: BoardViewFixture = {
   refreshMode: 'manual',
   refreshIntervalSeconds: null,
   widgets: [],
+};
+
+// Story #225 / Task #236: the three situations a server-polled widget can be in
+// once the api sends its latest snapshot - a value, an error, and none yet.
+export const snapshotStatesBoardFixture: BoardViewFixture = {
+  id: 'fixture-snapshot-states',
+  name: 'Snapshot States',
+  refreshMode: 'auto',
+  refreshIntervalSeconds: 300,
+  widgets: [
+    {
+      id: 'w1',
+      widgetType: 'custom_json',
+      grid_col: 0,
+      grid_row: 0,
+      grid_width: 4,
+      grid_height: 2,
+      config: {
+        url: 'https://api.example.test/v1/quote',
+        method: 'GET',
+        path: 'data.price',
+        displayFormat: 'value',
+      },
+      latest: {
+        capturedAt: '2026-09-21T18:00:00.000Z',
+        value: { format: 'value', value: 42.5 },
+        error: null,
+      },
+    },
+    {
+      id: 'w2',
+      widgetType: 'uptime',
+      grid_col: 4,
+      grid_row: 0,
+      grid_width: 4,
+      grid_height: 2,
+      config: { url: 'https://example.test/health' },
+      latest: {
+        capturedAt: '2026-09-21T18:00:00.000Z',
+        value: null,
+        error: { kind: 'timeout', message: 'The request timed out.' },
+      },
+    },
+    {
+      id: 'w3',
+      widgetType: 'uptime',
+      grid_col: 8,
+      grid_row: 0,
+      grid_width: 4,
+      grid_height: 2,
+      config: { url: 'https://example.test/status' },
+      latest: null,
+    },
+  ],
 };

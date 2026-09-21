@@ -749,7 +749,12 @@
                  FallbackRenderer) so a press on the content still starts a drag. -->
             <svelte:component
               this={rendererFor(widget.widgetType)}
-              widget={{ id: widget.id, widgetType: widget.widgetType }}
+              widget={{
+                id: widget.id,
+                widgetType: widget.widgetType,
+                config: widget.config,
+                latest: widget.latest,
+              }}
             />
 
             <!-- Task #214 (US-W4): per-widget menu. Rendered only when the route
