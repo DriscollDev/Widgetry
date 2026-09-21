@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onDestroy, tick } from 'svelte';
   import { formatRefresh } from '$lib/board-forms';
+  import { rendererFor } from '$lib/renderers/registry';
   import type { BoardViewFixture, BoardViewState } from './fixtures';
 
   export let board: BoardViewFixture; // sole data input — no fetch, no store, no auth
@@ -742,8 +743,14 @@
             on:pointerup={(e) => onPointerUp(e, widget)}
             on:keydown={(e) => onWidgetKeydown(e, widget)}
           >
-            <!-- widget content renderer is a separate ticket (E4) — placeholder body for now -->
-            <span class="board-view__widget-label">{widget.widgetType}</span>
+            <!-- Story #223: the widget's content comes from the renderer registry. A type
+                 with no renderer yet gets the fallback, which draws the same type label
+                 this line used to. Renderers must leave pointer events alone (see
+                 FallbackRenderer) so a press on the content still starts a drag. -->
+            <svelte:component
+              this={rendererFor(widget.widgetType)}
+              widget={{ id: widget.id, widgetType: widget.widgetType }}
+            />
 
             <!-- Task #214 (US-W4): per-widget menu. Rendered only when the route
                  wired an onDeleteWidget handler, so a page that has not adopted
@@ -940,13 +947,6 @@
     50% {
       border-color: light-dark(var(--color-error-600), var(--color-error-400));
     }
-  }
-
-  .board-view__widget-label {
-    font-family: var(--font-mono, monospace);
-    font-size: 0.8rem;
-    color: light-dark(var(--color-surface-700), var(--color-surface-200));
-    pointer-events: none;
   }
 
   /* --- Task #214 (US-W4): the per-widget menu. The button sits in the
