@@ -14,9 +14,13 @@ Eng section 12 says the board response carries each widget's latest value.
    until someone adds it to the list, so a new config field cannot leak by
    default.
    - uptime: url.
-   - custom_json: url, method, display format, json path. Never headers.
+   - custom_json: url, method, path, displayFormat. Never headers or apiKey.
    - clock, datetime: nothing (their schema is empty).
    - other types: nothing until their schema exists and is reviewed.
+     Sending url is safe for a custom_json widget with an API key: its config
+     validation requires https and forbids the key name in the URL's query
+     string, so the key never travels in the URL. The apiKey field (where the key
+     goes, not the key) stays private because no renderer needs it.
      The credential is a separate table and never appears in any response
      (FR-6.2).
 2. Each widget carries latest: the most recent snapshot as
