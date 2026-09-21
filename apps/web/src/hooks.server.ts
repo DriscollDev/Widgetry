@@ -104,10 +104,14 @@ const PUBLIC_PATHS = new Set(['/', '/sign-in', '/sign-up', '/sign-out', '/faq'])
  * Subtrees that are public in bulk, root included.
  *
  * `/dev` and everything under it: fixture-driven component galleries and the
- * route harness, none of it touching user data. Unauthenticated deliberately -
- * but `/dev/*` is still reachable in a production build, which is worth
- * closing before the capstone demo. (`/dev` itself 404s outside `vite dev`;
- * the older gallery pages do not.)
+ * route harness, none of it touching user data. Unauthenticated deliberately,
+ * so the galleries stay usable without a session during development.
+ *
+ * That is safe only because `routes/dev/+layout.server.ts` 404s the entire
+ * subtree outside `vite dev` (SCP-011). This prefix makes `/dev/*` public;
+ * that layout guard makes it development-only. Removing the guard would put
+ * the galleries back on the public origin - do not drop it without also
+ * dropping this prefix.
  */
 const PUBLIC_PREFIXES = ['/dev'];
 
