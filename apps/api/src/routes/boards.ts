@@ -201,7 +201,7 @@ export async function boardRoutes(fastify: FastifyInstance): Promise<void> {
    * Each widget carries `config` (allowlisted, display-only - see
    * widgets/config-view.ts) and `latest` (its newest snapshot, or null). The
    * snapshots come from ONE extra query for the whole board, not one per widget
-   * (docs/decisions/0001-board-payload.md). This is the piece FR-2.4's 2s
+   * (issue #233). This is the piece FR-2.4's 2s
    * budget actually pays for.
    */
   fastify.get(

@@ -1,7 +1,7 @@
 // apps/api/src/widgets/latest-snapshot.ts
 //
 // A `widget_snapshots` row as the board payload carries it (Task #235,
-// docs/decisions/0001-board-payload.md). Exactly one of value and error is set,
+// issue #233). Exactly one of value and error is set,
 // matching LatestSnapshot in @widgetry/shared.
 
 import { SnapshotError, type LatestSnapshot } from '@widgetry/shared';

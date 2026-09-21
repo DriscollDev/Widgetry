@@ -37,7 +37,7 @@
 //   DONE(F8.2): `retentionHours` is user-configurable in 12..720 through
 //     PATCH /v1/widgets/:id (US-H2); rows still default to 168.
 //   DONE(#234): the board payload carries `config` (an allowlisted, display-only
-//     record, see docs/decisions/0001-board-payload.md) and `latest` (the most
+//     record, see issue #233) and `latest` (the most
 //     recent snapshot). Both are optional and nullable: a server that has not
 //     filled them in yet, a local widget, and a brand-new server-polled widget
 //     all read as null.
@@ -147,7 +147,7 @@ export type CreateWidgetRequest = z.infer<typeof CreateWidgetRequest>;
  */
 /**
  * The most recent snapshot of a server-polled widget, as the board payload
- * carries it (docs/decisions/0001-board-payload.md). Exactly one of `value` and
+ * carries it (issue #233). Exactly one of `value` and
  * `error` is set - the same rule as a `widget_snapshots` row (FR-5.1). `value`
  * is `unknown` here on purpose: per-type success values live next to their
  * config schema, and this module must not import the registry (import cycle).

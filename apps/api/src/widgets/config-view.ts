@@ -1,7 +1,7 @@
 // apps/api/src/widgets/config-view.ts
 //
 // Which parts of a widget's stored config may reach the browser
-// (docs/decisions/0001-board-payload.md, Task #235).
+// (issue #233, Task #235).
 //
 // An ALLOWLIST, per widget type: a key is private until it is listed here, so a
 // config field added later cannot leak by default. A type with no entry sends
