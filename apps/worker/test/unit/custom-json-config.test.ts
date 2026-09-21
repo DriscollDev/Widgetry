@@ -7,10 +7,16 @@
 import { describe, expect, it } from 'vitest';
 import { CUSTOM_JSON_MAX_HEADERS, CustomJsonConfig, parseWidgetConfig } from '@widgetry/shared';
 
+const SLOT = {
+  primitive: 'number' as const,
+  label: 'Price',
+  jsonPath: 'data.items[0].price',
+};
+
 const VALID = {
   url: 'https://api.example.com/v1/stats',
-  path: 'data.items[0].price',
-  displayFormat: 'value',
+  layoutId: 'single' as const,
+  slots: [SLOT],
 };
 
 function issuesFor(config: unknown): string[] {
@@ -23,8 +29,14 @@ function withHeader(name: string, value = 'x') {
 }
 
 describe('CustomJsonConfig - accepted', () => {
-  it('fills in the GET method and an empty header list', () => {
-    expect(CustomJsonConfig.parse(VALID)).toEqual({ ...VALID, method: 'GET', headers: [] });
+  it('fills in the GET method, an empty header list, a blank title and the default accent', () => {
+    expect(CustomJsonConfig.parse(VALID)).toEqual({
+      ...VALID,
+      method: 'GET',
+      headers: [],
+      title: '',
+      accent: 'primary',
+    });
   });
 
   it('is the registry schema for custom_json', () => {
@@ -32,8 +44,34 @@ describe('CustomJsonConfig - accepted', () => {
     expect(parseWidgetConfig('custom_json', {}).success).toBe(false);
   });
 
-  it.each(['value', 'key_value', 'timeline'])('accepts the %s display format', (format) => {
-    expect(CustomJsonConfig.safeParse({ ...VALID, displayFormat: format }).success).toBe(true);
+  // Each layout's arity and the primitive menu its positions offer.
+  it.each([
+    ['single', [{ ...SLOT, primitive: 'ring' as const }]],
+    [
+      'split',
+      [
+        { ...SLOT, primitive: 'ring' as const },
+        { ...SLOT, primitive: 'line' as const },
+      ],
+    ],
+    [
+      'hero-strip',
+      [
+        { ...SLOT, primitive: 'gauge' as const },
+        { ...SLOT, primitive: 'bar' as const },
+        { ...SLOT, primitive: 'badge' as const },
+      ],
+    ],
+    [
+      'trio',
+      [
+        { ...SLOT, primitive: 'number' as const },
+        { ...SLOT, primitive: 'bar' as const },
+        { ...SLOT, primitive: 'badge' as const },
+      ],
+    ],
+  ])('accepts the %s layout filled with primitives its slots offer', (layoutId, slots) => {
+    expect(CustomJsonConfig.safeParse({ ...VALID, layoutId, slots }).success).toBe(true);
   });
 
   it('accepts ordinary headers, including tabs and Latin-1 in values', () => {
@@ -64,9 +102,28 @@ describe('CustomJsonConfig - rejected', () => {
     ['a non-http scheme', { ...VALID, url: 'file:///etc/passwd' }, 'url'],
     ['credentials in the URL', { ...VALID, url: 'https://u:p@api.example.com/' }, 'url'],
     ['a non-GET method', { ...VALID, method: 'POST' }, 'method'],
-    ['an unparseable path', { ...VALID, path: 'data..x' }, 'path'],
-    ['an empty path', { ...VALID, path: '' }, 'path'],
-    ['an unknown display format', { ...VALID, displayFormat: 'gauge' }, 'displayFormat'],
+    [
+      'an unparseable path',
+      { ...VALID, slots: [{ ...SLOT, jsonPath: 'data..x' }] },
+      'slots.0.jsonPath',
+    ],
+    ['an empty path', { ...VALID, slots: [{ ...SLOT, jsonPath: '' }] }, 'slots.0.jsonPath'],
+    ['an unknown layout', { ...VALID, layoutId: 'mosaic' }, 'layoutId'],
+    [
+      'an unknown primitive',
+      { ...VALID, slots: [{ ...SLOT, primitive: 'sparkline' }] },
+      'slots.0.primitive',
+    ],
+    ['no slots at all', { ...VALID, slots: [] }, 'slots'],
+    // A single-slot layout given two slots: arity is checked, not just shape.
+    ['too many slots for the layout', { ...VALID, slots: [SLOT, SLOT] }, 'slots'],
+    // 'line' is a wide-slot primitive; 'single' offers a feature slot.
+    [
+      'a primitive the slot class does not offer',
+      { ...VALID, slots: [{ ...SLOT, primitive: 'line' }] },
+      'slots.0.primitive',
+    ],
+    ['a slot with no label', { ...VALID, slots: [{ ...SLOT, label: '' }] }, 'slots.0.label'],
     ['an unknown key', { ...VALID, token: 'secret' }, ''],
     // The key itself never lives in config (FR-6.1) - only where it goes.
     ['a plaintext API key', { ...VALID, apiKey: 'sk_live_secret' }, 'apiKey'],

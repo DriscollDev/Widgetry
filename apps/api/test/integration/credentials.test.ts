@@ -124,8 +124,8 @@ describeIntegration('widget credentials (US-S1..S4, FR-6.1/6.2)', () => {
       gridCol: 0,
       config: {
         url: 'https://api.example.test/v1/quote',
-        path: 'data.price',
-        displayFormat: 'value',
+        layoutId: 'single',
+        slots: [{ primitive: 'number', label: 'Price', jsonPath: 'data.price' }],
         apiKey: { in: 'header', name: 'X-Api-Key' },
       },
     });
@@ -228,8 +228,8 @@ describeIntegration('widget credentials (US-S1..S4, FR-6.1/6.2)', () => {
       gridCol: 8,
       config: {
         url: 'https://api.example.test/v1/quote',
-        path: 'data.price',
-        displayFormat: 'value',
+        layoutId: 'single',
+        slots: [{ primitive: 'number', label: 'Price', jsonPath: 'data.price' }],
         apiKey: { in: 'query', name: 'apikey' },
       },
     });
