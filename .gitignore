@@ -15,7 +15,8 @@ build/
 .env
 
 #Wiki
-docs/
+docs/*
+!docs/decisions/
 
 # Logs
 *.log
