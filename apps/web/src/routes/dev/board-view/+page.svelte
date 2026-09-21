@@ -18,6 +18,10 @@
   }
 
   let selectedState: BoardViewState = 'populated';
+  // Task #214: stub for the widget menu's Delete item. The real route wires
+  // the confirm modal + DELETE call (Task #211); here we only prove the
+  // callback fires with the right widget id.
+  let lastDeleteRequest: string | null = null;
 </script>
 
 <!-- Dev-only isolation harness for BoardView. Not a real route; not shipped. -->
@@ -30,5 +34,17 @@
     {/each}
   </div>
 
-  <BoardView board={fixtureFor(selectedState)} state={selectedState} />
+  <BoardView
+    board={fixtureFor(selectedState)}
+    state={selectedState}
+    onAddWidget={() => console.log('add widget requested (stub)')}
+    onDeleteWidget={(widgetId) => {
+      lastDeleteRequest = widgetId;
+      console.log('delete widget requested (stub)', widgetId);
+    }}
+  />
+
+  {#if lastDeleteRequest}
+    <p>Delete requested for {lastDeleteRequest}</p>
+  {/if}
 </div>

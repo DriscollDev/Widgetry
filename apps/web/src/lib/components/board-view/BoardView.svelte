@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onDestroy } from 'svelte';
+  import { onDestroy, tick } from 'svelte';
   import { formatRefresh } from '$lib/board-forms';
   import type { BoardViewFixture, BoardViewState } from './fixtures';
 
@@ -7,6 +7,21 @@
   export let state: BoardViewState = 'populated';
   /** Opens SCR-MOD-02. The route owns the modal; the /dev harness omits it. */
   export let onOpenSettings: (() => void) | undefined = undefined;
+  /**
+   * Task #219 (US-W1): called when the user asks to add a widget, from the
+   * header button or the empty-state button. The route owns the catalog and
+   * config modals. When omitted the header button is disabled and the
+   * empty-state button is not shown.
+   */
+  export let onAddWidget: (() => void) | undefined = undefined;
+  /**
+   * Task #214 (US-W4): called with a widget's id when the user picks Delete
+   * from that widget's menu. What happens next belongs to the route - the
+   * confirm modal and the DELETE call are Task #211. When this is omitted no
+   * widget shows a menu button at all, so a page that has not adopted
+   * deletion yet looks exactly as it did before.
+   */
+  export let onDeleteWidget: ((widgetId: string) => void) | undefined = undefined;
 
   $: refreshLabel = formatRefresh(board);
 
@@ -246,6 +261,68 @@
     for (const timer of Object.values(pendingPatchTimers)) clearTimeout(timer);
     if (conflictTimer) clearTimeout(conflictTimer);
   });
+
+  // --- Task #214 (US-W4): the per-widget menu. ONE id, not a set: opening a
+  // second widget's menu replaces the first, so at most one menu is ever open.
+  // Its pointer events never reach the widget (see the template), so opening
+  // it can never start a drag. The only item today is Delete; the route owns
+  // what Delete does (confirm modal + DELETE call are Task #211). ---
+  let openMenuWidgetId: string | null = null;
+
+  /** True when the event came from inside some widget's menu (button or list). */
+  function isInsideMenu(target: EventTarget | null): boolean {
+    return target instanceof Element && target.closest('[data-widget-menu]') !== null;
+  }
+
+  function focusMenuButton(widgetId: string) {
+    if (!gridEl) return;
+    Array.from(gridEl.querySelectorAll<HTMLElement>('[data-widget-menu-button]'))
+      .find((button) => button.dataset.widgetMenuButton === widgetId)
+      ?.focus();
+  }
+
+  async function toggleMenu(widgetId: string) {
+    if (openMenuWidgetId === widgetId) {
+      openMenuWidgetId = null;
+      return;
+    }
+    openMenuWidgetId = widgetId;
+    // Wait for the list to render, then put focus on its first item so a
+    // keyboard user lands inside the menu they just opened.
+    await tick();
+    if (!gridEl) return;
+    gridEl.querySelector<HTMLElement>('[data-widget-menu-item]')?.focus();
+  }
+
+  function closeMenu(returnFocus: boolean) {
+    const widgetId = openMenuWidgetId;
+    openMenuWidgetId = null;
+    if (returnFocus && widgetId !== null) focusMenuButton(widgetId);
+  }
+
+  function chooseDelete(widgetId: string) {
+    closeMenu(false);
+    onDeleteWidget?.(widgetId);
+  }
+
+  // Capture phase (see <svelte:window> below), so this runs BEFORE the
+  // stopPropagation calls on the menu's own controls and still sees every
+  // press on the page.
+  function onWindowPointerDown(event: PointerEvent) {
+    if (openMenuWidgetId !== null && !isInsideMenu(event.target)) closeMenu(false);
+  }
+
+  // Tabbing (or clicking) focus out of the menu closes it.
+  function onWindowFocusIn(event: FocusEvent) {
+    if (openMenuWidgetId !== null && !isInsideMenu(event.target)) closeMenu(false);
+  }
+
+  function onWindowKeydown(event: KeyboardEvent) {
+    if (event.key === 'Escape' && openMenuWidgetId !== null) {
+      event.preventDefault();
+      closeMenu(true);
+    }
+  }
 
   // --- FIX (Svelte reactivity gotcha): getPos/getSpan used to read
   // previewCol, previewRow, interactionMode, activeWidgetId, and
@@ -567,6 +644,12 @@
   }
 </script>
 
+<svelte:window
+  on:pointerdown|capture={onWindowPointerDown}
+  on:keydown={onWindowKeydown}
+  on:focusin={onWindowFocusIn}
+/>
+
 <section class="board-view" data-board-id={board.id} data-state={state}>
   <header class="board-view__header">
     <h1 class="board-view__name">{board.name}</h1>
@@ -576,7 +659,7 @@
       <button type="button" on:click={() => onOpenSettings?.()} disabled={!onOpenSettings}>
         Settings
       </button>
-      <button type="button" on:click={() => console.log('open widget catalog (stub)')}>
+      <button type="button" on:click={() => onAddWidget?.()} disabled={!onAddWidget}>
         Add widget
       </button>
     </div>
@@ -614,7 +697,14 @@
         </div>
       </div>
     {:else if state === 'empty'}
-      <p class="board-view__empty-copy">Your board awaits its first widget.</p>
+      <div class="board-view__empty">
+        <p class="board-view__empty-copy">Your board awaits its first widget.</p>
+        {#if onAddWidget}
+          <button type="button" class="board-view__empty-action" on:click={() => onAddWidget?.()}>
+            Add widget
+          </button>
+        {/if}
+      </div>
     {:else}
       <div class="board-view__grid" bind:this={gridEl}>
         {#each board.widgets as widget (widget.id)}
@@ -654,6 +744,59 @@
           >
             <!-- widget content renderer is a separate ticket (E4) — placeholder body for now -->
             <span class="board-view__widget-label">{widget.widgetType}</span>
+
+            <!-- Task #214 (US-W4): per-widget menu. Rendered only when the route
+                 wired an onDeleteWidget handler, so a page that has not adopted
+                 deletion yet looks exactly as before. The pointerdown
+                 stopPropagation calls are load-bearing: without them the press
+                 bubbles to the widget's startDrag, which captures the pointer and
+                 steals the click from the button. -->
+            {#if onDeleteWidget}
+              <div
+                class="board-view__widget-menu"
+                class:board-view__widget-menu--open={openMenuWidgetId === widget.id}
+                data-widget-menu
+              >
+                <button
+                  type="button"
+                  class="board-view__widget-menu-button"
+                  class:board-view__widget-menu-button--open={openMenuWidgetId === widget.id}
+                  data-widget-menu-button={widget.id}
+                  aria-label="Widget menu"
+                  aria-haspopup="menu"
+                  aria-expanded={openMenuWidgetId === widget.id}
+                  on:pointerdown={(e) => e.stopPropagation()}
+                  on:click={() => toggleMenu(widget.id)}
+                >
+                  <svg
+                    viewBox="0 0 24 24"
+                    width="16"
+                    height="16"
+                    fill="currentColor"
+                    aria-hidden="true"
+                  >
+                    <circle cx="5" cy="12" r="2" />
+                    <circle cx="12" cy="12" r="2" />
+                    <circle cx="19" cy="12" r="2" />
+                  </svg>
+                </button>
+
+                {#if openMenuWidgetId === widget.id}
+                  <div class="board-view__widget-menu-list" role="menu" aria-label="Widget actions">
+                    <button
+                      type="button"
+                      role="menuitem"
+                      class="board-view__widget-menu-item"
+                      data-widget-menu-item
+                      on:pointerdown={(e) => e.stopPropagation()}
+                      on:click={() => chooseDelete(widget.id)}
+                    >
+                      Delete
+                    </button>
+                  </div>
+                {/if}
+              </div>
+            {/if}
 
             <!-- Task #177/#178: pointermove and pointerup are NOT attached
                  here on the handle itself. setPointerCapture (in
@@ -708,6 +851,33 @@
   .board-view__empty-copy {
     color: light-dark(var(--color-surface-600), var(--color-surface-300));
     font-style: italic;
+  }
+
+  .board-view__empty {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.75rem;
+  }
+
+  .board-view__empty-action {
+    font: inherit;
+    font-size: 0.875rem;
+    padding: 0.5rem 1rem;
+    border: none;
+    border-radius: 0.375rem;
+    cursor: pointer;
+    color: light-dark(var(--color-surface-50), var(--color-surface-950));
+    background: light-dark(var(--color-primary-600), var(--color-primary-400));
+  }
+
+  .board-view__empty-action:hover {
+    background: light-dark(var(--color-primary-700), var(--color-primary-300));
+  }
+
+  .board-view__empty-action:focus-visible {
+    outline: 2px solid light-dark(var(--color-primary-500), var(--color-primary-400));
+    outline-offset: 2px;
   }
 
   .board-view__grid {
@@ -777,6 +947,87 @@
     font-size: 0.8rem;
     color: light-dark(var(--color-surface-700), var(--color-surface-200));
     pointer-events: none;
+  }
+
+  /* --- Task #214 (US-W4): the per-widget menu. The button sits in the
+     top-right corner, hidden until the widget is hovered, focused, or its own
+     menu is open - the same reveal rule as the resize handles. It is a real
+     <button>, so Enter and Space work with no extra key handling. */
+  .board-view__widget-menu {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    z-index: 6;
+  }
+
+  /* Lifts the open menu above neighbouring widgets' own menu buttons. */
+  .board-view__widget-menu--open {
+    z-index: 30;
+  }
+
+  .board-view__widget-menu-button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    border: none;
+    border-radius: 0.25rem;
+    background: transparent;
+    color: light-dark(var(--color-surface-700), var(--color-surface-200));
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 120ms ease;
+  }
+
+  .board-view__widget:hover .board-view__widget-menu-button,
+  .board-view__widget:focus-within .board-view__widget-menu-button,
+  .board-view__widget-menu-button--open {
+    opacity: 1;
+  }
+
+  .board-view__widget-menu-button:hover,
+  .board-view__widget-menu-button--open {
+    background: light-dark(var(--color-surface-200), var(--color-surface-700));
+  }
+
+  .board-view__widget-menu-button:focus-visible {
+    outline: 2px solid light-dark(var(--color-primary-500), var(--color-primary-400));
+    outline-offset: 1px;
+  }
+
+  .board-view__widget-menu-list {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    z-index: 20;
+    margin-top: 4px;
+    min-width: 8rem;
+    padding: 0.25rem;
+    border-radius: 0.375rem;
+    border: 1px solid light-dark(var(--color-surface-300), var(--color-surface-700));
+    background: light-dark(var(--color-surface-50), var(--color-surface-800));
+    box-shadow: 0 4px 12px rgb(0 0 0 / 0.25);
+  }
+
+  .board-view__widget-menu-item {
+    display: block;
+    width: 100%;
+    padding: 0.375rem 0.5rem;
+    border: none;
+    border-radius: 0.25rem;
+    background: none;
+    font: inherit;
+    font-size: 0.875rem;
+    text-align: left;
+    color: light-dark(var(--color-error-600), var(--color-error-400));
+    cursor: pointer;
+  }
+
+  .board-view__widget-menu-item:hover,
+  .board-view__widget-menu-item:focus-visible {
+    background: light-dark(var(--color-surface-200), var(--color-surface-700));
   }
 
   /* --- Task #177: resize handles ---
