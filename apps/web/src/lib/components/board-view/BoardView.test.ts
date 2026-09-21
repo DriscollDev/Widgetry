@@ -138,3 +138,37 @@ describe('BoardView widget menu (Task #214, US-W4)', () => {
     expect(button.closest('.board-view__widget')).not.toHaveClass('board-view__widget--dragging');
   });
 });
+
+describe('BoardView add widget (Task #219, US-W1)', () => {
+  it('disables the header button when no handler is wired', () => {
+    render(BoardView, { props: { board: populatedBoardFixture, state: 'populated' } });
+    expect(screen.getByRole('button', { name: 'Add widget' })).toBeDisabled();
+  });
+
+  it('calls onAddWidget from the header button', async () => {
+    const onAddWidget = vi.fn();
+    render(BoardView, {
+      props: { board: populatedBoardFixture, state: 'populated', onAddWidget },
+    });
+
+    await fireEvent.click(screen.getByRole('button', { name: 'Add widget' }));
+
+    expect(onAddWidget).toHaveBeenCalledTimes(1);
+  });
+
+  it('offers a second Add widget button on an empty board', async () => {
+    const onAddWidget = vi.fn();
+    render(BoardView, { props: { board: emptyBoardFixture, state: 'empty', onAddWidget } });
+
+    const buttons = screen.getAllByRole('button', { name: 'Add widget' });
+    expect(buttons).toHaveLength(2);
+    await fireEvent.click(buttons[1]!);
+
+    expect(onAddWidget).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows no empty-state button when no handler is wired', () => {
+    render(BoardView, { props: { board: emptyBoardFixture, state: 'empty' } });
+    expect(screen.getAllByRole('button', { name: 'Add widget' })).toHaveLength(1);
+  });
+});

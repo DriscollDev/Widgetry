@@ -15,6 +15,9 @@
   import BoardSettingsModal from '$lib/modals/BoardSettingsModal.svelte';
   import DeleteBoardModal from '$lib/modals/DeleteBoardModal.svelte';
   import DeleteWidgetModal from '$lib/modals/DeleteWidgetModal.svelte';
+  import WidgetCatalogModal from '$lib/modals/WidgetCatalogModal.svelte';
+  import WidgetConfigModal from '$lib/modals/WidgetConfigModal.svelte';
+  import { findFreeSlot, NEW_WIDGET_HEIGHT, NEW_WIDGET_WIDTH } from '$lib/widget-placement';
   import type { ActionData, PageData } from './$types';
 
   let { data, form }: { data: PageData; form: ActionData } = $props();
@@ -72,6 +75,49 @@
     // Reload the board, so the widget disappears and the widget count updates.
     await invalidateAll();
   }
+  // --- Task #219 (US-W1): add a widget. The Add widget button opens the catalog
+  // (SCR-MOD-04); picking a type opens the config form (SCR-MOD-05), which
+  // creates the widget. The board then reloads so the new widget appears. ---
+  type PickedWidgetType = {
+    id: string;
+    displayName: string;
+    category: 'monitoring' | 'informational' | 'custom';
+    supportsHistory: boolean;
+  };
+
+  let catalogOpen = $state(false);
+  let configOpen = $state(false);
+  let pickedType = $state<PickedWidgetType | null>(null);
+
+  // First free spot for a new widget. Since #204 the API answers 409 to a widget
+  // that overlaps another, so a fixed position would fail on any board with a
+  // widget in that corner. Derived from the loaded board, so it is current after
+  // every reload.
+  const nextSlot = $derived.by(() => {
+    const slot = findFreeSlot(
+      data.board.widgets.map((widget) => ({
+        col: widget.grid_col,
+        row: widget.grid_row,
+        width: widget.grid_width,
+        height: widget.grid_height,
+      })),
+      { width: NEW_WIDGET_WIDTH, height: NEW_WIDGET_HEIGHT },
+    );
+    return { gridCol: slot.col, gridRow: slot.row };
+  });
+
+  function requestAddWidget() {
+    catalogOpen = true;
+  }
+
+  function onTypePicked(type: PickedWidgetType) {
+    pickedType = type;
+    configOpen = true;
+  }
+
+  async function onWidgetCreated() {
+    await invalidateAll();
+  }
 </script>
 
 <svelte:head>
@@ -83,6 +129,7 @@
   state={data.state}
   onOpenSettings={() => (settingsOpen = true)}
   onDeleteWidget={requestWidgetDelete}
+  onAddWidget={requestAddWidget}
 />
 
 <BoardSettingsModal
@@ -108,4 +155,20 @@
   onOpenChange={(open) => (deleteWidgetOpen = open)}
   widget={{ name: widgetToDelete?.name ?? '', hasHistory: widgetToDelete?.hasHistory ?? false }}
   onConfirm={confirmWidgetDelete}
+/>
+
+<WidgetCatalogModal
+  open={catalogOpen}
+  currentWidgetCount={data.widgetCount}
+  onOpenChange={(open) => (catalogOpen = open)}
+  onSelect={onTypePicked}
+/>
+
+<WidgetConfigModal
+  open={configOpen}
+  boardId={data.board.id}
+  widgetType={pickedType}
+  position={nextSlot}
+  onOpenChange={(open) => (configOpen = open)}
+  onCreated={onWidgetCreated}
 />

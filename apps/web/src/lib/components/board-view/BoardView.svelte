@@ -8,6 +8,13 @@
   /** Opens SCR-MOD-02. The route owns the modal; the /dev harness omits it. */
   export let onOpenSettings: (() => void) | undefined = undefined;
   /**
+   * Task #219 (US-W1): called when the user asks to add a widget, from the
+   * header button or the empty-state button. The route owns the catalog and
+   * config modals. When omitted the header button is disabled and the
+   * empty-state button is not shown.
+   */
+  export let onAddWidget: (() => void) | undefined = undefined;
+  /**
    * Task #214 (US-W4): called with a widget's id when the user picks Delete
    * from that widget's menu. What happens next belongs to the route - the
    * confirm modal and the DELETE call are Task #211. When this is omitted no
@@ -652,7 +659,7 @@
       <button type="button" on:click={() => onOpenSettings?.()} disabled={!onOpenSettings}>
         Settings
       </button>
-      <button type="button" on:click={() => console.log('open widget catalog (stub)')}>
+      <button type="button" on:click={() => onAddWidget?.()} disabled={!onAddWidget}>
         Add widget
       </button>
     </div>
@@ -690,7 +697,14 @@
         </div>
       </div>
     {:else if state === 'empty'}
-      <p class="board-view__empty-copy">Your board awaits its first widget.</p>
+      <div class="board-view__empty">
+        <p class="board-view__empty-copy">Your board awaits its first widget.</p>
+        {#if onAddWidget}
+          <button type="button" class="board-view__empty-action" on:click={() => onAddWidget?.()}>
+            Add widget
+          </button>
+        {/if}
+      </div>
     {:else}
       <div class="board-view__grid" bind:this={gridEl}>
         {#each board.widgets as widget (widget.id)}
@@ -837,6 +851,33 @@
   .board-view__empty-copy {
     color: light-dark(var(--color-surface-600), var(--color-surface-300));
     font-style: italic;
+  }
+
+  .board-view__empty {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.75rem;
+  }
+
+  .board-view__empty-action {
+    font: inherit;
+    font-size: 0.875rem;
+    padding: 0.5rem 1rem;
+    border: none;
+    border-radius: 0.375rem;
+    cursor: pointer;
+    color: light-dark(var(--color-surface-50), var(--color-surface-950));
+    background: light-dark(var(--color-primary-600), var(--color-primary-400));
+  }
+
+  .board-view__empty-action:hover {
+    background: light-dark(var(--color-primary-700), var(--color-primary-300));
+  }
+
+  .board-view__empty-action:focus-visible {
+    outline: 2px solid light-dark(var(--color-primary-500), var(--color-primary-400));
+    outline-offset: 2px;
   }
 
   .board-view__grid {
