@@ -49,6 +49,19 @@ const VALID_PASSWORD = 'a-perfectly-fine-password';
 
 /** A distinct /24 so this file cannot share a rate-limit bucket with another. */
 let ipCounter = 0;
+let gridColCounter = 0;
+let gridRowCounter = 0;
+let lastGridPosition = { gridCol: 0, gridRow: 0 };
+const nextGridPosition = () => {
+  const position = { gridCol: gridColCounter, gridRow: gridRowCounter };
+  gridColCounter += 2;
+  if (gridColCounter > 10) {
+    gridColCounter = 0;
+    gridRowCounter += 2;
+  }
+  lastGridPosition = position;
+  return position;
+};
 const nextIp = () => `198.51.100.${++ipCounter % 254}`;
 
 function cookiesFrom(response: { headers: Record<string, unknown> }): string {
@@ -65,7 +78,9 @@ describeIntegration('PATCH /v1/widgets/:id - retention (US-H2, FR-5.2)', () => {
 
   const email = `retention-${runId}@widgetry.test`;
 
-  /** Create a widget on the shared board and return its id. */
+  /** Create a widget on the shared board and return its id. Each call gets a
+   * distinct grid position so tests don't collide under FR-3.3 overlap
+   * rejection (Task #198) when a test file creates several widgets. */
   const createWidget = async (widgetType = 'uptime'): Promise<string> => {
     const response = await app.inject({
       method: 'POST',
@@ -74,8 +89,7 @@ describeIntegration('PATCH /v1/widgets/:id - retention (US-H2, FR-5.2)', () => {
       headers: { cookie, 'content-type': 'application/json' },
       payload: {
         widgetType,
-        gridCol: 0,
-        gridRow: 0,
+        ...nextGridPosition(),
         gridWidth: 2,
         gridHeight: 2,
         ...(widgetType === 'uptime' ? { config: { url: 'https://example.test/health' } } : {}),
@@ -84,7 +98,6 @@ describeIntegration('PATCH /v1/widgets/:id - retention (US-H2, FR-5.2)', () => {
     expect(response.statusCode, response.body).toBe(201);
     return response.json().id as string;
   };
-
   const patchWidget = (widgetId: string, payload: unknown) =>
     app.inject({
       method: 'PATCH',
@@ -239,13 +252,14 @@ describeIntegration('PATCH /v1/widgets/:id - retention (US-H2, FR-5.2)', () => {
     // or defaulted values. The handler merges onto the CURRENT row, so these
     // four come back exactly as createWidget() left them.
     const widgetId = await createWidget();
+    const created = lastGridPosition;
     const response = await patchWidget(widgetId, { retentionHours: 48 });
 
     expect(response.statusCode, response.body).toBe(200);
     const body = response.json();
     expect(body.retentionHours).toBe(48);
-    expect(body.gridCol).toBe(0);
-    expect(body.gridRow).toBe(0);
+    expect(body.gridCol).toBe(created.gridCol);
+    expect(body.gridRow).toBe(created.gridRow);
     expect(body.gridWidth).toBe(2);
     expect(body.gridHeight).toBe(2);
   });

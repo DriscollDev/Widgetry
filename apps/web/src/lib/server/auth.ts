@@ -157,3 +157,21 @@ export function signUpEmail(
 export function signOut(event: RequestEvent): Promise<AuthResult<unknown>> {
   return postAuth(event, '/sign-out', {});
 }
+
+// ---- Email verification ----------------------------------------------------
+
+/**
+ * Re-send the FR-1.7 verification link. Backs the "resend" action on the
+ * unverified-email notice (EX-16, Screen Inventory §6.2).
+ *
+ * No `callbackURL`, matching sign-up: SCR-AUTH-05 has no screen yet, so
+ * Better-Auth's default of "/" is the right target - the link verifies the
+ * address and drops the user on the root router. Point both at a real route
+ * together when SCR-AUTH-05 is built.
+ */
+export function sendVerificationEmail(
+  event: RequestEvent,
+  body: { email: string },
+): Promise<AuthResult<unknown>> {
+  return postAuth(event, '/send-verification-email', body);
+}

@@ -51,6 +51,11 @@ process.env.APP_ORIGIN ??= 'http://localhost:5173';
 // fixed dummy is fine - nothing in a unit test verifies a real signature.
 process.env.BETTER_AUTH_SECRET ??= 'test-secret-value-at-least-32-chars-long';
 
+// Same for the credential encryption key (Eng §10.2): 32 bytes, base64, and
+// worthless outside a test. `||=` so a blank value copied from .env.example
+// is replaced too.
+process.env.MASTER_ENCRYPTION_KEY ||= 'dW5pdC10ZXN0LW1hc3Rlci1rZXktbm90LXNlY3JldCE=';
+
 // Unit tests never open a connection (the Drizzle client is lazy), but the env
 // schema still requires the var to be present.
 process.env.DATABASE_URL ??= 'postgres://unit-test-placeholder/none';

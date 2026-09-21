@@ -8,6 +8,7 @@
 // no credential and no response parsing. That is why it is the first fetcher.
 
 import { z } from 'zod';
+import { PollableUrl } from './url.js';
 
 /**
  * A poll target. One field, because the catalog entry describes exactly one
@@ -25,35 +26,7 @@ import { z } from 'zod';
  */
 export const UptimeConfig = z
   .strictObject({
-    url: z
-      .string()
-      .min(1)
-      .max(2048)
-      .superRefine((value, ctx) => {
-        let parsed: URL;
-        try {
-          parsed = new URL(value);
-        } catch {
-          ctx.addIssue({ code: 'custom', message: 'Must be a valid absolute URL.' });
-          return;
-        }
-        // Eng §11.3 step 1, applied here as well as in the worker. This copy is
-        // a fast, friendly rejection at configure time; it is NOT the security
-        // control. The control is the worker's gate, which re-runs this check
-        // plus DNS resolution and the private-IP blocklist on every poll and on
-        // every redirect - because a hostname that resolves publicly today can
-        // resolve to 127.0.0.1 tomorrow, and no amount of write-time validation
-        // can see that coming.
-        if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-          ctx.addIssue({
-            code: 'custom',
-            message: 'Only http:// and https:// URLs can be pinged.',
-          });
-        }
-        if (!parsed.hostname) {
-          ctx.addIssue({ code: 'custom', message: 'The URL must include a hostname.' });
-        }
-      }),
+    url: PollableUrl,
   })
   .describe('Uptime widget configuration');
 
