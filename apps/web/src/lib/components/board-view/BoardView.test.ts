@@ -34,7 +34,11 @@ describe('BoardView', () => {
     // Clock has a real renderer now (Task #228), so it draws the time, not its type
     // name. Its label starts with "Clock:".
     expect(screen.getByRole('img', { name: /^Clock:/ })).toBeInTheDocument();
-    expect(screen.getByText('custom_json')).toBeInTheDocument();
+    // Custom JSON has a real renderer too (Task #236). These fixtures carry
+    // placement only - no config, no snapshot - so it correctly reports that it
+    // cannot draw rather than printing its type name. It renders a widget once
+    // the fixtures carry a payload.
+    expect(screen.getByText('Cannot show this widget')).toBeInTheDocument();
   });
   it('renders the error state', () => {
     render(BoardView, { props: { board: errorBoardFixture, state: 'error' } });

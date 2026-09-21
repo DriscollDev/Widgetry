@@ -22,8 +22,25 @@ const ctx = {
 
 const TARGET = 'https://api.example.com/v1/stats';
 
+/** One 'number' slot on the single layout, reading data.value. */
 function config(overrides: Record<string, unknown> = {}) {
-  return { url: TARGET, path: 'data.value', displayFormat: 'value', ...overrides };
+  return {
+    url: TARGET,
+    layoutId: 'single',
+    slots: [{ primitive: 'number', label: 'Value', jsonPath: 'data.value' }],
+    ...overrides,
+  };
+}
+
+/** A config whose one slot uses `primitive`, still reading data.value. */
+function withPrimitive(primitive: string, layoutId = 'single') {
+  return config({ layoutId, slots: [{ primitive, label: 'Value', jsonPath: 'data.value' }] });
+}
+
+/** The stored entry for slot `i` of a successful outcome. */
+function slotOf(outcome: Awaited<ReturnType<typeof customJsonFetcher>>, i = 0) {
+  if (!outcome.ok) throw new Error('expected a successful poll');
+  return (outcome.value as { slots: unknown[] }).slots[i];
 }
 
 function responded(body: unknown, status = 200): SafeFetchResult {
@@ -89,25 +106,25 @@ describe('custom JSON fetcher - values (US-C4)', () => {
     ['up', 'up'],
     [true, true],
     [null, null],
-  ])('stores the scalar %j for the value format', async (raw, stored) => {
+  ])('stores the scalar %j in its slot', async (raw, stored) => {
     safeFetch.mockResolvedValue(responded({ data: { value: raw } }));
     expect(await customJsonFetcher(config(), ctx)).toEqual({
       ok: true,
-      value: { format: 'value', value: stored },
+      value: { slots: [{ ok: true, value: stored }], slotCount: 1 },
     });
   });
 
   it('truncates a very long string', async () => {
     safeFetch.mockResolvedValue(responded({ data: { value: 'x'.repeat(5000) } }));
     const outcome = await customJsonFetcher(config(), ctx);
-    expect(outcome.ok && (outcome.value as { value: string }).value).toHaveLength(1000);
+    expect((slotOf(outcome) as { value: string }).value).toHaveLength(1000);
   });
 
   it('removes NUL characters and unpaired surrogates, which jsonb refuses', async () => {
     safeFetch.mockResolvedValue(responded(String.raw`{"data":{"value":"a\u0000b\ud800c\udc00d"}}`));
     expect(await customJsonFetcher(config(), ctx)).toEqual({
       ok: true,
-      value: { format: 'value', value: 'ab\uFFFDc\uFFFDd' },
+      value: { slots: [{ ok: true, value: 'ab\uFFFDc\uFFFDd' }], slotCount: 1 },
     });
   });
 
@@ -117,28 +134,25 @@ describe('custom JSON fetcher - values (US-C4)', () => {
       responded({ data: { value: `${'x'.repeat(998)}\u{1F600}${'y'.repeat(10)}` } }),
     );
     const outcome = await customJsonFetcher(config(), ctx);
-    const stored = outcome.ok ? (outcome.value as { value: string }).value : '';
+    const stored = (slotOf(outcome) as { value: string }).value;
     expect(stored).toHaveLength(1000);
     expect(stored.endsWith('\uFFFD\u2026')).toBe(true);
     // encodeURIComponent throws on a lone surrogate, so this proves well-formedness.
     expect(() => encodeURIComponent(stored)).not.toThrow();
   });
 
-  it.each(['value', 'timeline'])(
-    'rejects an out-of-range number for the %s format',
-    async (displayFormat) => {
-      safeFetch.mockResolvedValue(responded('{"data":{"value":1e400}}'));
-      const outcome = await customJsonFetcher(config({ displayFormat }), ctx);
-      expect(outcome).toMatchObject({ ok: false, error: { kind: 'invalid_response' } });
-      if (!outcome.ok) expect(outcome.error.message).toContain('too large');
-    },
-  );
+  it.each(['number', 'ring'])('rejects an out-of-range number for a %s slot', async (primitive) => {
+    safeFetch.mockResolvedValue(responded('{"data":{"value":1e400}}'));
+    const outcome = await customJsonFetcher(withPrimitive(primitive), ctx);
+    expect(outcome).toMatchObject({ ok: false, error: { kind: 'invalid_response' } });
+    if (!outcome.ok) expect(outcome.error.message).toContain('too large');
+  });
 
-  it('stores a number for the timeline format', async () => {
+  it('stores a number for a charting slot', async () => {
     safeFetch.mockResolvedValue(responded({ data: { value: 12.5 } }));
-    expect(await customJsonFetcher(config({ displayFormat: 'timeline' }), ctx)).toEqual({
+    expect(await customJsonFetcher(withPrimitive('ring'), ctx)).toEqual({
       ok: true,
-      value: { format: 'timeline', value: 12.5 },
+      value: { slots: [{ ok: true, value: 12.5 }], slotCount: 1 },
     });
   });
 
@@ -147,59 +161,88 @@ describe('custom JSON fetcher - values (US-C4)', () => {
     safeFetch.mockResolvedValue(
       responded(`{"data":{"value":{"deep":${'['.repeat(depth)}${']'.repeat(depth)}}}}`),
     );
-    const outcome = await customJsonFetcher(config({ displayFormat: 'key_value' }), ctx);
-    expect(outcome).toMatchObject({
-      ok: true,
-      value: { entries: [{ key: 'deep', value: '[list of 1]' }] },
-    });
+    const outcome = await customJsonFetcher(config(), ctx);
+    // A container is not storable as a slot value, but resolving it must not blow
+    // the stack on the way to saying so.
+    expect(outcome).toMatchObject({ ok: false, error: { kind: 'invalid_response' } });
+  });
+});
+
+describe('custom JSON fetcher - slots', () => {
+  const THREE_SLOTS = config({
+    layoutId: 'trio',
+    slots: [
+      { primitive: 'number', label: 'Region', jsonPath: 'data.region' },
+      { primitive: 'bar', label: 'Load', jsonPath: 'data.load' },
+      { primitive: 'badge', label: 'State', jsonPath: 'data.state' },
+    ],
   });
 
-  it('stores an object as key-value entries, summarizing nested values', async () => {
-    safeFetch.mockResolvedValue(
-      responded(
-        '{"data":{"value":{"region":"eu","healthy":true,"nested":{"a":[1]},"list":[1,2,3],"big":1e400}}}',
-      ),
-    );
-    expect(await customJsonFetcher(config({ displayFormat: 'key_value' }), ctx)).toEqual({
+  it('resolves every slot from a single fetch', async () => {
+    safeFetch.mockResolvedValue(responded({ data: { region: 'eu', load: 42, state: 'up' } }));
+
+    const outcome = await customJsonFetcher(THREE_SLOTS, ctx);
+
+    expect(outcome).toEqual({
       ok: true,
       value: {
-        format: 'key_value',
-        entries: [
-          { key: 'region', value: 'eu' },
-          { key: 'healthy', value: true },
-          { key: 'nested', value: '[object]' },
-          { key: 'list', value: '[list of 3]' },
-          { key: 'big', value: 'Infinity' },
+        slots: [
+          { ok: true, value: 'eu' },
+          { ok: true, value: 42 },
+          { ok: true, value: 'up' },
         ],
-        truncated: false,
+        slotCount: 3,
       },
     });
+    // The one-source rule: N slots are N extractions, never N requests.
+    expect(safeFetch).toHaveBeenCalledTimes(1);
   });
 
-  it('keeps the first 50 keys of a large object and says so', async () => {
-    const big = Object.fromEntries(Array.from({ length: 60 }, (_, i) => [`k${i}`, i]));
-    safeFetch.mockResolvedValue(responded({ data: { value: big } }));
-    const outcome = await customJsonFetcher(config({ displayFormat: 'key_value' }), ctx);
+  it('degrades one slot without failing the poll', async () => {
+    // `load` is gone and `state` is an object; `region` still resolves.
+    safeFetch.mockResolvedValue(responded({ data: { region: 'eu', state: { a: 1 } } }));
+
+    const outcome = await customJsonFetcher(THREE_SLOTS, ctx);
+
     expect(outcome.ok).toBe(true);
-    if (outcome.ok) {
-      const value = outcome.value as { entries: unknown[]; truncated: boolean };
-      expect(value.entries).toHaveLength(50);
-      expect(value.truncated).toBe(true);
-    }
+    expect(slotOf(outcome, 0)).toEqual({ ok: true, value: 'eu' });
+    expect(slotOf(outcome, 1)).toMatchObject({ ok: false });
+    expect((slotOf(outcome, 1) as { reason: string }).reason).toContain('Nothing was found');
+    expect((slotOf(outcome, 2) as { reason: string }).reason).toContain('is an object');
+  });
+
+  it('fails the whole poll only when every slot fails, keeping the first kind', async () => {
+    safeFetch.mockResolvedValue(responded({ data: {} }));
+
+    const outcome = await customJsonFetcher(THREE_SLOTS, ctx);
+
+    expect(outcome).toMatchObject({
+      ok: false,
+      error: { kind: 'path_not_found' },
+      retryable: false,
+    });
+    if (!outcome.ok) expect(outcome.error.message).toContain('Nothing was found');
+  });
+
+  it('records the configured slot count, so a stale row is detectable', async () => {
+    safeFetch.mockResolvedValue(responded({ data: { region: 'eu', load: 1, state: 'up' } }));
+    const outcome = await customJsonFetcher(THREE_SLOTS, ctx);
+    if (!outcome.ok) throw new Error('expected a successful poll');
+    expect((outcome.value as { slotCount: number }).slotCount).toBe(3);
   });
 });
 
 describe('custom JSON fetcher - errors (US-C7)', () => {
   it.each([
-    ['value', { a: 1 }, 'is an object'],
-    ['value', [1, 2], 'is a list'],
-    ['timeline', '12', 'not a number'],
-    ['timeline', null, 'not a number'],
-    ['key_value', [1], 'not an object'],
-    ['key_value', 'text', 'not an object'],
-  ])('rejects a %s format pointed at %j', async (displayFormat, raw, message) => {
+    ['number', { a: 1 }, 'is an object'],
+    ['number', [1, 2], 'is a list'],
+    ['ring', '12', 'not a number'],
+    ['ring', null, 'not a number'],
+    ['gauge', 'text', 'not a number'],
+    ['gauge', true, 'not a number'],
+  ])('rejects a %s slot pointed at %j', async (primitive, raw, message) => {
     safeFetch.mockResolvedValue(responded({ data: { value: raw } }));
-    const outcome = await customJsonFetcher(config({ displayFormat }), ctx);
+    const outcome = await customJsonFetcher(withPrimitive(primitive), ctx);
     expect(outcome).toMatchObject({
       ok: false,
       error: { kind: 'invalid_response' },

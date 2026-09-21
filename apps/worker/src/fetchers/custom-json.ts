@@ -14,14 +14,15 @@
 // attempt would repeat is not.
 
 import {
-  CUSTOM_JSON_MAX_ENTRIES,
   CUSTOM_JSON_MAX_STRING_LENGTH,
   CustomJsonConfig,
   parseJsonPath,
   resolveJsonPath,
-  type CustomJsonDisplayFormat,
+  type CustomJsonSlotValue,
   type CustomJsonSnapshotValue,
   type JsonScalar,
+  type SlotConfig,
+  type SlotPrimitive,
   type SnapshotErrorKind,
 } from '@widgetry/shared';
 import { safeFetch } from '../lib/safe-fetch.js';
@@ -76,49 +77,72 @@ function storedScalar(value: unknown): JsonScalar {
 }
 
 /**
- * Shape the resolved value for the display format (US-C4), or explain why it
- * cannot be. `path` is the user's own input, so it is safe to echo.
+ * Primitives that plot a number. Pointing one at a string is a config mistake
+ * worth naming per slot rather than storing a value the renderer cannot draw.
  */
-function shape(
-  value: unknown,
-  format: CustomJsonDisplayFormat,
-  path: string,
-): CustomJsonSnapshotValue | { mismatch: string } {
-  const outOfRange = typeof value === 'number' && !Number.isFinite(value);
+const NUMERIC_PRIMITIVES: readonly SlotPrimitive[] = ['ring', 'gauge', 'bar', 'line'];
 
-  switch (format) {
-    case 'value':
-      if (isContainer(value)) {
-        return {
-          mismatch: `The value at ${path} is ${Array.isArray(value) ? 'a list' : 'an object'}. Point the path at a single value, or use the key-value list format.`,
-        };
-      }
-      if (outOfRange) return { mismatch: `The number at ${path} is too large to store.` };
-      return { format, value: storedScalar(value) };
+/**
+ * Resolve ONE slot against the already-parsed response body.
+ *
+ * Never throws and never fails the whole poll: a slot that cannot resolve
+ * returns its own reason, so the widget still renders every slot that did. The
+ * reason echoes the user's own path, which is safe - it is their input, not
+ * upstream content.
+ */
+type SlotOutcome = {
+  stored: CustomJsonSlotValue;
+  /** null when the slot resolved. Used only if EVERY slot fails. */
+  kind: SnapshotErrorKind | null;
+};
 
-    case 'timeline':
-      if (typeof value !== 'number') {
-        return { mismatch: `The value at ${path} is not a number, so it cannot be charted.` };
-      }
-      if (outOfRange) return { mismatch: `The number at ${path} is too large to chart.` };
-      return { format, value };
-
-    case 'key_value': {
-      if (!isContainer(value) || Array.isArray(value)) {
-        return {
-          mismatch: `The value at ${path} is not an object, so it cannot be shown as a key-value list.`,
-        };
-      }
-      const all = Object.entries(value);
-      return {
-        format,
-        entries: all
-          .slice(0, CUSTOM_JSON_MAX_ENTRIES)
-          .map(([key, entry]) => ({ key: storedString(key), value: storedScalar(entry) })),
-        truncated: all.length > CUSTOM_JSON_MAX_ENTRIES,
-      };
-    }
+function resolveSlot(body: unknown, slot: SlotConfig): SlotOutcome {
+  const path = parseJsonPath(slot.jsonPath);
+  if (!path.ok) {
+    // The schema already rejected this at write time; a stored config predating
+    // a grammar change could still reach here.
+    return {
+      stored: { ok: false, reason: `“${slot.jsonPath}” is not a valid path.` },
+      kind: 'config_invalid',
+    };
   }
+
+  const resolved = resolveJsonPath(body, path.steps);
+  if (!resolved.found) {
+    return {
+      stored: { ok: false, reason: `Nothing was found at ${resolved.at} in the response.` },
+      kind: 'path_not_found',
+    };
+  }
+
+  const value = resolved.value;
+
+  if (isContainer(value)) {
+    const kind = Array.isArray(value) ? 'a list' : 'an object';
+    return {
+      stored: {
+        ok: false,
+        reason: `The value at ${slot.jsonPath} is ${kind}. Point the path at a single value.`,
+      },
+      kind: 'invalid_response',
+    };
+  }
+
+  if (typeof value === 'number' && !Number.isFinite(value)) {
+    return {
+      stored: { ok: false, reason: `The number at ${slot.jsonPath} is too large to store.` },
+      kind: 'invalid_response',
+    };
+  }
+
+  if (NUMERIC_PRIMITIVES.includes(slot.primitive) && typeof value !== 'number') {
+    return {
+      stored: { ok: false, reason: `The value at ${slot.jsonPath} is not a number.` },
+      kind: 'invalid_response',
+    };
+  }
+
+  return { stored: { ok: true, value: storedScalar(value) }, kind: null };
 }
 
 export const customJsonFetcher: Fetcher = async (rawConfig, ctx) => {
@@ -127,13 +151,6 @@ export const customJsonFetcher: Fetcher = async (rawConfig, ctx) => {
     return configInvalid('This custom widget’s configuration is incomplete or invalid.');
   }
   const config = parsed.data;
-
-  // Parsed again rather than trusted from the schema: the schema checked that
-  // it parses, this gets the steps.
-  const path = parseJsonPath(config.path);
-  if (!path.ok) {
-    return configInvalid('This custom widget’s JSON path is invalid.');
-  }
 
   let url = config.url;
   const headers: Record<string, string> = {
@@ -215,15 +232,28 @@ export const customJsonFetcher: Fetcher = async (rawConfig, ctx) => {
     return failure('invalid_response', 'The API response is not valid JSON.');
   }
 
-  const resolved = resolveJsonPath(body, path.steps);
-  if (!resolved.found) {
-    return failure('path_not_found', `Nothing was found at ${resolved.at} in the response.`);
+  // One fetch, one extraction per slot (Eng §7.3, and the one-source rule in
+  // custom-layout.ts). Slots resolve independently so a single moved field
+  // degrades its own slot instead of blanking the widget.
+  const outcomes = config.slots.map((slot) => resolveSlot(body, slot));
+
+  // Every slot failing means the response no longer matches the config at all -
+  // a widget-level problem worth an error snapshot and an error state, not a row
+  // of individually broken slots the user has to read one by one. The first
+  // failure's own kind is kept, so a single-slot widget reports exactly what it
+  // would have before slots existed.
+  const firstFailure = outcomes.find((outcome) => outcome.kind !== null);
+  if (firstFailure?.kind && outcomes.every((outcome) => outcome.kind !== null)) {
+    const reason = firstFailure.stored.ok
+      ? 'The response did not match.'
+      : firstFailure.stored.reason;
+    return failure(firstFailure.kind, reason);
   }
 
-  const value = shape(resolved.value, config.displayFormat, config.path);
-  if ('mismatch' in value) {
-    return failure('invalid_response', value.mismatch);
-  }
+  const value: CustomJsonSnapshotValue = {
+    slots: outcomes.map((outcome) => outcome.stored),
+    slotCount: config.slots.length,
+  };
 
   ctx.log.debug(
     { widgetId: ctx.widgetId, httpStatus: result.status, redirects: result.redirects },
