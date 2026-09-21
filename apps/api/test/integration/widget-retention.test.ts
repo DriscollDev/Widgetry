@@ -78,11 +78,9 @@ describeIntegration('PATCH /v1/widgets/:id - retention (US-H2, FR-5.2)', () => {
 
   const email = `retention-${runId}@widgetry.test`;
 
-  /** Create a widget on the shared board and return its id. */
   /** Create a widget on the shared board and return its id. Each call gets a
    * distinct grid position so tests don't collide under FR-3.3 overlap
    * rejection (Task #198) when a test file creates several widgets. */
-
   const createWidget = async (widgetType = 'uptime'): Promise<string> => {
     const response = await app.inject({
       method: 'POST',

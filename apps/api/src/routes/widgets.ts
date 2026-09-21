@@ -3,6 +3,7 @@
 // GET   /v1/widgets/catalog      EX-24 - public catalog listing
 // POST  /v1/boards/:id/widgets   US-W1, SCR-MOD-04/05 - add widget
 // PATCH /v1/widgets/:id          US-W2 drag (#170), US-W3 resize (#158), US-H2 retention (F8.2)
+// DELETE /v1/widgets/:id         US-W4 delete widget (Task #210)
 //
 // POST checks board ownership + the FR-3.5 cap + FR-3.3 overlap (Task #198),
 // validates config against the registry schema, and inserts with scheduler
@@ -11,8 +12,12 @@
 // FR-3.3 overlap check (Task #188). Both patterns are intentionally
 // identical - see rectanglesOverlap below.
 //
-// DELETE, refresh, snapshots, credential endpoints live elsewhere - they
-// touch credentials/polling state this file doesn't model.
+// DELETE checks widget ownership, then removes the row under the same
+// board-row lock; its snapshots and stored credential go with it via FK
+// cascade (Eng §5.2).
+//
+// Refresh and snapshots are not implemented yet, and the credential verbs
+// live in ./credentials.ts.
 
 import { and, count, eq, ne, sql } from 'drizzle-orm';
 import { ZodError } from 'zod';
