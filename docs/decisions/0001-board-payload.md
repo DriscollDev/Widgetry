@@ -17,8 +17,8 @@ Eng section 12 says the board response carries each widget's latest value.
    - custom_json: url, method, display format, json path. Never headers.
    - clock, datetime: nothing (their schema is empty).
    - other types: nothing until their schema exists and is reviewed.
-   The credential is a separate table and never appears in any response
-   (FR-6.2).
+     The credential is a separate table and never appears in any response
+     (FR-6.2).
 2. Each widget carries latest: the most recent snapshot as
    { capturedAt, value, error }, exactly one of value or error set, or null when
    the widget has no snapshot (local widgets, brand-new server-polled ones).
