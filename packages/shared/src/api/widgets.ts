@@ -36,14 +36,18 @@
 //     `defaultRefreshSeconds` (null for client-polled types).
 //   DONE(F8.2): `retentionHours` is user-configurable in 12..720 through
 //     PATCH /v1/widgets/:id (US-H2); rows still default to 168.
-//   TODO: latest snapshot value. Needs the snapshot contract (F5), which needs
-//     the value shape, which needs the registry.
+//   DONE(#234): the board payload carries `config` (an allowlisted, display-only
+//     record, see docs/decisions/0001-board-payload.md) and `latest` (the most
+//     recent snapshot). Both are optional and nullable: a server that has not
+//     filled them in yet, a local widget, and a brand-new server-polled widget
+//     all read as null.
 //   TODO(EX-Overlap-Server): FR-3.3 overlap rejection on POST. Not in this file
 //     either way - it is a server-side check, and the locked decision is
 //     reject-and-snap-back, never reflow. PATCH /v1/widgets/:id has it (#188);
 //     POST /v1/boards/:id/widgets still does not.
 
 import { z } from 'zod';
+import { SnapshotError } from '../widgets/snapshot.js';
 
 /**
  * Feature Spec §4.4 / FR-3.6, and the `widgets_widget_type_check` constraint.
@@ -141,6 +145,33 @@ export type CreateWidgetRequest = z.infer<typeof CreateWidgetRequest>;
  * ownership chain legible - a widget has no user of its own; it belongs to a
  * board, and the board belongs to a user (Eng §11.7).
  */
+/**
+ * The most recent snapshot of a server-polled widget, as the board payload
+ * carries it (docs/decisions/0001-board-payload.md). Exactly one of `value` and
+ * `error` is set - the same rule as a `widget_snapshots` row (FR-5.1). `value`
+ * is `unknown` here on purpose: per-type success values live next to their
+ * config schema, and this module must not import the registry (import cycle).
+ */
+export const LatestSnapshot = z
+  .object({
+    capturedAt: z.iso.datetime(),
+    value: z.unknown().nullable(),
+    error: SnapshotError.nullable(),
+  })
+  .refine((s) => (s.value === null || s.value === undefined) !== (s.error === null), {
+    message: 'Exactly one of value and error must be set.',
+  });
+
+export type LatestSnapshot = z.infer<typeof LatestSnapshot>;
+
+/**
+ * A widget's config as the browser may see it: already filtered through the
+ * per-type allowlist by the api, so this schema does not repeat that list.
+ */
+export const WidgetConfigView = z.record(z.string(), z.unknown());
+
+export type WidgetConfigView = z.infer<typeof WidgetConfigView>;
+
 export const BoardWidgetPlacement = WidgetPlacement.extend({
   id: z.uuid(),
   boardId: z.uuid(),
@@ -158,6 +189,10 @@ export const BoardWidgetPlacement = WidgetPlacement.extend({
    * driven by the registry's `supportsHistory`, not by this field.
    */
   retentionHours: z.number().int(),
+  /** Allowlisted display config. Null or absent when there is none to show. */
+  config: WidgetConfigView.nullish(),
+  /** The latest snapshot. Null or absent for local and never-polled widgets. */
+  latest: LatestSnapshot.nullish(),
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime(),
 });
