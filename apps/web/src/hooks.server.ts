@@ -78,6 +78,11 @@ const handleSession: Handle = async ({ event, resolve }) => {
  * `/` is public because it is a router, not a screen - it decides where a
  * caller goes based on whether they are signed in (§4).
  *
+ * `/faq` is public because its audience includes people who have not signed
+ * up yet - "what is this and how does it work" is a pre-registration
+ * question, and gating it would hide the page from most of the people who
+ * need it. It reads no user data.
+ *
  * `/sign-out` is public for a duller reason: guarding it would answer an
  * already-signed-out visitor with `?returnTo=/sign-out`, and signing in would
  * then bounce them straight back through the sign-out route. Ending a session
@@ -93,7 +98,7 @@ const handleSession: Handle = async ({ event, resolve }) => {
  * recipient clicking one now gets bounced to `/sign-in?returnTo=…` with the
  * token still on the query string rather than a clean 404.
  */
-const PUBLIC_PATHS = new Set(['/', '/sign-in', '/sign-up', '/sign-out']);
+const PUBLIC_PATHS = new Set(['/', '/sign-in', '/sign-up', '/sign-out', '/faq']);
 
 /**
  * Subtrees that are public in bulk, root included.
