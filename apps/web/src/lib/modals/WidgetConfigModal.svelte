@@ -3,6 +3,8 @@
   import ConfigForm from './ConfigForm.svelte';
   import { WIDGET_TYPE_DEFS } from '@widgetry/shared';
   import type { WidgetType } from '@widgetry/shared';
+  import { NEW_WIDGET_HEIGHT, NEW_WIDGET_WIDTH } from '$lib/widget-placement';
+  import { configFieldErrors } from './api-field-errors';
 
   type WidgetTypeSummary = {
     id: string;
@@ -17,9 +19,22 @@
     widgetType: WidgetTypeSummary | null;
     onOpenChange?: (open: boolean) => void;
     onCreated?: (widget: unknown) => void;
+    /**
+     * Where the new widget goes. The API rejects a widget that overlaps another
+     * (FR-3.3), so the board page passes the first free slot. Defaults to the
+     * top-left corner for callers with no board to look at (the dev gallery).
+     */
+    position?: { gridCol: number; gridRow: number };
   };
 
-  let { open, boardId, widgetType, onOpenChange, onCreated }: Props = $props();
+  let {
+    open,
+    boardId,
+    widgetType,
+    onOpenChange,
+    onCreated,
+    position = { gridCol: 0, gridRow: 0 },
+  }: Props = $props();
 
   let values = $state<Record<string, string>>({});
   let errors = $state<Record<string, string>>({});
@@ -59,23 +74,21 @@
         body: JSON.stringify({
           widgetType: widgetType.id,
           config,
-          gridCol: 0,
-          gridRow: 0,
-          gridWidth: 2,
-          gridHeight: 2,
+          gridCol: position.gridCol,
+          gridRow: position.gridRow,
+          gridWidth: NEW_WIDGET_WIDTH,
+          gridHeight: NEW_WIDGET_HEIGHT,
         }),
       });
 
       const body = await res.json();
 
       if (!res.ok) {
-        if (body.error?.code === 'validation_failed' && body.error.details) {
-          // Re-root config.<field> errors back onto the flat field key the
-          // form renders under - see errors.ts's `underConfig` on the API side.
-          for (const issue of body.error.details.fieldErrors ?? []) {
-            const key = issue.path?.replace(/^config\./, '');
-            if (key) errors[key] = issue.message;
-          }
+        if (body.error?.code === 'validation_failed') {
+          // The API sends details.issues as [{ path: 'config.url', message }].
+          // This used to read details.fieldErrors, which the API never sends, so
+          // every field error fell through to the generic message.
+          errors = configFieldErrors(body);
         }
         status = 'error';
         return;

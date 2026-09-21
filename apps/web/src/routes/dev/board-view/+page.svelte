@@ -37,6 +37,7 @@
   <BoardView
     board={fixtureFor(selectedState)}
     state={selectedState}
+    onAddWidget={() => console.log('add widget requested (stub)')}
     onDeleteWidget={(widgetId) => {
       lastDeleteRequest = widgetId;
       console.log('delete widget requested (stub)', widgetId);
