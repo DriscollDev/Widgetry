@@ -7,11 +7,11 @@ import { widgetState } from './widget-state';
 import type { LatestSnapshot, SnapshotErrorKind } from '@widgetry/shared';
 
 function valueSnapshot(value: unknown = 42): LatestSnapshot {
-  return { capturedAt: new Date(), value, error: null };
+  return { capturedAt: new Date().toISOString(), value, error: null };
 }
 
 function errorSnapshot(kind: SnapshotErrorKind = 'timeout', message = 'Request timed out.'): LatestSnapshot {
-  return { capturedAt: new Date(), value: null, error: { kind, message } };
+  return { capturedAt: new Date().toISOString(), value: null, error: { kind, message } };
 }
 
 describe('widgetState', () => {
@@ -37,7 +37,7 @@ describe('widgetState', () => {
 
   it('is error for an old error snapshot, same as a fresh one', () => {
     const old = errorSnapshot();
-    old.capturedAt = new Date(Date.now() - 1000 * 60 * 60 * 24);
+    old.capturedAt = new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString();
     expect(widgetState(old)).toBe('error');
   });
 });
