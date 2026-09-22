@@ -10,7 +10,10 @@ function valueSnapshot(value: unknown = 42): LatestSnapshot {
   return { capturedAt: new Date().toISOString(), value, error: null };
 }
 
-function errorSnapshot(kind: SnapshotErrorKind = 'timeout', message = 'Request timed out.'): LatestSnapshot {
+function errorSnapshot(
+  kind: SnapshotErrorKind = 'timeout',
+  message = 'Request timed out.',
+): LatestSnapshot {
   return { capturedAt: new Date().toISOString(), value: null, error: { kind, message } };
 }
 
