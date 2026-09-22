@@ -100,13 +100,14 @@ export const snapshotStatesBoardFixture: BoardViewFixture = {
       grid_height: 2,
       config: {
         url: 'https://api.example.test/v1/quote',
-        method: 'GET',
-        path: 'data.price',
-        displayFormat: 'value',
+        title: 'Quote',
+        layoutId: 'single',
+        accent: 'primary',
+        slots: [{ primitive: 'number', label: 'Price', jsonPath: 'data.price' }],
       },
       latest: {
         capturedAt: '2026-09-21T18:00:00.000Z',
-        value: { format: 'value', value: 42.5 },
+        value: { slots: [{ ok: true, value: 42.5 }], slotCount: 1 },
         error: null,
       },
     },
