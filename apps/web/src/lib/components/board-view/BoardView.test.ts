@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, cleanup, fireEvent, waitFor } from '@testing-library/svelte';
 import BoardView from './BoardView.svelte';
 import '@testing-library/jest-dom/vitest';
+import { WIDGET_FRAME_META } from '$lib/renderers/widget-frame-meta';
 import {
   emptyBoardFixture,
   populatedBoardFixture,
@@ -29,16 +30,17 @@ describe('BoardView', () => {
 
   it('renders the populated state with all widgets', () => {
     render(BoardView, { props: { board: populatedBoardFixture, state: 'populated' } });
-    expect(screen.getByText('uptime')).toBeInTheDocument();
+    // uptime and custom_json are server-polled (SERVER_POLLED_WIDGET_TYPES) and
+    // this fixture carries placement only - no snapshot - so WidgetFrame (#246)
+    // now shows its loading slot for both instead of either renderer improvising
+    // its own "no data yet" state.
+    expect(screen.getAllByText(WIDGET_FRAME_META.loading.label)).toHaveLength(2);
+    // weather has no renderer yet and is not server-polled, so it is never framed
+    // and still falls back to its type name.
     expect(screen.getByText('weather')).toBeInTheDocument();
     // Clock has a real renderer now (Task #228), so it draws the time, not its type
     // name. Its label starts with "Clock:".
     expect(screen.getByRole('img', { name: /^Clock:/ })).toBeInTheDocument();
-    // Custom JSON has a real renderer too (Task #236). These fixtures carry
-    // placement only - no config, no snapshot - so it correctly reports that it
-    // cannot draw rather than printing its type name. It renders a widget once
-    // the fixtures carry a payload.
-    expect(screen.getByText('Cannot show this widget')).toBeInTheDocument();
   });
   it('renders the error state', () => {
     render(BoardView, { props: { board: errorBoardFixture, state: 'error' } });
