@@ -16,11 +16,18 @@ const WIDGET_ID = '6f1c2a4e-8b7d-4c3a-9e5f-1a2b3c4d5e6f';
 
 const state = vi.hoisted(() => ({
   inserts: [] as unknown[],
+  /** Every `update(widgets).set(...)` call this run made, in order - EX-30 needs
+   *  to assert `lastPolledAt` was actually advanced, not just that some update
+   *  happened, so this has to capture the argument rather than discard it. */
+  updates: [] as unknown[],
   failInserts: 0,
   credential: null as unknown,
   fetcher: undefined as unknown,
   masterKey: undefined as unknown,
   decrypted: [] as Buffer[],
+  /** The polled widget's stored config. Defaults to `{}`; EX-30 overrides it
+   *  with a real custom_json config pointed at a blocked destination. */
+  widgetConfig: {} as unknown,
 }));
 
 vi.mock('@widgetry/db', async (importOriginal) => {
@@ -35,7 +42,12 @@ vi.mock('@widgetry/db', async (importOriginal) => {
         }
       },
     }),
-    update: () => ({ set: () => ({ where: async () => undefined }) }),
+    update: () => ({
+      set: (patch: unknown) => {
+        state.updates.push(patch);
+        return { where: async () => undefined };
+      },
+    }),
   };
   return {
     ...actual,
@@ -58,7 +70,7 @@ vi.mock('@widgetry/db', async (importOriginal) => {
                 {
                   id: '6f1c2a4e-8b7d-4c3a-9e5f-1a2b3c4d5e6f',
                   widgetType: 'custom_json',
-                  config: {},
+                  config: state.widgetConfig,
                   pollingMode: 'server',
                 },
               ];
@@ -77,6 +89,9 @@ vi.mock('../../src/fetchers/index.js', () => ({ getFetcher: () => state.fetcher 
 
 const { encryptCredential } = await import('@widgetry/db');
 const { processPollWidgetJob } = await import('../../src/jobs/poll-widget.js');
+// Real fetcher, real safeFetch (not mocked) - EX-30 needs the actual SSRF gate
+// to run, not a stand-in that already knows the answer.
+const { customJsonFetcher } = await import('../../src/fetchers/custom-json.js');
 
 const log = {
   debug: vi.fn(),
@@ -105,10 +120,12 @@ function returns(outcome: FetchOutcome) {
 
 beforeEach(() => {
   state.inserts = [];
+  state.updates = [];
   state.failInserts = 0;
   state.credential = null;
   state.masterKey = randomBytes(32);
   state.decrypted = [];
+  state.widgetConfig = {};
   log.error.mockReset();
 });
 
@@ -219,5 +236,63 @@ describe('poll job - snapshot write fallback', () => {
 
     await expect(run()).rejects.toThrow();
     expect(state.inserts).toHaveLength(2);
+  });
+});
+
+describe('poll job - SSRF regression suite (EX-30)', () => {
+  // The real customJsonFetcher calling the real, unmocked safeFetch (only the
+  // DB is mocked) - so this exercises the actual §11.3 gate end to end, not a
+  // stand-in that already knows the URL is bad. A literal blocked address
+  // (rather than a hostname) keeps this hermetic: resolveAndValidate short
+  // -circuits on an IP literal and never opens a socket, same reasoning as
+  // safe-fetch.test.ts's literal-address cases.
+  const BLOCKED_CONFIG = {
+    url: 'http://169.254.169.254/latest/meta-data/',
+    layoutId: 'single',
+    slots: [{ primitive: 'number', label: 'Value', jsonPath: 'data.value' }],
+  };
+
+  it('writes a blocked error snapshot and advances last_polled_at together', async () => {
+    state.widgetConfig = BLOCKED_CONFIG;
+    state.fetcher = customJsonFetcher as unknown as Fetcher;
+
+    await run();
+
+    expect(state.inserts).toEqual([
+      {
+        widgetId: WIDGET_ID,
+        value: null,
+        error: {
+          kind: 'blocked',
+          message: 'That address cannot be fetched. Use a publicly reachable http(s) URL.',
+        },
+      },
+    ]);
+    expect(state.updates).toEqual([{ lastPolledAt: expect.any(Date) }]);
+  });
+
+  it('never puts the matched blocklist rule or resolved address in the snapshot', async () => {
+    state.widgetConfig = BLOCKED_CONFIG;
+    state.fetcher = customJsonFetcher as unknown as Fetcher;
+
+    await run();
+
+    const written = state.inserts[0] as { error: { message: string } };
+    expect(written.error.message).not.toContain('169.254');
+    expect(written.error.message).not.toContain('blocked range');
+  });
+
+  it('advances last_polled_at on a blocked outcome exactly as it does on success', async () => {
+    returns({ ok: true, value: { format: 'value', value: 1 } });
+    await run();
+    const successUpdates = [...state.updates];
+
+    state.inserts = [];
+    state.updates = [];
+    state.widgetConfig = BLOCKED_CONFIG;
+    state.fetcher = customJsonFetcher as unknown as Fetcher;
+    await run();
+
+    expect(state.updates).toEqual(successUpdates.map(() => ({ lastPolledAt: expect.any(Date) })));
   });
 });
