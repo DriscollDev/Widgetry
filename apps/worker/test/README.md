@@ -36,6 +36,30 @@ blocked address, and asserts the written snapshot's `error.kind` and the
 kind - its correctness is genuinely about Postgres's own locking and ordering
 semantics, which a mock cannot stand in for.
 
+~~EX-29 (redirect re-validation) and EX-Size-Timeout~~ - the HTTP mechanics are
+closed (2026-09-22): `test/unit/safe-fetch-http.test.ts` runs a real local
+server and exercises `requestOnce` directly - redirect-status detection for
+301/302/303/307/308, a redirect with no Location falling back to an ordinary
+response, the timeout firing before a slow response completes, and the byte
+cap enforced by counting bytes (not trusting `Content-Length`, including the
+boundary at exactly the cap).
+
+**One thing this does NOT cover, and there is no test server that can close
+it**: `safeFetch`'s own redirect LOOP - re-running `resolveAndValidate` on each
+hop's Location and counting redirects across hops (as opposed to `requestOnce`
+correctly reporting a single hop as a redirect, which is now tested). Every
+`safeFetch` test needs an address the SSRF gate accepts; the only address this
+sandbox can bind a server to is loopback, which the gate correctly refuses
+before `requestOnce` is ever called. Testing the loop for real would need
+either live internet egress (rejected elsewhere in this suite for the same
+reason a rebinding test was not written against a live network) or weakening
+the blocklist for a test, which defeats the point of testing it. The loop
+itself is short and has been read line by line; `resolveAndValidate` and
+`requestOnce`'s redirect detection are each independently proven correct now.
+This is a structural gap the SSRF gate's own strictness creates, not an
+oversight - worth knowing if EX-29 is ever marked fully verified rather than
+implemented-and-reviewed.
+
 ### 1. Scheduler claim-on-sweep, against a real Postgres
 
 `runSchedulerTick` is the one piece whose correctness is entirely about database
