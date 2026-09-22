@@ -33,8 +33,8 @@ describe('BoardView payload to renderers (Task #236)', () => {
   it('passes a widget its config and a value snapshot', () => {
     render(BoardView, { props: { board: snapshotStatesBoardFixture, state: 'populated' } });
     const seen = probed('w1');
-    expect(seen.config.path).toBe('data.price');
-    expect(seen.latest.value).toEqual({ format: 'value', value: 42.5 });
+    expect(seen.config.slots[0].jsonPath).toBe('data.price');
+    expect(seen.latest.value).toEqual({ slots: [{ ok: true, value: 42.5 }], slotCount: 1 });
     expect(seen.latest.error).toBeNull();
   });
 });
