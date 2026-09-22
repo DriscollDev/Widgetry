@@ -2,6 +2,7 @@
   import { onDestroy, tick } from 'svelte';
   import { formatRefresh } from '$lib/board-forms';
   import { rendererFor } from '$lib/renderers/registry';
+  import WidgetFrame from '$lib/renderers/WidgetFrame.svelte';
   import type { BoardViewFixture, BoardViewState } from './fixtures';
 
   export let board: BoardViewFixture; // sole data input — no fetch, no store, no auth
@@ -746,9 +747,13 @@
             <!-- Story #223: the widget's content comes from the renderer registry. A type
                  with no renderer yet gets the fallback, which draws the same type label
                  this line used to. Renderers must leave pointer events alone (see
-                 FallbackRenderer) so a press on the content still starts a drag. -->
-            <svelte:component
-              this={rendererFor(widget.widgetType)}
+                 FallbackRenderer) so a press on the content still starts a drag.
+
+                 Story #224/#246: mounted through WidgetFrame rather than directly, so a
+                 server-polled widget's loading/error state is decided in exactly one
+                 place instead of each renderer inventing its own. -->
+            <WidgetFrame
+              renderer={rendererFor(widget.widgetType)}
               widget={{
                 id: widget.id,
                 widgetType: widget.widgetType,
