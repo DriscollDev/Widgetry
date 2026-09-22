@@ -2,22 +2,25 @@
 //
 // GET   /v1/widgets/catalog      EX-24 - public catalog listing
 // POST  /v1/boards/:id/widgets   US-W1, SCR-MOD-04/05 - add widget
-// PATCH /v1/widgets/:id          US-W2 drag (#170), US-W3 resize (#158), US-H2 retention (F8.2)
+// PATCH /v1/widgets/:id          US-W2 drag (#170), US-W3 resize (#158), US-H2 retention (F8.2),
+//                                US-C5 refresh interval
 // DELETE /v1/widgets/:id         US-W4 delete widget (Task #210)
 //
 // POST checks board ownership + the FR-3.5 cap + FR-3.3 overlap (Task #198),
-// validates config against the registry schema, and inserts with scheduler
-// columns derived from the registry (EX-19). PATCH checks widget ownership,
-// then updates placement/retention under a board-row lock with the same
-// FR-3.3 overlap check (Task #188). Both patterns are intentionally
-// identical - see rectanglesOverlap below.
+// validates config against the registry schema and refreshIntervalSeconds
+// against the type's minRefreshSeconds (both via a registry lookup, since
+// neither schema can reach the registry without an import cycle), and
+// inserts with scheduler columns derived from the registry (EX-19). PATCH
+// checks widget ownership, then updates placement/retention/refresh interval
+// under a board-row lock with the same FR-3.3 overlap check (Task #188).
+// Both patterns are intentionally identical - see rectanglesOverlap below.
 //
 // DELETE checks widget ownership, then removes the row under the same
 // board-row lock; its snapshots and stored credential go with it via FK
 // cascade (Eng §5.2).
 //
-// Refresh and snapshots are not implemented yet, and the credential verbs
-// live in ./credentials.ts.
+// Snapshots are not implemented yet, and the credential verbs live in
+// ./credentials.ts.
 
 import { and, count, eq, ne, sql } from 'drizzle-orm';
 import { ZodError } from 'zod';
@@ -46,8 +49,9 @@ import {
 } from '../lib/ownership.js';
 import { requireSession } from '../lib/session.js';
 
-/** Wire shape for a widget row. Not mapped: config, refreshIntervalSeconds,
- * retentionHours (no client reader yet), lastPolledAt (internal only). */
+/** Wire shape for a widget row. Not mapped: config (this endpoint's caller
+ * already has whatever it just sent; the board payload's own allowlisted
+ * config view is a separate concern, #233), lastPolledAt (internal only). */
 export function toPlacement(widget: Widget): BoardWidgetPlacement {
   return {
     id: widget.id,
@@ -59,6 +63,7 @@ export function toPlacement(widget: Widget): BoardWidgetPlacement {
     gridWidth: widget.gridWidth,
     gridHeight: widget.gridHeight,
     retentionHours: widget.retentionHours,
+    refreshIntervalSeconds: widget.refreshIntervalSeconds,
     createdAt: widget.createdAt.toISOString(),
     updatedAt: widget.updatedAt.toISOString(),
   };
@@ -77,6 +82,40 @@ function jitteredLastPolledAt(def: WidgetTypeDef): Date {
  * key errors by dotted path without colliding with placement fields. */
 function underConfig(error: ZodError): ZodError {
   return new ZodError(error.issues.map((issue) => ({ ...issue, path: ['config', ...issue.path] })));
+}
+
+/**
+ * US-C5: the second validation step `refreshIntervalSeconds` needs -
+ * `CreateWidgetRequest`/`UpdateWidgetRequest` only know it must be a
+ * positive integer; whether it is ALLOWED at all, and what floor it must
+ * clear, both depend on the chosen type's registry entry.
+ *
+ * A client-polled type (`minRefreshSeconds === null`) refuses the field
+ * outright rather than accepting-and-ignoring it (contrast `retentionHours`,
+ * which every type accepts inertly) - there is no poll loop for that type
+ * that would ever read it, so storing a value would misleadingly suggest
+ * one exists.
+ */
+function validateRefreshInterval(def: WidgetTypeDef, seconds: number): ZodError | null {
+  if (def.minRefreshSeconds === null) {
+    return new ZodError([
+      {
+        code: 'custom',
+        path: ['refreshIntervalSeconds'],
+        message: `${def.displayName} widgets are not polled on a schedule, so they have no refresh interval to set.`,
+      },
+    ]);
+  }
+  if (seconds < def.minRefreshSeconds) {
+    return new ZodError([
+      {
+        code: 'custom',
+        path: ['refreshIntervalSeconds'],
+        message: `A ${def.displayName} widget's refresh interval must be at least ${def.minRefreshSeconds} seconds.`,
+      },
+    ]);
+  }
+  return null;
 }
 
 /** Axis-aligned rectangle overlap - same algorithm as the client-side check
@@ -152,7 +191,24 @@ export async function widgetRoutes(fastify: FastifyInstance): Promise<void> {
       // §8.1 sweep treats as "not schedulable" - otherwise an unconfigured
       // uptime widget would poll hourly and write config_invalid snapshots.
       // TODO(US-C6): PATCH must set this too once it accepts config.
-      const refreshIntervalSeconds = isConfigured ? def.defaultRefreshSeconds : null;
+      //
+      // US-C5: a caller-supplied interval overrides the seeded default, but
+      // only for a configured widget - an unconfigured one stays
+      // unschedulable regardless of what interval was requested, for the
+      // same config_invalid-snapshot reason as the null-interval case above.
+      const suppliedInterval = parsed.data.refreshIntervalSeconds;
+      if (suppliedInterval !== undefined) {
+        const intervalError = validateRefreshInterval(def, suppliedInterval);
+        if (intervalError) {
+          throw validationFailed(
+            intervalError,
+            `That refresh interval is not valid for a ${def.displayName} widget.`,
+          );
+        }
+      }
+      const refreshIntervalSeconds = !isConfigured
+        ? null
+        : (suppliedInterval ?? def.defaultRefreshSeconds);
 
       const widget = await db.transaction(async (tx) => {
         await tx
@@ -263,7 +319,19 @@ export async function widgetRoutes(fastify: FastifyInstance): Promise<void> {
         throw validationFailed(parsed.error, 'The widget could not be updated as described.');
       }
 
-      const { gridCol, gridRow, gridWidth, gridHeight, retentionHours } = parsed.data;
+      const { gridCol, gridRow, gridWidth, gridHeight, retentionHours, refreshIntervalSeconds } =
+        parsed.data;
+
+      if (refreshIntervalSeconds !== undefined) {
+        const def = getWidgetTypeDef(widget.widgetType as WidgetType);
+        const intervalError = validateRefreshInterval(def, refreshIntervalSeconds);
+        if (intervalError) {
+          throw validationFailed(
+            intervalError,
+            `That refresh interval is not valid for a ${def.displayName} widget.`,
+          );
+        }
+      }
 
       const movesOrResizes =
         gridCol !== undefined ||
@@ -354,6 +422,7 @@ export async function widgetRoutes(fastify: FastifyInstance): Promise<void> {
             gridWidth: nextWidth,
             gridHeight: nextHeight,
             ...(retentionHours !== undefined ? { retentionHours } : {}),
+            ...(refreshIntervalSeconds !== undefined ? { refreshIntervalSeconds } : {}),
             // DB clock, not app clock - Railway's Postgres can run ahead of
             // a local dev machine, which broke updatedAt < createdAt ordering.
             updatedAt: sql`now()`,
@@ -372,8 +441,9 @@ export async function widgetRoutes(fastify: FastifyInstance): Promise<void> {
           gridWidth: nextWidth,
           gridHeight: nextHeight,
           retentionHours,
+          refreshIntervalSeconds,
         },
-        'widget updated (US-W2/US-W3 placement, US-H2 retention)',
+        'widget updated (US-W2/US-W3 placement, US-H2 retention, US-C5 refresh interval)',
       );
 
       return toPlacement(updated);

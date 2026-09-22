@@ -225,4 +225,47 @@ describe('CreateWidgetRequest (placement + type + carried config)', () => {
     expect(result.success).toBe(true);
     expect(result.data?.config).toBeUndefined();
   });
+
+  // US-C5. Same split as config above: this schema only knows the shape (a
+  // positive integer), not whether it is allowed for the chosen type or
+  // clears that type's floor - that is validateRefreshInterval's job in
+  // src/routes/widgets.ts, checked against the registry.
+  it('carries refreshIntervalSeconds through as a positive integer', () => {
+    const result = CreateWidgetRequest.safeParse({
+      ...placement,
+      widgetType: 'uptime',
+      refreshIntervalSeconds: 3600,
+    });
+    expect(result.success).toBe(true);
+    expect(result.data?.refreshIntervalSeconds).toBe(3600);
+  });
+
+  it('rejects a non-positive or non-integer refreshIntervalSeconds', () => {
+    for (const bad of [0, -1, 3600.5]) {
+      const result = CreateWidgetRequest.safeParse({
+        ...placement,
+        widgetType: 'uptime',
+        refreshIntervalSeconds: bad,
+      });
+      expect(result.success, `${bad} should be rejected`).toBe(false);
+    }
+  });
+
+  it('treats refreshIntervalSeconds as optional', () => {
+    const result = CreateWidgetRequest.safeParse({ ...placement, widgetType: 'uptime' });
+    expect(result.success).toBe(true);
+    expect(result.data?.refreshIntervalSeconds).toBeUndefined();
+  });
+
+  it('does not itself validate the interval against the type - a client-polled type still parses', () => {
+    // 'clock' has no minRefreshSeconds at all (null) - this schema does not
+    // know that, and must not: only the handler's validateRefreshInterval,
+    // checked against the registry, refuses it.
+    const result = CreateWidgetRequest.safeParse({
+      ...placement,
+      widgetType: 'clock',
+      refreshIntervalSeconds: 3600,
+    });
+    expect(result.success).toBe(true);
+  });
 });
