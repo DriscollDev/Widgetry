@@ -43,6 +43,14 @@
     <span class="mt-1 text-xs text-surface-600-400">{WIDGET_FRAME_META.loading.label}</span>
   </div>
 {:else if state === 'error'}
+  <!-- Task #247, decided 2026-09-22: show error.message verbatim below, no
+       separate per-kind message map. SnapshotError's own doc comment
+       (packages/shared/src/widgets/snapshot.ts) already requires the worker to
+       write a safe, user-ready sentence - duplicating that translation here
+       would be a second copy to keep in sync with the worker's. `error.kind`
+       is read nowhere in this branch; it stays on the type for a future
+       icon/grouping treatment (retryable vs. not), which #247 left optional
+       and undecided. -->
   <div
     class="{WIDGET_FRAME_META.error
       .preset} flex h-full w-full flex-col justify-center gap-1 rounded-xl p-4"

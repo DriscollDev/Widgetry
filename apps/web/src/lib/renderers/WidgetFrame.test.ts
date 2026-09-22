@@ -8,6 +8,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/svelte';
 import '@testing-library/jest-dom/vitest';
+import { SNAPSHOT_ERROR_KINDS } from '@widgetry/shared';
 import WidgetFrame from './WidgetFrame.svelte';
 import FallbackRenderer from './FallbackRenderer.svelte';
 import { WIDGET_FRAME_META } from './widget-frame-meta';
@@ -88,4 +89,26 @@ describe('WidgetFrame (Story #224, Task #246)', () => {
     expect(screen.getByText('weather')).toBeInTheDocument();
     expect(screen.queryByRole('status')).not.toBeInTheDocument();
   });
+});
+
+describe('WidgetFrame error messages (Task #247, decided 2026-09-22)', () => {
+  it.each(SNAPSHOT_ERROR_KINDS)(
+    'shows the snapshot message verbatim for a %s error, with no per-kind rewrite',
+    (kind) => {
+      render(WidgetFrame, {
+        props: {
+          widget: widget({
+            latest: {
+              capturedAt: '2026-09-21T18:00:00.000Z',
+              value: null,
+              error: { kind, message: `Message for ${kind}.` },
+            },
+          }),
+          renderer: FallbackRenderer,
+        },
+      });
+
+      expect(screen.getByText(`Message for ${kind}.`)).toBeInTheDocument();
+    },
+  );
 });
