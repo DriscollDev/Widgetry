@@ -11,6 +11,7 @@
 <script lang="ts">
   import { applyAction, deserialize } from '$app/forms';
   import { invalidateAll } from '$app/navigation';
+  import { startBoardAutoRefresh } from '$lib/board-auto-refresh.js';
   import BoardView from '$lib/components/board-view/BoardView.svelte';
   import BoardSettingsModal from '$lib/modals/BoardSettingsModal.svelte';
   import DeleteBoardModal from '$lib/modals/DeleteBoardModal.svelte';
@@ -118,6 +119,25 @@
   async function onWidgetCreated() {
     await invalidateAll();
   }
+
+  // --- Task #222 (Eng §12, FR-2.3, FR-4.1): re-query the board on its
+  // configured interval in auto mode. `interacting` mirrors BoardView's own
+  // drag/resize state so a due tick can skip itself rather than reloading the
+  // board mid-gesture. The `$effect` re-runs (stopping the previous scheduler
+  // first) whenever refreshMode or refreshIntervalSeconds changes - e.g. the
+  // board settings modal saving a new interval - so it is always scheduling
+  // against the current settings, never stale ones from the first load. ---
+  let interacting = $state(false);
+
+  $effect(() => {
+    const stop = startBoardAutoRefresh({
+      refreshMode: data.board.refreshMode,
+      refreshIntervalSeconds: data.board.refreshIntervalSeconds,
+      onRefresh: () => void invalidateAll(),
+      isInteracting: () => interacting,
+    });
+    return stop;
+  });
 </script>
 
 <svelte:head>
@@ -130,6 +150,7 @@
   onOpenSettings={() => (settingsOpen = true)}
   onDeleteWidget={requestWidgetDelete}
   onAddWidget={requestAddWidget}
+  onInteractionChange={(value) => (interacting = value)}
 />
 
 <BoardSettingsModal
