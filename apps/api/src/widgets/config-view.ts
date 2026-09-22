@@ -8,13 +8,24 @@
 // nothing - clock and datetime have no config, and weather, stock and currency
 // have no schema yet.
 //
+// custom_json's entry carries the per-slot layout model (Feature Spec v1.3,
+// Eng §7.3): a renderer cannot draw the widget without `layoutId` and `slots`,
+// and `title`/`accent` are the user's own presentation choices. `url` goes too -
+// it is the user's input, and the widget's error state reads better naming the
+// endpoint that failed. Set by the E6 code owners on 2026-09-21, superseding the
+// `path` + `displayFormat` pair, which no longer exists on the config.
+//
 // Never listed, on purpose:
 //   - custom_json `headers`: can hold secrets.
 //   - custom_json `apiKey`: says where the credential goes. No renderer needs it.
+//   - custom_json `method`: always 'GET' for MVP (US-C1) and nothing renders it.
+//
+// Widening this is a one-line change; narrowing it after a field has shipped is
+// not. The bar for adding a key is that a renderer needs it.
 
 const CONFIG_ALLOWLIST: Readonly<Record<string, readonly string[]>> = {
   uptime: ['url'],
-  custom_json: ['url', 'method', 'path', 'displayFormat'],
+  custom_json: ['title', 'layoutId', 'accent', 'slots', 'url'],
 };
 
 /**
@@ -31,4 +42,9 @@ export function toConfigView(widgetType: string, config: unknown): Record<string
     if (Object.hasOwn(source, key)) view[key] = source[key];
   }
   return view;
+}
+
+/** The keys a type may send. Exposed so a test can pin the list. */
+export function allowlistedKeys(widgetType: string): readonly string[] {
+  return CONFIG_ALLOWLIST[widgetType] ?? [];
 }

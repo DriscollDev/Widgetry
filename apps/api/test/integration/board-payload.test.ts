@@ -197,13 +197,16 @@ describeIntegration('GET /v1/boards/:id - widget config and latest (#235)', () =
     expect(widget.config).toEqual({ url: UPTIME_URL });
   });
 
-  it('never sends custom_json headers or the apiKey placement', async () => {
+  it('never sends custom_json headers, the apiKey placement or the method', async () => {
+    const slots = [{ primitive: 'number', label: 'Price', jsonPath: 'data.price' }];
     const id = await createWidget('custom_json', {
       url: 'https://example.test/api',
       method: 'GET',
       headers: [{ name: 'X-Trace', value: 'secret-header-value' }],
-      path: 'data.price',
-      displayFormat: 'value',
+      title: 'Quote',
+      layoutId: 'single',
+      accent: 'primary',
+      slots,
       apiKey: { in: 'header', name: 'X-Api-Key' },
     });
 
@@ -211,9 +214,10 @@ describeIntegration('GET /v1/boards/:id - widget config and latest (#235)', () =
     const widget = widgetIn(response.json(), id);
     expect(widget.config).toEqual({
       url: 'https://example.test/api',
-      method: 'GET',
-      path: 'data.price',
-      displayFormat: 'value',
+      title: 'Quote',
+      layoutId: 'single',
+      accent: 'primary',
+      slots,
     });
     expect(response.body).not.toContain('secret-header-value');
     expect(response.body).not.toContain('X-Trace');

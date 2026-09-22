@@ -10,6 +10,7 @@ import type { Component } from 'svelte';
 import type { WidgetType } from '@widgetry/shared';
 import ClockRenderer from './ClockRenderer.svelte';
 import DateTimeRenderer from './DateTimeRenderer.svelte';
+import CustomJsonRenderer from './CustomJsonRenderer.svelte';
 import FallbackRenderer from './FallbackRenderer.svelte';
 import type { RenderableWidget } from './types';
 
@@ -21,6 +22,7 @@ export type WidgetRenderer = Component<{ widget: RenderableWidget }>;
 const RENDERERS = new Map<WidgetType, WidgetRenderer>([
   ['clock', ClockRenderer],
   ['datetime', DateTimeRenderer],
+  ['custom_json', CustomJsonRenderer],
 ]);
 
 /** The renderer for a widget type, or the fallback when there is none yet. */
