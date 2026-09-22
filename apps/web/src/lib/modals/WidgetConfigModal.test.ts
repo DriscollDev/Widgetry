@@ -121,3 +121,128 @@ describe('WidgetConfigModal validation errors (Task #219)', () => {
     expect(onOpenChange).not.toHaveBeenCalled();
   });
 });
+
+describe('WidgetConfigModal custom_json (#239, US-C1/US-C5)', () => {
+  const customJson = {
+    id: 'custom_json',
+    displayName: 'Custom JSON',
+    category: 'custom' as const,
+    supportsHistory: true,
+  };
+
+  function renderCustomModal() {
+    const onCreated = vi.fn();
+    const onOpenChange = vi.fn();
+    render(WidgetConfigModal, {
+      props: { open: true, boardId: 'board-1', widgetType: customJson, onCreated, onOpenChange },
+    });
+    return { onCreated, onOpenChange };
+  }
+
+  /** Layout, one bound slot, through to step 3 - the minimum a real submit
+   *  needs. Auth is deliberately not covered here: driving a `<select>` via a
+   *  synthetic DOM event does not reach Svelte 5's `bind:value` in happy-dom
+   *  (verified directly - `option.selected` and both `input`/`change` all
+   *  leave `authType` unchanged), so the apiKey/credential path is tested
+   *  separately in WidgetConfigModal.credential.test.ts against a stubbed
+   *  CustomWidgetForm instead of fighting that environment gap here. */
+  async function fillMinimalForm() {
+    await fireEvent.click(screen.getByRole('button', { name: /^Single/ }));
+    await fireEvent.input(screen.getByLabelText('Endpoint URL'), {
+      target: { value: 'https://api.example.test/status' },
+    });
+    await fireEvent.input(screen.getByLabelText('Label'), { target: { value: 'CPU load' } });
+    await fireEvent.input(screen.getByLabelText('JSON field path'), {
+      target: { value: 'data.cpu' },
+    });
+    await fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+  }
+
+  it('sends the real schema shape, not the dead single-source one (the #239 bug)', async () => {
+    const fetchMock = vi.fn(
+      async () =>
+        new Response(JSON.stringify({ id: 'w-custom' }), {
+          status: 201,
+          headers: { 'content-type': 'application/json' },
+        }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    renderCustomModal();
+    await fillMinimalForm();
+    await fireEvent.click(screen.getByRole('button', { name: 'Add widget' }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    const body = JSON.parse(String(init.body));
+
+    expect(url).toBe('/v1/boards/board-1/widgets');
+    expect(body.widgetType).toBe('custom_json');
+    // US-C5: floored at the type's minimum by default.
+    expect(body.refreshIntervalSeconds).toBe(3600);
+    expect(body.config).toMatchObject({
+      url: 'https://api.example.test/status',
+      method: 'GET',
+      headers: [],
+      layoutId: 'single',
+    });
+    expect(body.config.slots).toEqual([
+      expect.objectContaining({ label: 'CPU load', jsonPath: 'data.cpu' }),
+    ]);
+    // The exact shape CustomWidgetForm used to send, and the api has never
+    // understood - asserting their absence pins the fix, not just the fields
+    // that replaced them.
+    expect(body.config).not.toHaveProperty('endpointUrl');
+    expect(body.config).not.toHaveProperty('authType');
+    expect(body.config).not.toHaveProperty('path');
+    expect(body.config).not.toHaveProperty('displayFormat');
+  });
+
+  it('reports the created widget and closes on success', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        async () =>
+          new Response(JSON.stringify({ id: 'w-custom' }), {
+            status: 201,
+            headers: { 'content-type': 'application/json' },
+          }),
+      ),
+    );
+
+    const { onCreated, onOpenChange } = renderCustomModal();
+    await fillMinimalForm();
+    await fireEvent.click(screen.getByRole('button', { name: 'Add widget' }));
+
+    await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
+    expect(onCreated).toHaveBeenCalledWith({ id: 'w-custom' });
+  });
+
+  it('shows the api error inline and does not close when the widget POST fails', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({
+              error: {
+                code: 'overlap_rejected',
+                message: 'That position overlaps an existing widget on this board (FR-3.3).',
+              },
+            }),
+            { status: 409, headers: { 'content-type': 'application/json' } },
+          ),
+      ),
+    );
+
+    const { onCreated, onOpenChange } = renderCustomModal();
+    await fillMinimalForm();
+    await fireEvent.click(screen.getByRole('button', { name: 'Add widget' }));
+
+    expect(
+      await screen.findByText('That position overlaps an existing widget on this board (FR-3.3).'),
+    ).toBeTruthy();
+    expect(onCreated).not.toHaveBeenCalled();
+    expect(onOpenChange).not.toHaveBeenCalled();
+  });
+});

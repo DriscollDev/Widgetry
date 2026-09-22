@@ -8,6 +8,7 @@
   // once the modal can fetch the endpoint and show its JSON tree, the type
   // is read from the chosen field and this control disappears.
 
+  import { MIN_SERVER_POLL_SECONDS, type CustomJsonConfig } from '@widgetry/shared';
   import CustomWidget from '../widgets/custom/CustomWidget.svelte';
   import { previewDataFor } from './custom-widget-preview';
   import { ACCENT_COLORS, type AccentColor } from '../widgets/accent';
@@ -28,15 +29,26 @@
     type SlotPrimitive,
   } from '../widgets/custom/types';
 
+  /** One row of the general headers list (US-C1). Separate from the auth
+   * section below - this is arbitrary caller headers, not the credential. */
+  type HeaderRow = { name: string; value: string };
+
   type Props = {
     onClose: () => void;
     onSubmit?: (submission: CustomWidgetSubmission) => void;
     /** Supplied when this is reached from the template picker - step 1's
      * back button then returns to the template list instead of vanishing. */
     onBack?: () => void;
+    /** The caller's in-flight state for the async work `onSubmit` kicks off
+     * (the widget POST, then a credential PUT if there's a secret) - this
+     * form has no fetch of its own, so it cannot know that on its own. */
+    submitting?: boolean;
+    /** Surfaced from the caller's own POST/PUT, e.g. a rejected overlap or a
+     * credential save failure after the widget itself was created. */
+    submitError?: string | null;
   };
 
-  let { onClose, onSubmit, onBack }: Props = $props();
+  let { onClose, onSubmit, onBack, submitting = false, submitError = null }: Props = $props();
 
   const DATA_KINDS: { value: DataKind; label: string }[] = [
     { value: 'number', label: 'Number' },
@@ -62,6 +74,25 @@
   // Deliberately NOT part of `config`: keeping the credential in separate
   // state means it cannot be serialised into widgets.config by accident.
   let secret = $state('');
+
+  // US-C1: arbitrary caller headers, independent of the auth section above -
+  // this widget's api key (if any) is a placement into ONE of these, never a
+  // value stored here itself (the server refuses a header name that looks
+  // credential-shaped for exactly that reason - see isCredentialHeaderName).
+  let headers = $state<HeaderRow[]>([]);
+
+  function addHeader() {
+    headers.push({ name: '', value: '' });
+  }
+
+  function removeHeader(index: number) {
+    headers.splice(index, 1);
+  }
+
+  // US-C5: floored at the type's minimum by construction, not just by the
+  // input's min= attribute, so a value carried in from a bad paste can't
+  // sneak past a user who never touches the field.
+  let refreshIntervalSeconds = $state(MIN_SERVER_POLL_SECONDS);
 
   let layout = $derived(layoutId ? getLayout(layoutId) : null);
 
@@ -138,27 +169,63 @@
   /** A slot needs a path; without one it would render a permanent error
    * tile on the board. The endpoint is checked once, widget-level. */
   let unboundCount = $derived(slots.filter((s) => !s.jsonPath.trim()).length);
-  let canSubmit = $derived(slots.length > 0 && unboundCount === 0 && endpointOk);
+  /** An auth type picked but its name or secret left blank would create a
+   * widget that expects a key it never actually stores - every poll would
+   * fail with "needs an API key" (see apps/worker/src/fetchers/custom-json.ts).
+   * 'bearer' has no name field of its own (see the template); it always
+   * resolves to the fixed Authorization header name below, so only the
+   * secret matters for it. */
+  let authIncomplete = $derived(
+    authType !== 'none' && (!secret.trim() || (authType !== 'bearer' && !authParamName.trim())),
+  );
+  let canSubmit = $derived(
+    slots.length > 0 &&
+      unboundCount === 0 &&
+      endpointOk &&
+      !authIncomplete &&
+      refreshIntervalSeconds >= MIN_SERVER_POLL_SECONDS,
+  );
+
+  /** The real `CustomJsonApiKeyPlacement` this form's auth section resolves
+   * to. 'bearer' is UI sugar over a header placement named `Authorization` -
+   * the real schema has no separate "bearer" kind (Eng §7.3), so this is
+   * where that convenience gets translated rather than sent as-is. */
+  function apiKeyPlacement(): CustomJsonConfig['apiKey'] {
+    if (authType === 'none') return undefined;
+    if (authType === 'bearer') return { in: 'header', name: 'Authorization' };
+    return { in: authType, name: authParamName.trim() };
+  }
 
   function submit() {
     if (!layoutId || !canSubmit) return;
     const def = getLayout(layoutId);
+    const apiKey = apiKeyPlacement();
+
+    const config: CustomJsonConfig = {
+      url: endpointUrl.trim(),
+      method: 'GET',
+      headers: headers
+        .map((h) => ({ name: h.name.trim(), value: h.value.trim() }))
+        .filter((h) => h.name && h.value),
+      title,
+      layoutId,
+      accent,
+      slots: $state.snapshot(slots),
+      ...(apiKey ? { apiKey } : {}),
+    };
+
+    // Closing is the caller's call, not this form's: onSubmit kicks off an
+    // async POST (and a second PUT if there's a secret), and closing before
+    // that settles would hide a rejected overlap or a failed save behind an
+    // already-dismissed modal. See `submitting`/`submitError` above.
     onSubmit?.({
       widgetType: 'custom_json',
       minWidth: def.minWidth,
       minHeight: def.minHeight,
-      config: {
-        title,
-        layoutId,
-        accent,
-        endpointUrl: endpointUrl.trim(),
-        authType,
-        authParamName: authParamName.trim() || undefined,
-        slots: $state.snapshot(slots),
-      },
+      refreshIntervalSeconds,
+      config,
       secret: authType === 'none' ? null : secret.trim() || null,
     });
-    onClose();
   }
 </script>
 
@@ -274,6 +341,82 @@
             </p>
           </div>
         {/if}
+
+        <div>
+          <span class="mb-1 block text-xs text-surface-600-400">Headers</span>
+          <div class="flex flex-col gap-2">
+            {#each headers as header, i (i)}
+              <div class="flex gap-2">
+                <input
+                  type="text"
+                  placeholder="Header name"
+                  bind:value={header.name}
+                  aria-label="Header {i + 1} name"
+                  class="w-full min-w-0 flex-1 rounded-lg border border-surface-200-800 bg-surface-100-900 px-3 py-2 font-mono text-sm text-surface-950-50"
+                />
+                <input
+                  type="text"
+                  placeholder="Value"
+                  bind:value={header.value}
+                  aria-label="Header {i + 1} value"
+                  class="w-full min-w-0 flex-1 rounded-lg border border-surface-200-800 bg-surface-100-900 px-3 py-2 font-mono text-sm text-surface-950-50"
+                />
+                <button
+                  type="button"
+                  onclick={() => removeHeader(i)}
+                  aria-label="Remove header {i + 1}"
+                  class="shrink-0 rounded-lg p-2 text-surface-600-400 hover:bg-surface-100-900"
+                >
+                  <svg
+                    viewBox="0 0 24 24"
+                    class="h-4 w-4"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                  >
+                    <path d="M6 6l12 12M18 6L6 18" />
+                  </svg>
+                </button>
+              </div>
+            {/each}
+          </div>
+          <button
+            type="button"
+            onclick={addHeader}
+            class="mt-2 text-xs text-primary-500 hover:underline"
+          >
+            + Add a header
+          </button>
+          <p class="mt-1 text-xs text-surface-500">
+            Sent with every request. For a header that carries a secret, use Authentication above
+            instead - it's stored encrypted, headers here are not.
+          </p>
+        </div>
+
+        <div>
+          <label for="refresh" class="mb-1 block text-xs text-surface-600-400">
+            Refresh every
+          </label>
+          <div class="flex items-center gap-2">
+            <input
+              id="refresh"
+              type="number"
+              min={MIN_SERVER_POLL_SECONDS}
+              step="60"
+              bind:value={refreshIntervalSeconds}
+              class="w-32 rounded-lg border bg-surface-100-900 px-3 py-2 text-sm text-surface-950-50"
+              class:border-surface-200-800={refreshIntervalSeconds >= MIN_SERVER_POLL_SECONDS}
+              class:border-error-500={refreshIntervalSeconds < MIN_SERVER_POLL_SECONDS}
+            />
+            <span class="text-xs text-surface-600-400">seconds</span>
+          </div>
+          {#if refreshIntervalSeconds < MIN_SERVER_POLL_SECONDS}
+            <p class="mt-1 text-xs text-error-500">
+              Server-polled widgets refresh at least every {MIN_SERVER_POLL_SECONDS} seconds (FR-4.2).
+            </p>
+          {/if}
+        </div>
       </div>
 
       {#each slots as slot, i (i)}
@@ -455,6 +598,19 @@
           a field path. Go back to step 2 to finish.
         </p>
       {/if}
+      {#if authIncomplete}
+        <p class="text-xs text-warning-500">
+          Authentication needs {authType !== 'bearer' && !authParamName.trim()
+            ? 'a name and a token'
+            : 'a token'}. Go back to step 2 to finish.
+        </p>
+      {/if}
+      {#if refreshIntervalSeconds < MIN_SERVER_POLL_SECONDS}
+        <p class="text-xs text-warning-500">
+          The refresh interval is below the {MIN_SERVER_POLL_SECONDS}-second minimum. Go back to
+          step 2 to finish.
+        </p>
+      {/if}
     {/if}
   </div>
 
@@ -469,6 +625,10 @@
     </div>
   {/if}
 </div>
+
+{#if submitError}
+  <p class="border-t border-surface-200-800 px-5 py-3 text-sm text-error-500">{submitError}</p>
+{/if}
 
 <div class="flex items-center justify-between border-t border-surface-200-800 p-5">
   {#if step > 1}
@@ -510,10 +670,10 @@
       <button
         type="button"
         onclick={submit}
-        disabled={!canSubmit}
+        disabled={!canSubmit || submitting}
         class="preset-filled-primary-500 rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50"
       >
-        Add widget
+        {submitting ? 'Saving…' : 'Add widget'}
       </button>
     {/if}
   </div>
