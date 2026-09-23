@@ -11,18 +11,20 @@ import type { WidgetType } from '@widgetry/shared';
 import ClockRenderer from './ClockRenderer.svelte';
 import DateTimeRenderer from './DateTimeRenderer.svelte';
 import CustomJsonRenderer from './CustomJsonRenderer.svelte';
+import UptimeRenderer from './UptimeRenderer.svelte';
 import FallbackRenderer from './FallbackRenderer.svelte';
 import type { RenderableWidget } from './types';
 
 export type WidgetRenderer = Component<{ widget: RenderableWidget }>;
 
 // Types with a real renderer. Clock and Date/Time (Task #228) are client-local
-// and need no data; the Weather, Uptime and Stock components from $lib/widgets
-// register here as their adapters land.
+// and need no data; the Weather and Stock components from $lib/widgets register
+// here as their adapters land.
 const RENDERERS = new Map<WidgetType, WidgetRenderer>([
   ['clock', ClockRenderer],
   ['datetime', DateTimeRenderer],
   ['custom_json', CustomJsonRenderer],
+  ['uptime', UptimeRenderer],
 ]);
 
 /** The renderer for a widget type, or the fallback when there is none yet. */
