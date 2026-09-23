@@ -2,7 +2,15 @@
 <html lang="en" data-theme="cerberus">
   <head>
     <meta charset="utf-8" />
-    <link rel="icon" href="%sveltekit.assets%/favicon.svg" />
+    <!--
+      Was `favicon.svg`, which never existed - static/ was empty, so every page
+      load 404'd for it and the tab showed the browser's blank default. Points
+      at the real mark now.
+    -->
+    <link rel="icon" href="%sveltekit.assets%/logo-mark.svg" />
+    <!-- iOS ignores SVG icons, so the raster mark is the home-screen fallback. -->
+    <link rel="apple-touch-icon" href="%sveltekit.assets%/logo-mark.png" />
+    <meta name="theme-color" content="#2a1f5e" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     %sveltekit.head%
   </head>

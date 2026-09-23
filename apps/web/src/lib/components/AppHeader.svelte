@@ -14,6 +14,7 @@
 <script lang="ts">
   import type { MeUser } from '@widgetry/shared';
   import AccountMenu from './AccountMenu.svelte';
+  import BrandMark from './BrandMark.svelte';
   import { APP_NAV, isActive } from './app-header';
 
   let { user, pathname }: { user: MeUser; pathname: string } = $props();
@@ -22,10 +23,7 @@
 <header class="border-b border-surface-200-800 bg-surface-50-950">
   <div class="mx-auto flex max-w-7xl items-center gap-6 px-6 py-3">
     <a href="/boards" class="flex items-center gap-2" aria-label="Widgetry home">
-      <span
-        class="flex size-8 items-center justify-center rounded-lg bg-primary-500 text-sm font-semibold text-white"
-        aria-hidden="true">W</span
-      >
+      <BrandMark size={32} />
       <span class="text-sm font-medium text-surface-950-50">Widgetry</span>
     </a>
 
