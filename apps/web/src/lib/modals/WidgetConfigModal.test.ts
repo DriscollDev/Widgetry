@@ -139,10 +139,11 @@ describe('WidgetConfigModal custom_json (#239, US-C1/US-C5)', () => {
     return { onCreated, onOpenChange };
   }
 
-  /** One bound slot, through to step 3 - the minimum a real submit needs.
+  /** One bound slot - the minimum a real submit needs.
    *
-   *  There is no layout click any more: the US-C4 revision removed the layout
-   *  step, so the form opens on one blank slot and goes straight to binding.
+   *  There is no step navigation any more: the US-C4 revision removed the
+   *  layout step, and title/accent were folded in beside the preview, so the
+   *  form opens on one blank slot and Add widget is reachable from there.
    *
    *  Auth is deliberately not covered here: driving a `<select>` via a
    *  synthetic DOM event does not reach Svelte 5's `bind:value` in happy-dom
@@ -158,7 +159,6 @@ describe('WidgetConfigModal custom_json (#239, US-C1/US-C5)', () => {
     await fireEvent.input(screen.getByLabelText('JSON field path'), {
       target: { value: 'data.cpu' },
     });
-    await fireEvent.click(screen.getByRole('button', { name: 'Next' }));
   }
 
   it('sends the real schema shape, not the dead single-source one (the #239 bug)', async () => {
@@ -202,6 +202,35 @@ describe('WidgetConfigModal custom_json (#239, US-C1/US-C5)', () => {
     expect(body.config).not.toHaveProperty('authType');
     expect(body.config).not.toHaveProperty('path');
     expect(body.config).not.toHaveProperty('displayFormat');
+  });
+
+  it('saves the field type the user picked, not the one the primitive implies', async () => {
+    // The reported bug: setting a field to Text and saving read back as Number
+    // every time, because the kind was never persisted and was re-derived from
+    // the primitive - and 'number' is the first kind the number primitive
+    // accepts. Asserting the WIRE value is the fix: nothing else can tell the
+    // form what the user chose when the widget is reopened.
+    const fetchMock = vi.fn(
+      async () =>
+        new Response(JSON.stringify({ id: 'w-custom' }), {
+          status: 201,
+          headers: { 'content-type': 'application/json' },
+        }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    renderCustomModal();
+    await fillMinimalForm();
+    await fireEvent.change(screen.getByLabelText('Field type'), { target: { value: 'string' } });
+    await fireEvent.click(screen.getByRole('button', { name: 'Add widget' }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    const body = JSON.parse(String(init.body));
+    expect(body.config.slots[0].kind).toBe('string');
+    // Big number renders text as well as numbers, so the primitive is still a
+    // legal pairing and does not get swapped out from under the choice.
+    expect(body.config.slots[0].primitive).toBe('number');
   });
 
   it('reports the created widget and closes on success', async () => {

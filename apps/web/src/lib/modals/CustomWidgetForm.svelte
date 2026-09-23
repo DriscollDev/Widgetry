@@ -1,10 +1,18 @@
 <script lang="ts">
-  // The custom widget's two-step flow: bind each slot,
-  // then style. This is the whole modal CONTENT (header/body/footer) minus
-  // the Modal wrapper, so it can be dropped into the template picker as
+  // The custom widget's whole form, on ONE page: the source, the values bound
+  // out of it, and the two presentation fields (title, accent) beside the live
+  // preview they change. This is the whole modal CONTENT (header/body/footer)
+  // minus the Modal wrapper, so it can be dropped into the template picker as
   // its "Custom" branch without duplicating any of it.
   //
-  // The "Field type" select in step 2 is a placeholder for binding-by-click:
+  // It used to be paged - build, then Next, then title and accent. The second
+  // page held two controls, could only report problems by telling the user to
+  // go back, and put the accent swatches on a different screen from the preview
+  // that shows what they do. Title now sits above the fields it names and the
+  // swatches sit under the preview, so both change something visible as they
+  // are set.
+  //
+  // The "Field type" select is a placeholder for binding-by-click:
   // once the modal can fetch the endpoint and show its JSON tree, the type
   // is read from the chosen field and this control disappears.
 
@@ -19,6 +27,9 @@
   import { previewDataFor } from './custom-widget-preview';
   import { ACCENT_COLORS, type AccentColor } from '../widgets/accent';
   import {
+    DATA_KINDS,
+    DATA_KIND_LABELS,
+    kindForSlot,
     PRIMITIVE_ACCEPTS,
     PRIMITIVE_LABELS,
     AUTH_TYPES,
@@ -51,7 +62,7 @@
   type Props = {
     onClose: () => void;
     onSubmit?: (submission: CustomWidgetSubmission) => void;
-    /** Supplied when this is reached from the template picker - step 1's
+    /** Supplied when this is reached from the template picker - the footer's
      * back button then returns to the template list instead of vanishing. */
     onBack?: () => void;
     /** The caller's in-flight state for the async work `onSubmit` kicks off
@@ -62,8 +73,8 @@
      * credential save failure after the widget itself was created. */
     submitError?: string | null;
     /** US-C6: present when editing an existing widget rather than creating
-     * one. Every field seeds from it, step 1 (layout) is skipped since the
-     * layout is already chosen, and the submit button reads "Save changes". */
+     * one. Every field seeds from it, including the field type each slot was
+     * built with, and the submit button reads "Save changes". */
     initial?: EditInitial;
   };
 
@@ -99,26 +110,19 @@
 
   const seededAuth = authFieldsFor(initial?.config.apiKey);
 
-  const DATA_KINDS: { value: DataKind; label: string }[] = [
-    { value: 'number', label: 'Number' },
-    { value: 'string', label: 'Text' },
-    { value: 'series', label: 'List of numbers' },
-    { value: 'status', label: 'Status' },
-    { value: 'status-series', label: 'List of statuses' },
-  ];
+  /** The field-type menu. The enum and its labels are shared, so what this
+   * offers and what the api accepts cannot drift apart. */
+  const KIND_OPTIONS = DATA_KINDS.map((value) => ({ value, label: DATA_KIND_LABELS[value] }));
 
   /** A new widget's first slot, so the form opens on something editable. */
   function blankSlot(): SlotConfig {
-    return { primitive: 'number', label: '', jsonPath: '', max: 100, unit: '' };
+    return { primitive: 'number', kind: 'number', label: '', jsonPath: '', max: 100, unit: '' };
   }
 
-  // Two steps now, not three. The layout picker that used to be step 1 is
-  // gone: a user adds slots and the arrangement follows from how many there
-  // are (US-C4 revision). It asked people to choose an arrangement before they
-  // knew how many values they wanted, and then - because each layout position
-  // restricted which primitives it accepted - left four of the seven
-  // visualisations unreachable from the arrangement most people picked first.
-  let step = $state<2 | 3>(2);
+  // No steps at all now. The layout picker that used to be step 1 went with the
+  // US-C4 revision - a user adds values and the arrangement follows from how
+  // many there are - and the title-and-accent page that used to be step 3 is
+  // folded in beside the preview (see the note at the top).
   /**
    * Only ever carried, never set here. A widget saved before the revision
    * keeps its layout so it renders exactly as it did; a new one has none and
@@ -127,20 +131,20 @@
   const carriedLayoutId = initial?.config.layoutId;
   let title = $state(initial?.config.title ?? '');
   let accent = $state<AccentColor>(initial?.config.accent ?? 'primary');
-  let slots = $state<SlotConfig[]>(
-    initial ? initial.config.slots.map((s) => ({ ...s })) : [blankSlot()],
-  );
   /**
-   * A slot's persisted shape has no "kind" - it is a UI-only concept that
-   * narrows the primitive menu (see `allowedPrimitives`). Reconstructed as
-   * the FIRST kind that primitive itself accepts, which is always a legal
-   * combination by construction (`PRIMITIVE_ACCEPTS[primitive]` is exactly
-   * the set `allowedPrimitives` checks against) - so the slot's real,
-   * already-saved primitive is guaranteed to appear as a selectable option
-   * rather than silently vanishing because a guessed kind excluded it.
+   * `kind` is saved on the slot now, so an edited widget reopens on the field
+   * type it was actually built with. Slots written before it was persisted
+   * have none, and `kindForSlot` backfills the first kind their primitive
+   * accepts - which is always a legal pairing, so the already-saved primitive
+   * is guaranteed to still appear in the menu.
+   *
+   * It was that fallback ALONE before, for every slot: a field set to Text and
+   * shown as a big number came back as Number every time it was reopened,
+   * because 'number' is the first kind the number primitive accepts and
+   * nothing recorded the user's actual choice.
    */
-  let slotKinds = $state<DataKind[]>(
-    initial ? initial.config.slots.map((s) => PRIMITIVE_ACCEPTS[s.primitive][0]) : ['number'],
+  let slots = $state<SlotConfig[]>(
+    initial ? initial.config.slots.map((s) => ({ ...s, kind: kindForSlot(s) })) : [blankSlot()],
   );
   let openSlot = $state(0);
 
@@ -180,7 +184,6 @@
   function addSlot() {
     if (slots.length >= MAX_SLOTS) return;
     slots = [...slots, blankSlot()];
-    slotKinds = [...slotKinds, 'number'];
     openSlot = slots.length - 1;
   }
 
@@ -188,7 +191,6 @@
   function removeSlot(index: number) {
     if (slots.length <= 1) return;
     slots = slots.filter((_, i) => i !== index);
-    slotKinds = slotKinds.filter((_, i) => i !== index);
     openSlot = Math.min(openSlot, slots.length - 1);
   }
 
@@ -204,11 +206,12 @@
    */
   function allowedPrimitives(index: number): SlotPrimitive[] {
     const menu = primitivesForClass(slotClasses[index] ?? 'compact');
-    return menu.filter((p) => PRIMITIVE_ACCEPTS[p].includes(slotKinds[index]));
+    const kind = kindForSlot(slots[index]);
+    return menu.filter((p) => PRIMITIVE_ACCEPTS[p].includes(kind));
   }
 
   function setKind(index: number, kind: DataKind) {
-    slotKinds[index] = kind;
+    slots[index].kind = kind;
     // Keep the slot valid: if the current primitive can't render the new
     // type, fall back to the first one that can.
     const allowed = allowedPrimitives(index);
@@ -325,8 +328,7 @@
       {isEditing ? 'Edit custom widget' : 'Custom widget'}
     </h2>
     <p class="text-xs text-surface-600-400">
-      Step {step} of 3 ·
-      {step === 2 ? 'Build the widget' : 'Title and style'}
+      One endpoint, up to {MAX_SLOTS} values read out of its response.
     </p>
   </div>
   <button
@@ -350,337 +352,349 @@
 
 <div class="grid max-h-[60vh] grid-cols-1 gap-5 overflow-y-auto p-5 md:grid-cols-[1fr_260px]">
   <div class="flex flex-col gap-4">
-    {#if step === 2}
-      <!-- One source for the whole widget; slots below just pick fields
-           out of its response. -->
-      <div class="flex flex-col gap-3 rounded-lg border border-surface-200-800 p-3">
-        <p class="text-xs tracking-wide text-surface-600-400 uppercase">Data source</p>
+    <!-- Above the fields it names, so a widget is titled while its values are
+         being chosen rather than on a page after them. -->
+    <div>
+      <label for="widget-title" class="mb-1 block text-xs text-surface-600-400">Title</label>
+      <input
+        id="widget-title"
+        type="text"
+        placeholder="e.g. Home server"
+        bind:value={title}
+        class="w-full rounded-lg border border-surface-200-800 bg-surface-100-900 px-3 py-2 text-sm text-surface-950-50"
+      />
+    </div>
+    <!-- One source for the whole widget; slots below just pick fields
+         out of its response. -->
+    <div class="flex flex-col gap-3 rounded-lg border border-surface-200-800 p-3">
+      <p class="text-xs tracking-wide text-surface-600-400 uppercase">Data source</p>
 
+      <div>
+        <label for="endpoint" class="mb-1 block text-xs text-surface-600-400">Endpoint URL</label>
+        <input
+          id="endpoint"
+          type="text"
+          placeholder="https://home-server.local/api/stats"
+          bind:value={endpointUrl}
+          aria-invalid={endpointTouched && !endpointOk}
+          class="w-full rounded-lg border bg-surface-100-900 px-3 py-2 text-sm text-surface-950-50"
+          class:border-surface-200-800={!endpointTouched || endpointOk}
+          class:border-error-500={endpointTouched && !endpointOk}
+        />
+        {#if endpointTouched && !endpointOk}
+          <p class="mt-1 text-xs text-error-500">Must be a full http:// or https:// URL.</p>
+        {/if}
+      </div>
+
+      <div>
+        <label for="auth" class="mb-1 block text-xs text-surface-600-400">Authentication</label>
+        <select
+          id="auth"
+          bind:value={authType}
+          class="w-full rounded-lg border border-surface-200-800 bg-surface-100-900 px-3 py-2 text-sm text-surface-950-50"
+        >
+          {#each AUTH_TYPES as auth (auth.value)}
+            <option value={auth.value}>{auth.label}</option>
+          {/each}
+        </select>
+      </div>
+
+      {#if authType === 'header' || authType === 'query'}
         <div>
-          <label for="endpoint" class="mb-1 block text-xs text-surface-600-400">Endpoint URL</label>
+          <label for="authname" class="mb-1 block text-xs text-surface-600-400">
+            {authType === 'header' ? 'Header name' : 'Query parameter name'}
+          </label>
           <input
-            id="endpoint"
+            id="authname"
             type="text"
-            placeholder="https://home-server.local/api/stats"
-            bind:value={endpointUrl}
-            aria-invalid={endpointTouched && !endpointOk}
-            class="w-full rounded-lg border bg-surface-100-900 px-3 py-2 text-sm text-surface-950-50"
-            class:border-surface-200-800={!endpointTouched || endpointOk}
-            class:border-error-500={endpointTouched && !endpointOk}
+            placeholder={authType === 'header' ? 'X-API-Key' : 'api_key'}
+            bind:value={authParamName}
+            class="w-full rounded-lg border border-surface-200-800 bg-surface-100-900 px-3 py-2 font-mono text-sm text-surface-950-50"
           />
-          {#if endpointTouched && !endpointOk}
-            <p class="mt-1 text-xs text-error-500">Must be a full http:// or https:// URL.</p>
-          {/if}
         </div>
+      {/if}
 
+      {#if authType !== 'none'}
         <div>
-          <label for="auth" class="mb-1 block text-xs text-surface-600-400">Authentication</label>
-          <select
-            id="auth"
-            bind:value={authType}
-            class="w-full rounded-lg border border-surface-200-800 bg-surface-100-900 px-3 py-2 text-sm text-surface-950-50"
-          >
-            {#each AUTH_TYPES as auth (auth.value)}
-              <option value={auth.value}>{auth.label}</option>
-            {/each}
-          </select>
-        </div>
-
-        {#if authType === 'header' || authType === 'query'}
-          <div>
-            <label for="authname" class="mb-1 block text-xs text-surface-600-400">
-              {authType === 'header' ? 'Header name' : 'Query parameter name'}
-            </label>
-            <input
-              id="authname"
-              type="text"
-              placeholder={authType === 'header' ? 'X-API-Key' : 'api_key'}
-              bind:value={authParamName}
-              class="w-full rounded-lg border border-surface-200-800 bg-surface-100-900 px-3 py-2 font-mono text-sm text-surface-950-50"
-            />
-          </div>
-        {/if}
-
-        {#if authType !== 'none'}
-          <div>
-            <label for="secret" class="mb-1 block text-xs text-surface-600-400">Token / key</label>
-            <input
-              id="secret"
-              type="password"
-              autocomplete="off"
-              placeholder="••••••••••••"
-              bind:value={secret}
-              class="w-full rounded-lg border border-surface-200-800 bg-surface-100-900 px-3 py-2 font-mono text-sm text-surface-950-50"
-            />
-            <p class="mt-1 text-xs text-surface-500">
-              {#if hasCredential}
-                An API key is already saved for this widget. Enter a new one to replace it, or leave
-                this blank to keep the current one.
-              {:else}
-                Stored encrypted and sent only from the server. Never shown again after saving.
-              {/if}
-            </p>
-          </div>
-        {/if}
-
-        <div>
-          <span class="mb-1 block text-xs text-surface-600-400">Headers</span>
-          <div class="flex flex-col gap-2">
-            {#each headers as header, i (i)}
-              <div class="flex gap-2">
-                <input
-                  type="text"
-                  placeholder="Header name"
-                  bind:value={header.name}
-                  aria-label="Header {i + 1} name"
-                  class="w-full min-w-0 flex-1 rounded-lg border border-surface-200-800 bg-surface-100-900 px-3 py-2 font-mono text-sm text-surface-950-50"
-                />
-                <input
-                  type="text"
-                  placeholder="Value"
-                  bind:value={header.value}
-                  aria-label="Header {i + 1} value"
-                  class="w-full min-w-0 flex-1 rounded-lg border border-surface-200-800 bg-surface-100-900 px-3 py-2 font-mono text-sm text-surface-950-50"
-                />
-                <button
-                  type="button"
-                  onclick={() => removeHeader(i)}
-                  aria-label="Remove header {i + 1}"
-                  class="shrink-0 rounded-lg p-2 text-surface-600-400 hover:bg-surface-100-900"
-                >
-                  <svg
-                    viewBox="0 0 24 24"
-                    class="h-4 w-4"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                  >
-                    <path d="M6 6l12 12M18 6L6 18" />
-                  </svg>
-                </button>
-              </div>
-            {/each}
-          </div>
-          <button
-            type="button"
-            onclick={addHeader}
-            class="mt-2 text-xs text-primary-500 hover:underline"
-          >
-            + Add a header
-          </button>
+          <label for="secret" class="mb-1 block text-xs text-surface-600-400">Token / key</label>
+          <input
+            id="secret"
+            type="password"
+            autocomplete="off"
+            placeholder="••••••••••••"
+            bind:value={secret}
+            class="w-full rounded-lg border border-surface-200-800 bg-surface-100-900 px-3 py-2 font-mono text-sm text-surface-950-50"
+          />
           <p class="mt-1 text-xs text-surface-500">
-            Sent with every request. For a header that carries a secret, use Authentication above
-            instead - it's stored encrypted, headers here are not.
+            {#if hasCredential}
+              An API key is already saved for this widget. Enter a new one to replace it, or leave
+              this blank to keep the current one.
+            {:else}
+              Stored encrypted and sent only from the server. Never shown again after saving.
+            {/if}
           </p>
         </div>
+      {/if}
 
-        <div>
-          <label for="refresh" class="mb-1 block text-xs text-surface-600-400">
-            Refresh every
-          </label>
-          <div class="flex items-center gap-2">
-            <input
-              id="refresh"
-              type="number"
-              min={MIN_SERVER_POLL_SECONDS}
-              step="60"
-              bind:value={refreshIntervalSeconds}
-              class="w-32 rounded-lg border bg-surface-100-900 px-3 py-2 text-sm text-surface-950-50"
-              class:border-surface-200-800={refreshIntervalSeconds >= MIN_SERVER_POLL_SECONDS}
-              class:border-error-500={refreshIntervalSeconds < MIN_SERVER_POLL_SECONDS}
-            />
-            <span class="text-xs text-surface-600-400">seconds</span>
-          </div>
-          {#if refreshIntervalSeconds < MIN_SERVER_POLL_SECONDS}
-            <p class="mt-1 text-xs text-error-500">
-              Server-polled widgets refresh at least every {MIN_SERVER_POLL_SECONDS} seconds (FR-4.2).
-            </p>
-          {/if}
-        </div>
-      </div>
-
-      <div class="flex items-center justify-between">
-        <p class="text-xs tracking-wide text-surface-600-400 uppercase">
-          Values ({slots.length}/{MAX_SLOTS})
-        </p>
-        <span class="text-xs text-surface-500">Arranged automatically</span>
-      </div>
-
-      {#each slots as slot, i (i)}
-        <div class="rounded-lg border border-surface-200-800">
-          <button
-            type="button"
-            onclick={() => (openSlot = openSlot === i ? -1 : i)}
-            class="flex w-full items-center justify-between p-3 text-left"
-          >
-            <span class="text-sm text-surface-950-50">
-              Slot {i + 1}
-              <span class="text-xs text-surface-600-400">
-                · {PRIMITIVE_LABELS[slot.primitive]}
-              </span>
-            </span>
-            <span class="flex items-center gap-2">
-              {#if !slot.jsonPath.trim()}
-                <span class="text-xs text-warning-500">Needs a field</span>
-              {/if}
-              <span class="text-xs text-surface-600-400">{openSlot === i ? '−' : '+'}</span>
-            </span>
-          </button>
-
-          {#if slots.length > 1}
-            <!-- Outside the toggle button above: a button inside a button is
-                 invalid HTML and the inner one never receives the click. -->
-            <div class="flex justify-end px-3 pb-2">
+      <div>
+        <span class="mb-1 block text-xs text-surface-600-400">Headers</span>
+        <div class="flex flex-col gap-2">
+          {#each headers as header, i (i)}
+            <div class="flex gap-2">
+              <input
+                type="text"
+                placeholder="Header name"
+                bind:value={header.name}
+                aria-label="Header {i + 1} name"
+                class="w-full min-w-0 flex-1 rounded-lg border border-surface-200-800 bg-surface-100-900 px-3 py-2 font-mono text-sm text-surface-950-50"
+              />
+              <input
+                type="text"
+                placeholder="Value"
+                bind:value={header.value}
+                aria-label="Header {i + 1} value"
+                class="w-full min-w-0 flex-1 rounded-lg border border-surface-200-800 bg-surface-100-900 px-3 py-2 font-mono text-sm text-surface-950-50"
+              />
               <button
                 type="button"
-                onclick={() => removeSlot(i)}
-                class="text-xs text-surface-600-400 hover:text-error-500"
+                onclick={() => removeHeader(i)}
+                aria-label="Remove header {i + 1}"
+                class="shrink-0 rounded-lg p-2 text-surface-600-400 hover:bg-surface-100-900"
               >
-                Remove value
+                <svg
+                  viewBox="0 0 24 24"
+                  class="h-4 w-4"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                >
+                  <path d="M6 6l12 12M18 6L6 18" />
+                </svg>
               </button>
             </div>
-          {/if}
+          {/each}
+        </div>
+        <button
+          type="button"
+          onclick={addHeader}
+          class="mt-2 text-xs text-primary-500 hover:underline"
+        >
+          + Add a header
+        </button>
+        <p class="mt-1 text-xs text-surface-500">
+          Sent with every request. For a header that carries a secret, use Authentication above
+          instead - it's stored encrypted, headers here are not.
+        </p>
+      </div>
 
-          {#if openSlot === i}
-            <div class="flex flex-col gap-3 border-t border-surface-200-800 p-3">
-              <div>
-                <label for="label-{i}" class="mb-1 block text-xs text-surface-600-400">Label</label>
-                <input
-                  id="label-{i}"
-                  type="text"
-                  placeholder="e.g. CPU load"
-                  bind:value={slot.label}
-                  class="w-full rounded-lg border border-surface-200-800 bg-surface-100-900 px-3 py-2 text-sm text-surface-950-50"
-                />
-              </div>
+      <div>
+        <label for="refresh" class="mb-1 block text-xs text-surface-600-400"> Refresh every </label>
+        <div class="flex items-center gap-2">
+          <input
+            id="refresh"
+            type="number"
+            min={MIN_SERVER_POLL_SECONDS}
+            step="60"
+            bind:value={refreshIntervalSeconds}
+            class="w-32 rounded-lg border bg-surface-100-900 px-3 py-2 text-sm text-surface-950-50"
+            class:border-surface-200-800={refreshIntervalSeconds >= MIN_SERVER_POLL_SECONDS}
+            class:border-error-500={refreshIntervalSeconds < MIN_SERVER_POLL_SECONDS}
+          />
+          <span class="text-xs text-surface-600-400">seconds</span>
+        </div>
+        {#if refreshIntervalSeconds < MIN_SERVER_POLL_SECONDS}
+          <p class="mt-1 text-xs text-error-500">
+            Server-polled widgets refresh at least every {MIN_SERVER_POLL_SECONDS} seconds (FR-4.2).
+          </p>
+        {/if}
+      </div>
+    </div>
 
-              <div>
-                <label for="path-{i}" class="mb-1 block text-xs text-surface-600-400">
-                  JSON field path
-                </label>
-                <input
-                  id="path-{i}"
-                  type="text"
-                  placeholder="load.current"
-                  bind:value={slot.jsonPath}
-                  class="w-full rounded-lg border border-surface-200-800 bg-surface-100-900 px-3 py-2 font-mono text-sm text-surface-950-50"
-                />
-                <p class="mt-1 text-xs text-surface-500">
-                  A field inside this widget's one response.
+    <div class="flex items-center justify-between">
+      <p class="text-xs tracking-wide text-surface-600-400 uppercase">
+        Values ({slots.length}/{MAX_SLOTS})
+      </p>
+      <span class="text-xs text-surface-500">Arranged automatically</span>
+    </div>
+
+    {#each slots as slot, i (i)}
+      <div class="rounded-lg border border-surface-200-800">
+        <button
+          type="button"
+          onclick={() => (openSlot = openSlot === i ? -1 : i)}
+          class="flex w-full items-center justify-between p-3 text-left"
+        >
+          <span class="text-sm text-surface-950-50">
+            Slot {i + 1}
+            <span class="text-xs text-surface-600-400">
+              · {PRIMITIVE_LABELS[slot.primitive]}
+            </span>
+          </span>
+          <span class="flex items-center gap-2">
+            {#if !slot.jsonPath.trim()}
+              <span class="text-xs text-warning-500">Needs a field</span>
+            {/if}
+            <span class="text-xs text-surface-600-400">{openSlot === i ? '−' : '+'}</span>
+          </span>
+        </button>
+
+        {#if slots.length > 1}
+          <!-- Outside the toggle button above: a button inside a button is
+               invalid HTML and the inner one never receives the click. -->
+          <div class="flex justify-end px-3 pb-2">
+            <button
+              type="button"
+              onclick={() => removeSlot(i)}
+              class="text-xs text-surface-600-400 hover:text-error-500"
+            >
+              Remove value
+            </button>
+          </div>
+        {/if}
+
+        {#if openSlot === i}
+          <div class="flex flex-col gap-3 border-t border-surface-200-800 p-3">
+            <div>
+              <label for="label-{i}" class="mb-1 block text-xs text-surface-600-400">Label</label>
+              <input
+                id="label-{i}"
+                type="text"
+                placeholder="e.g. CPU load"
+                bind:value={slot.label}
+                class="w-full rounded-lg border border-surface-200-800 bg-surface-100-900 px-3 py-2 text-sm text-surface-950-50"
+              />
+            </div>
+
+            <div>
+              <label for="path-{i}" class="mb-1 block text-xs text-surface-600-400">
+                JSON field path
+              </label>
+              <input
+                id="path-{i}"
+                type="text"
+                placeholder="load.current"
+                bind:value={slot.jsonPath}
+                class="w-full rounded-lg border border-surface-200-800 bg-surface-100-900 px-3 py-2 font-mono text-sm text-surface-950-50"
+              />
+              <p class="mt-1 text-xs text-surface-500">
+                A field inside this widget's one response.
+              </p>
+            </div>
+
+            <div>
+              <label for="kind-{i}" class="mb-1 block text-xs text-surface-600-400">
+                Field type
+              </label>
+              <select
+                id="kind-{i}"
+                value={slot.kind ?? 'number'}
+                onchange={(e) => setKind(i, e.currentTarget.value as DataKind)}
+                class="w-full rounded-lg border border-surface-200-800 bg-surface-100-900 px-3 py-2 text-sm text-surface-950-50"
+              >
+                {#each KIND_OPTIONS as kind (kind.value)}
+                  <option value={kind.value}>{kind.label}</option>
+                {/each}
+              </select>
+            </div>
+
+            <div>
+              <span class="mb-1 block text-xs text-surface-600-400">Display as</span>
+              {#if allowedPrimitives(i).length === 0}
+                <p class="text-xs text-error-500">
+                  No visualisation can render that field type. Pick a different field type.
                 </p>
-              </div>
-
-              <div>
-                <label for="kind-{i}" class="mb-1 block text-xs text-surface-600-400">
-                  Field type
-                </label>
-                <select
-                  id="kind-{i}"
-                  value={slotKinds[i]}
-                  onchange={(e) => setKind(i, e.currentTarget.value as DataKind)}
-                  class="w-full rounded-lg border border-surface-200-800 bg-surface-100-900 px-3 py-2 text-sm text-surface-950-50"
-                >
-                  {#each DATA_KINDS as kind (kind.value)}
-                    <option value={kind.value}>{kind.label}</option>
-                  {/each}
-                </select>
-              </div>
-
-              <div>
-                <span class="mb-1 block text-xs text-surface-600-400">Display as</span>
-                {#if allowedPrimitives(i).length === 0}
-                  <p class="text-xs text-error-500">
-                    No visualisation can render that field type. Pick a different field type.
-                  </p>
-                {:else}
-                  <div class="flex flex-wrap gap-2">
-                    {#each allowedPrimitives(i) as p (p)}
-                      <button
-                        type="button"
-                        onclick={() => (slot.primitive = p)}
-                        class="rounded-lg border px-3 py-1.5 text-xs"
-                        class:border-primary-500={slot.primitive === p}
-                        class:text-primary-500={slot.primitive === p}
-                        class:border-surface-200-800={slot.primitive !== p}
-                        class:text-surface-950-50={slot.primitive !== p}
-                      >
-                        {PRIMITIVE_LABELS[p]}
-                      </button>
-                    {/each}
-                  </div>
-                {/if}
-              </div>
-
-              {#if needsScale[i]}
-                <div class="grid grid-cols-2 gap-3">
-                  <div>
-                    <label for="max-{i}" class="mb-1 block text-xs text-surface-600-400">Max</label>
-                    <input
-                      id="max-{i}"
-                      type="number"
-                      bind:value={slot.max}
-                      class="w-full rounded-lg border border-surface-200-800 bg-surface-100-900 px-3 py-2 text-sm text-surface-950-50"
-                    />
-                  </div>
-                  <div>
-                    <label for="unit-{i}" class="mb-1 block text-xs text-surface-600-400"
-                      >Unit</label
+              {:else}
+                <div class="flex flex-wrap gap-2">
+                  {#each allowedPrimitives(i) as p (p)}
+                    <button
+                      type="button"
+                      onclick={() => (slot.primitive = p)}
+                      class="rounded-lg border px-3 py-1.5 text-xs"
+                      class:border-primary-500={slot.primitive === p}
+                      class:text-primary-500={slot.primitive === p}
+                      class:border-surface-200-800={slot.primitive !== p}
+                      class:text-surface-950-50={slot.primitive !== p}
                     >
-                    <input
-                      id="unit-{i}"
-                      type="text"
-                      placeholder="%"
-                      bind:value={slot.unit}
-                      class="w-full rounded-lg border border-surface-200-800 bg-surface-100-900 px-3 py-2 text-sm text-surface-950-50"
-                    />
-                  </div>
+                      {PRIMITIVE_LABELS[p]}
+                    </button>
+                  {/each}
                 </div>
               {/if}
+            </div>
 
-              {#if slot.primitive === 'bar'}
+            {#if needsScale[i]}
+              <div class="grid grid-cols-2 gap-3">
                 <div>
-                  <label for="threshold-{i}" class="mb-1 block text-xs text-surface-600-400">
-                    Switch to red above (% of max)
-                  </label>
+                  <label for="max-{i}" class="mb-1 block text-xs text-surface-600-400">Max</label>
                   <input
-                    id="threshold-{i}"
+                    id="max-{i}"
                     type="number"
-                    placeholder="e.g. 90"
-                    bind:value={slot.thresholdPct}
+                    bind:value={slot.max}
                     class="w-full rounded-lg border border-surface-200-800 bg-surface-100-900 px-3 py-2 text-sm text-surface-950-50"
                   />
                 </div>
-              {/if}
-            </div>
-          {/if}
-        </div>
-      {/each}
+                <div>
+                  <label for="unit-{i}" class="mb-1 block text-xs text-surface-600-400">Unit</label>
+                  <input
+                    id="unit-{i}"
+                    type="text"
+                    placeholder="%"
+                    bind:value={slot.unit}
+                    class="w-full rounded-lg border border-surface-200-800 bg-surface-100-900 px-3 py-2 text-sm text-surface-950-50"
+                  />
+                </div>
+              </div>
+            {/if}
 
-      {#if slots.length < MAX_SLOTS}
-        <button
-          type="button"
-          onclick={addSlot}
-          class="rounded-lg border border-dashed border-surface-300-700 p-3 text-sm text-surface-600-400 hover:border-primary-500 hover:text-surface-950-50"
-        >
-          + Add a value
-        </button>
-      {:else}
-        <p class="text-xs text-surface-500">
-          {MAX_SLOTS} values is the most one widget can show legibly.
-        </p>
-      {/if}
-    {:else}
-      <div>
-        <label for="widget-title" class="mb-1 block text-xs text-surface-600-400">Title</label>
-        <input
-          id="widget-title"
-          type="text"
-          placeholder="e.g. Home server"
-          bind:value={title}
-          class="w-full rounded-lg border border-surface-200-800 bg-surface-100-900 px-3 py-2 text-sm text-surface-950-50"
-        />
+            {#if slot.primitive === 'bar'}
+              <div>
+                <label for="threshold-{i}" class="mb-1 block text-xs text-surface-600-400">
+                  Switch to red above (% of max)
+                </label>
+                <input
+                  id="threshold-{i}"
+                  type="number"
+                  placeholder="e.g. 90"
+                  bind:value={slot.thresholdPct}
+                  class="w-full rounded-lg border border-surface-200-800 bg-surface-100-900 px-3 py-2 text-sm text-surface-950-50"
+                />
+              </div>
+            {/if}
+          </div>
+        {/if}
       </div>
+    {/each}
+
+    {#if slots.length < MAX_SLOTS}
+      <button
+        type="button"
+        onclick={addSlot}
+        class="rounded-lg border border-dashed border-surface-300-700 p-3 text-sm text-surface-600-400 hover:border-primary-500 hover:text-surface-950-50"
+      >
+        + Add a value
+      </button>
+    {:else}
+      <p class="text-xs text-surface-500">
+        {MAX_SLOTS} values is the most one widget can show legibly.
+      </p>
+    {/if}
+  </div>
+
+  <!-- Always shown: there is no layout step to get past before there is
+       something to preview, and the accent sits directly under the thing it
+       recolours rather than on a page of its own. -->
+  {#if slots.length > 0}
+    <div class="flex flex-col gap-4">
+      <div class="flex flex-col gap-2">
+        <p class="text-xs tracking-wide text-surface-600-400 uppercase">Live preview</p>
+        <CustomWidget
+          config={previewConfig}
+          slotData={previewConfig.slots.map((s) => previewDataFor(s))}
+        />
+        <p class="text-xs text-surface-500">Sample values — real data comes from the endpoints.</p>
+      </div>
+
       <div>
         <span class="mb-1 block text-xs text-surface-600-400">Accent color</span>
         <div class="flex gap-2" role="radiogroup" aria-label="Accent color">
@@ -700,45 +714,6 @@
           {/each}
         </div>
       </div>
-      {#if !endpointOk}
-        <p class="text-xs text-warning-500">
-          This widget still needs a valid endpoint URL. Go back to step 2 to finish.
-        </p>
-      {/if}
-      {#if unboundCount > 0}
-        <p class="text-xs text-warning-500">
-          {unboundCount} slot{unboundCount > 1 ? 's' : ''} still {unboundCount > 1
-            ? 'need'
-            : 'needs'}
-          a field path. Go back to step 2 to finish.
-        </p>
-      {/if}
-      {#if authIncomplete}
-        <p class="text-xs text-warning-500">
-          Authentication needs {authType !== 'bearer' && !authParamName.trim()
-            ? 'a name and a token'
-            : 'a token'}. Go back to step 2 to finish.
-        </p>
-      {/if}
-      {#if refreshIntervalSeconds < MIN_SERVER_POLL_SECONDS}
-        <p class="text-xs text-warning-500">
-          The refresh interval is below the {MIN_SERVER_POLL_SECONDS}-second minimum. Go back to
-          step 2 to finish.
-        </p>
-      {/if}
-    {/if}
-  </div>
-
-  <!-- Always shown now: there is no layout step to get past before there is
-       something to preview. -->
-  {#if slots.length > 0}
-    <div class="flex flex-col gap-2">
-      <p class="text-xs tracking-wide text-surface-600-400 uppercase">Live preview</p>
-      <CustomWidget
-        config={previewConfig}
-        slotData={previewConfig.slots.map((s) => previewDataFor(s))}
-      />
-      <p class="text-xs text-surface-500">Sample values — real data comes from the endpoints.</p>
     </div>
   {/if}
 </div>
@@ -747,16 +722,29 @@
   <p class="border-t border-surface-200-800 px-5 py-3 text-sm text-error-500">{submitError}</p>
 {/if}
 
+<!-- Why the submit button is refusing. This used to be a list on the last
+     page reading "go back to step 2 to finish", which is no longer a thing
+     that can be said - and a reason beside the button that is disabled is more
+     use than one on a screen the user has already left. -->
+{#if !canSubmit}
+  <p class="border-t border-surface-200-800 px-5 pt-3 text-xs text-warning-500">
+    {#if !endpointOk}
+      This widget still needs a valid endpoint URL.
+    {:else if unboundCount > 0}
+      {unboundCount}
+      {unboundCount > 1 ? 'values still need' : 'value still needs'} a JSON field path.
+    {:else if authIncomplete}
+      Authentication needs {authType !== 'bearer' && !authParamName.trim()
+        ? 'a name and a token'
+        : 'a token'}.
+    {:else if refreshIntervalSeconds < MIN_SERVER_POLL_SECONDS}
+      The refresh interval is below the {MIN_SERVER_POLL_SECONDS}-second minimum.
+    {/if}
+  </p>
+{/if}
+
 <div class="flex items-center justify-between border-t border-surface-200-800 p-5">
-  {#if step === 3}
-    <button
-      type="button"
-      onclick={() => (step = 2)}
-      class="text-sm text-surface-600-400 hover:text-surface-950-50"
-    >
-      &larr; Back
-    </button>
-  {:else if onBack}
+  {#if onBack}
     <button
       type="button"
       onclick={onBack}
@@ -775,23 +763,13 @@
     >
       Cancel
     </button>
-    {#if step === 2}
-      <button
-        type="button"
-        onclick={() => (step = 3)}
-        class="preset-filled-primary-500 rounded-lg px-4 py-2 text-sm font-medium"
-      >
-        Next
-      </button>
-    {:else if step === 3}
-      <button
-        type="button"
-        onclick={submit}
-        disabled={!canSubmit || submitting}
-        class="preset-filled-primary-500 rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50"
-      >
-        {submitting ? 'Saving…' : isEditing ? 'Save changes' : 'Add widget'}
-      </button>
-    {/if}
+    <button
+      type="button"
+      onclick={submit}
+      disabled={!canSubmit || submitting}
+      class="preset-filled-primary-500 rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50"
+    >
+      {submitting ? 'Saving…' : isEditing ? 'Save changes' : 'Add widget'}
+    </button>
   </div>
 </div>

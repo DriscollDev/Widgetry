@@ -5,7 +5,7 @@
 // field's data KIND narrows that menu further. Layouts are shipped code -
 // users pick one, they never compose a layout themselves.
 
-import type { CustomJsonConfig } from '@widgetry/shared';
+import type { CustomJsonConfig, DataKind } from '@widgetry/shared';
 import type { AccentColor } from '../accent';
 import type { WidgetStatus } from '../status';
 
@@ -13,26 +13,21 @@ export type SlotClass = 'feature' | 'compact' | 'wide';
 
 export type SlotPrimitive = 'ring' | 'number' | 'gauge' | 'bar' | 'badge' | 'line' | 'uptime-strip';
 
-/** What a bound JSON field resolves to. Decides which primitives are legal. */
-export type DataKind = 'number' | 'string' | 'series' | 'status' | 'status-series';
+/** What a bound JSON field resolves to, and the primitive menu it allows.
+ *
+ * Re-exported rather than redeclared: `kind` is persisted on a slot now, so the
+ * enum has to be the one the api validates against (`@widgetry/shared`). A
+ * second copy here would be a schema duplicated across packages, which
+ * CLAUDE.md forbids for exactly the reason it would drift.
+ */
+export { PRIMITIVE_ACCEPTS, DATA_KIND_LABELS, DATA_KINDS, kindForSlot } from '@widgetry/shared';
+export type { DataKind };
 
 /** The menu offered for each slot class, in display order. */
 export const PRIMITIVES_BY_CLASS: Record<SlotClass, SlotPrimitive[]> = {
   feature: ['ring', 'number', 'gauge'],
   compact: ['bar', 'number', 'badge'],
   wide: ['line', 'bar', 'uptime-strip'],
-};
-
-/** Which data kinds each primitive can actually render. Enforced at bind
- * time so an impossible combination is unselectable, not broken later. */
-export const PRIMITIVE_ACCEPTS: Record<SlotPrimitive, DataKind[]> = {
-  ring: ['number'],
-  gauge: ['number'],
-  bar: ['number'],
-  number: ['number', 'string'],
-  badge: ['status', 'string'],
-  line: ['series'],
-  'uptime-strip': ['status-series'],
 };
 
 export const PRIMITIVE_LABELS: Record<SlotPrimitive, string> = {
@@ -118,6 +113,9 @@ export const AUTH_TYPES: { value: WidgetAuthType; label: string }[] = [
  * (whose `widget_id` is UNIQUE, per Eng §5.2). */
 export type SlotConfig = {
   primitive: SlotPrimitive;
+  /** The bound field's shape. Absent on configs saved before it was
+   * persisted - read it through `kindForSlot`, never bare. */
+  kind?: DataKind;
   label: string;
   /** Dot-notation path into the widget's response (Eng §7.3 grammar). */
   jsonPath: string;

@@ -93,6 +93,48 @@ export const PRIMITIVE_LABELS: Record<SlotPrimitive, string> = {
 };
 
 /**
+ * What a bound JSON field resolves to.
+ *
+ * A declaration about the SOURCE, not a rendering rule: it narrows the
+ * primitive menu so an impossible pairing (a line chart bound to a single
+ * string) is unselectable rather than broken an hour later.
+ *
+ * It is PERSISTED because nothing else can recover it. A slot showing a big
+ * number could have been bound to a number or to a string, and re-deriving the
+ * kind from the primitive has to pick one - which made every field marked
+ * "Text" read back as "Number" the next time the widget was opened for editing,
+ * with no way for the user to make the choice stick.
+ */
+export const DATA_KINDS = ['number', 'string', 'series', 'status', 'status-series'] as const;
+export const DataKind = z.enum(DATA_KINDS, { error: 'Choose a field type.' });
+export type DataKind = z.infer<typeof DataKind>;
+
+export const DATA_KIND_LABELS: Record<DataKind, string> = {
+  number: 'Number',
+  string: 'Text',
+  series: 'List of numbers',
+  status: 'Status',
+  'status-series': 'List of statuses',
+};
+
+/** Which data kinds each primitive can actually render. */
+export const PRIMITIVE_ACCEPTS: Record<SlotPrimitive, readonly DataKind[]> = {
+  ring: ['number'],
+  gauge: ['number'],
+  bar: ['number'],
+  number: ['number', 'string'],
+  badge: ['status', 'string'],
+  line: ['series'],
+  'uptime-strip': ['status-series'],
+};
+
+/** The kind a slot declares, or the best guess for one saved before `kind` was
+ * persisted. Never throws: an unreadable kind falls back the same way. */
+export function kindForSlot(slot: { primitive: SlotPrimitive; kind?: DataKind }): DataKind {
+  return slot.kind ?? PRIMITIVE_ACCEPTS[slot.primitive][0]!;
+}
+
+/**
  * Primitives that chart a value over time rather than showing the latest one.
  * They need snapshot history (EX-Snapshots-Endpoint), not just `latest`, so the
  * renderer has to fetch a series for them. Listed here so both sides agree on
@@ -202,6 +244,13 @@ export const SLOT_UNIT_MAX_LENGTH = 8;
  */
 export const SlotConfig = z.strictObject({
   primitive: SlotPrimitive,
+  /**
+   * The bound field's shape (see DataKind). Optional because every config
+   * written before it was persisted has none - `kindForSlot` fills those in.
+   * It does not constrain rendering; the worker reads `jsonPath` and the
+   * renderer reads `primitive`, exactly as before.
+   */
+  kind: DataKind.optional(),
   label: z
     .string({ error: 'Give the slot a label.' })
     .trim()

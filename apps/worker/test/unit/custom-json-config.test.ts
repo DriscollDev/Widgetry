@@ -5,7 +5,12 @@
 // instead of a broken widget.
 
 import { describe, expect, it } from 'vitest';
-import { CUSTOM_JSON_MAX_HEADERS, CustomJsonConfig, parseWidgetConfig } from '@widgetry/shared';
+import {
+  CUSTOM_JSON_MAX_HEADERS,
+  CustomJsonConfig,
+  kindForSlot,
+  parseWidgetConfig,
+} from '@widgetry/shared';
 
 const SLOT = {
   primitive: 'number' as const,
@@ -112,6 +117,40 @@ describe('CustomJsonConfig - the US-C4 revision', () => {
   it('accepts a config with no layout, arranged by slot count', () => {
     const { layoutId: _layoutId, ...rest } = VALID;
     expect(CustomJsonConfig.safeParse(rest).success).toBe(true);
+  });
+
+  it('round-trips the bound field type, so an edited widget reopens on it', () => {
+    // The kind used to be UI-only and re-derived from the primitive on edit,
+    // which always returned the FIRST kind that primitive accepts. A field set
+    // to Text and shown as a big number therefore came back as Number every
+    // single time, with no way to make the choice stick.
+    const parsed = CustomJsonConfig.parse({
+      ...VALID,
+      slots: [{ ...SLOT, kind: 'string' }],
+    });
+    expect(parsed.slots[0]!.kind).toBe('string');
+  });
+
+  it.each(['number', 'string', 'series', 'status', 'status-series'])(
+    'accepts the field type %s',
+    (kind) => {
+      expect(CustomJsonConfig.safeParse({ ...VALID, slots: [{ ...SLOT, kind }] }).success).toBe(
+        true,
+      );
+    },
+  );
+
+  it('rejects a field type that is not one of them', () => {
+    expect(issuesFor({ ...VALID, slots: [{ ...SLOT, kind: 'blob' }] })).toContain('slots.0.kind');
+  });
+
+  it('backfills a slot saved before the field type was persisted', () => {
+    // Optional, so every pre-revision config still parses; kindForSlot is the
+    // one place that guesses, and it guesses a pairing the menu will offer.
+    expect(CustomJsonConfig.safeParse(VALID).success).toBe(true);
+    expect(kindForSlot({ primitive: 'number' })).toBe('number');
+    expect(kindForSlot({ primitive: 'badge' })).toBe('status');
+    expect(kindForSlot({ primitive: 'number', kind: 'string' })).toBe('string');
   });
 
   it("still holds a config that NAMES a layout to that layout's slot count", () => {
