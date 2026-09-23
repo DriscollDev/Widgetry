@@ -33,8 +33,17 @@
     align-items: center;
     justify-content: center;
     width: 100%;
+    height: 100%;
     container-type: inline-size;
     pointer-events: none;
+    /* BoardView.svelte's cell no longer draws its own card - each renderer
+       draws its own now. Matches the rounded-xl/border/bg-surface-50-950
+       card Uptime and Custom JSON already draw. */
+    border-radius: 0.75rem;
+    background: light-dark(var(--color-surface-50), var(--color-surface-950));
+    border: 1px solid light-dark(var(--color-surface-200), var(--color-surface-800));
+    padding: 1rem;
+    box-sizing: border-box;
   }
 
   .clock__time {
