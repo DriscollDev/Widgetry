@@ -175,20 +175,56 @@ export function changePassword(
 ): Promise<AuthResult<unknown>> {
   return postAuth(event, '/change-password', body);
 }
+// ---- Password reset --------------------------------------------------------
+
+/**
+ * SCR-AUTH-03: ask the api to mail a reset link.
+ *
+ * ALWAYS succeeds from the caller's point of view. Better-Auth answers
+ * `{ status: true }` whether or not the address has an account, and FR-1.7's
+ * unverified-account rule is enforced by silently not sending rather than by a
+ * different response. The screen must therefore render the same acknowledgment
+ * in every case - see the route for why that is a security property and not a
+ * missing error path.
+ */
+export function requestPasswordReset(
+  event: RequestEvent,
+  body: { email: string },
+): Promise<AuthResult<unknown>> {
+  return postAuth(event, '/request-password-reset', body);
+}
+
+/**
+ * SCR-AUTH-04: consume a reset token and set a new password.
+ *
+ * Unlike `requestPasswordReset` this one DOES fail meaningfully: a token that
+ * is expired, already used (FR-1.8) or simply wrong comes back 400, and the
+ * screen has to say so - there is no enumeration concern once someone is
+ * holding a token.
+ *
+ * The api revokes every other session on success (revokeSessionsOnPasswordReset),
+ * which is the point: a reset means the old password is presumed compromised.
+ */
+export function resetPassword(
+  event: RequestEvent,
+  body: { token: string; newPassword: string },
+): Promise<AuthResult<unknown>> {
+  return postAuth(event, '/reset-password', body);
+}
+
 // ---- Email verification ----------------------------------------------------
 
 /**
  * Re-send the FR-1.7 verification link. Backs the "resend" action on the
  * unverified-email notice (EX-16, Screen Inventory §6.2).
  *
- * No `callbackURL`, matching sign-up: SCR-AUTH-05 has no screen yet, so
- * Better-Auth's default of "/" is the right target - the link verifies the
- * address and drops the user on the root router. Point both at a real route
- * together when SCR-AUTH-05 is built.
+ * Takes a `callbackURL` now that SCR-AUTH-05 exists, and sign-up passes the
+ * same one - they have to agree, or half the verification emails would land
+ * somewhere that cannot report Better-Auth's `?error=…`.
  */
 export function sendVerificationEmail(
   event: RequestEvent,
-  body: { email: string },
+  body: { email: string; callbackURL?: string },
 ): Promise<AuthResult<unknown>> {
   return postAuth(event, '/send-verification-email', body);
 }

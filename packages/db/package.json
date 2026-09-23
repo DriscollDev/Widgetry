@@ -15,6 +15,7 @@
     "seed:clean": "tsx src/seed-cleanup.ts",
     "test": "echo '[db] no tests yet' && exit 0",
     "test:unit": "vitest run",
+    "test:coverage": "vitest run --coverage",
     "test:integration": "echo '[db] no integration tests yet' && exit 0",
     "reset": "tsx src/reset.ts"
   },
@@ -23,12 +24,13 @@
     "@widgetry/shared": "workspace:*",
     "dotenv": "^17",
     "drizzle-orm": "^0.45.2",
-    "pg": "^8",
-    "ioredis": "^5"
+    "ioredis": "^5",
+    "pg": "^8"
   },
   "devDependencies": {
     "@types/node": "^20",
     "@types/pg": "^8",
+    "@vitest/coverage-v8": "^3",
     "drizzle-kit": "^0.31.10",
     "tsx": "^4",
     "vitest": "^3"

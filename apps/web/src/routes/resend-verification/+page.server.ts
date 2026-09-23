@@ -9,6 +9,7 @@
 // somewhere real instead of rendering a blank screen.
 
 import { fail, redirect } from '@sveltejs/kit';
+import { VERIFY_EMAIL_PATH } from '$lib/navigation.js';
 import { isRateLimited, sendVerificationEmail } from '$lib/server/auth';
 import type { Actions, PageServerLoad } from './$types';
 
@@ -27,7 +28,10 @@ export const actions: Actions = {
     if (!user) redirect(303, '/sign-in');
     if (user.emailVerified) redirect(303, '/boards');
 
-    const result = await sendVerificationEmail(event, { email: user.email });
+    const result = await sendVerificationEmail(event, {
+      email: user.email,
+      callbackURL: VERIFY_EMAIL_PATH,
+    });
 
     if (!result.ok) {
       // FR-1.7's own rate limiting lives in the api; surfacing 429 distinctly

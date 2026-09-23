@@ -203,6 +203,7 @@ All commands run from the repository root.
 | `pnpm lint`                        | ESLint + Prettier check (matches CI)                |
 | `pnpm lint:fix` / `pnpm format`    | Auto-fix lint issues / format all files             |
 | `pnpm test:unit`                   | Run unit tests (Vitest)                             |
+| `pnpm test:coverage`               | Unit-test coverage per package (see below)          |
 | `pnpm test:integration`            | Run integration tests _(skipped unless `TEST_DATABASE_URL` points at a `_ci_test` database - see `.env.example`)_ |
 | `pnpm db:migrate`                  | Apply pending migrations (forward-only)             |
 | `pnpm db:seed`                     | Rebuild the demo boards _(needs `SEED_ALLOW_DATABASE`; try `--dry-run` first)_ |
@@ -211,6 +212,39 @@ All commands run from the repository root.
 
 Per-package scripts are reachable with `pnpm --filter <name> <script>`, e.g.
 `pnpm --filter @widgetry/web build`.
+
+## Test coverage
+
+Coverage is measured with `@vitest/coverage-v8`, per package rather than as one
+blended figure — the packages differ enough that a single number would hide more
+than it showed.
+
+```bash
+pnpm test:coverage                        # every package, unit tests only
+pnpm --filter @widgetry/api test:coverage:full   # api INCLUDING integration
+```
+
+Measured 2026-09-23, statements / branches:
+
+| Package | Unit only | With integration | Note |
+| ------- | --------- | ---------------- | ---- |
+| `shared` | 89.2% / 86.0% | — | contracts and widget schemas |
+| `net` | 86.6% / 78.8% | — | the SSRF gate |
+| `worker` | 63.9% / 90.2% | — | its integration suite is still empty (SCP-014) |
+| `queue` | 53.8% / 100% | — | a thin BullMQ contract; few lines, all branches |
+| `web` | 51.9% / 76.3% | — | `.svelte` components are largely untested |
+| `db` | 44.2% / 94.2% | — | mostly schema and migrations, which are never executed |
+| `api` | 40.5% / 80.0% | **78.2% / 85.6%** | see below |
+
+**Read the api row carefully, and quote the 78%.** Its unit tests cover helpers;
+its *routes* — ownership scoping, validation, the cascades — are exercised by the
+154-test integration suite. `test:coverage` deliberately excludes those so it
+runs anywhere without a database, which makes the unit-only figure an
+understatement rather than a result. `test:coverage:full` is the honest one, and
+it needs `TEST_DATABASE_URL` set (see `.env.example`).
+
+No threshold is enforced in CI. Setting one that the weakest package fails would
+turn every unrelated PR red; the numbers above are the evidence, not a gate.
 
 ## Web app specifics
 

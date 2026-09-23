@@ -1,6 +1,6 @@
 import { error, redirect, type Handle } from '@sveltejs/kit';
 import { sequence } from '@sveltejs/kit/hooks';
-import { SIGN_IN_PATH } from '$lib/navigation.js';
+import { SIGN_IN_PATH, stripSensitiveParams } from '$lib/navigation.js';
 import { INTERNAL_API_URL } from '$lib/server/api.js';
 import { lookupSession } from '$lib/server/auth.js';
 
@@ -88,17 +88,31 @@ const handleSession: Handle = async ({ event, resolve }) => {
  * then bounce them straight back through the sign-out route. Ending a session
  * you do not have is a no-op, so the route handles the case itself.
  *
- * The remaining §3 public routes - `/forgot-password`, `/reset-password`,
- * `/verify-email` (SCR-AUTH-03/04/05) - are deliberately absent: those screens
- * do not exist yet, and listing a route here before it is built means it goes
- * public the moment someone adds the file. Add each entry with its screen.
+ * `/forgot-password`, `/reset-password` and `/verify-email` (SCR-AUTH-03/04/05)
+ * are public because each one is reached by someone who by definition cannot
+ * sign in - or, for verification, arrives from an emailed link that may land in
+ * a browser with no session. Gating any of them would make the flow they exist
+ * to complete impossible to complete.
  *
- * One consequence to know about until SCR-AUTH-04 lands: the api already mails
- * reset links pointing at `/reset-password?token=…` (apps/api/src/auth.ts). A
- * recipient clicking one now gets bounced to `/sign-in?returnTo=…` with the
- * token still on the query string rather than a clean 404.
+ * `/forgot-password` stays reachable while signed in too: a signed-in user who
+ * has forgotten their password is a real case, and the screen points them at
+ * the change-password flow rather than bouncing them.
+ *
+ * SCR-AUTH-03/04/05 now exist, so those three are listed above. The bounce
+ * that used to carry a reset token into `returnTo` is fixed separately
+ * (SCP-032, stripSensitiveParams) - a public route is not the only way a
+ * token-bearing URL reaches the guard.
  */
-const PUBLIC_PATHS = new Set(['/', '/sign-in', '/sign-up', '/sign-out', '/faq']);
+const PUBLIC_PATHS = new Set([
+  '/',
+  '/sign-in',
+  '/sign-up',
+  '/sign-out',
+  '/faq',
+  '/forgot-password',
+  '/reset-password',
+  '/verify-email',
+]);
 
 /**
  * Subtrees that are public in bulk, root included.
@@ -142,7 +156,10 @@ const handleAuthGuard: Handle = async ({ event, resolve }) => {
       error(503, 'Could not verify your session. Try again in a moment.');
     }
 
-    const returnTo = encodeURIComponent(`${pathname}${search}`);
+    // SCP-032: the search string may carry a live reset token - see
+    // stripSensitiveParams. Stripped here, where the redirect is built, rather
+    // than where returnTo is read: by then it has already been in the URL bar.
+    const returnTo = encodeURIComponent(stripSensitiveParams(`${pathname}${search}`));
     redirect(303, `${SIGN_IN_PATH}?returnTo=${returnTo}`);
   }
 

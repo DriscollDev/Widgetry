@@ -11,6 +11,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "echo '[queue] no tests yet' && exit 0",
     "test:unit": "vitest run",
+    "test:coverage": "vitest run --coverage",
     "test:integration": "echo '[queue] no integration tests yet' && exit 0"
   },
   "dependencies": {
@@ -19,6 +20,7 @@
   },
   "devDependencies": {
     "@types/node": "^20",
+    "@vitest/coverage-v8": "^3",
     "vitest": "^3"
   }
 }
