@@ -79,9 +79,9 @@ export function isCredentialHeaderName(name: string): boolean {
 
 export const CustomJsonHeader = z.strictObject({
   name: z
-    .string()
+    .string({ error: 'Enter a header name.' })
     .min(1, 'Enter a header name.')
-    .max(128)
+    .max(128, 'A header name can be at most 128 characters.')
     .regex(HEADER_NAME, "Header names can only use letters, digits and -_.!#$%&'*+^`|~")
     .refine((name) => !RESERVED_HEADER_NAMES.includes(name.toLowerCase()), {
       message: 'This header is set by Widgetry and cannot be changed.',
@@ -94,8 +94,8 @@ export const CustomJsonHeader = z.strictObject({
   // else - CR/LF (header injection), control characters, emoji - is refused
   // here rather than failing on every poll.
   value: z
-    .string()
-    .max(2048)
+    .string({ error: 'Enter a header value.' })
+    .max(2048, 'A header value can be at most 2048 characters.')
     .regex(
       /^[\t\x20-\x7e\x80-\xff]*$/,
       'Header values can only contain plain text (no line breaks, control characters or emoji).',
@@ -124,9 +124,9 @@ export const CustomJsonApiKeyPlacement = z.discriminatedUnion('in', [
   z.strictObject({
     in: z.literal('header'),
     name: z
-      .string()
+      .string({ error: 'Enter a header name.' })
       .min(1, 'Enter a header name.')
-      .max(128)
+      .max(128, 'A header name can be at most 128 characters.')
       .regex(HEADER_NAME, "Header names can only use letters, digits and -_.!#$%&'*+^`|~")
       .refine((name) => !RESERVED_HEADER_NAMES.includes(name.toLowerCase()), {
         message: 'This header is set by Widgetry and cannot be changed.',
@@ -135,9 +135,9 @@ export const CustomJsonApiKeyPlacement = z.discriminatedUnion('in', [
   z.strictObject({
     in: z.literal('query'),
     name: z
-      .string()
+      .string({ error: 'Enter a parameter name.' })
       .min(1, 'Enter a parameter name.')
-      .max(128)
+      .max(128, 'A parameter name can be at most 128 characters.')
       .regex(QUERY_PARAM_NAME, 'Parameter names can only use letters, digits and -._~'),
   }),
 ]);
@@ -167,7 +167,7 @@ export const CustomJsonConfig = z
     method: z.literal('GET').default('GET'),
     headers: z
       .array(CustomJsonHeader)
-      .max(CUSTOM_JSON_MAX_HEADERS)
+      .max(CUSTOM_JSON_MAX_HEADERS, `A widget can have at most ${CUSTOM_JSON_MAX_HEADERS} headers.`)
       .default([])
       .superRefine((headers, ctx) => {
         const seen = new Set<string>();
@@ -184,11 +184,21 @@ export const CustomJsonConfig = z
         }
       }),
     /** Shown above the slots. Blank is allowed - the board cell is not empty. */
-    title: z.string().trim().max(CUSTOM_JSON_TITLE_MAX_LENGTH).default(''),
+    title: z
+      .string()
+      .trim()
+      .max(
+        CUSTOM_JSON_TITLE_MAX_LENGTH,
+        `A title can be at most ${CUSTOM_JSON_TITLE_MAX_LENGTH} characters.`,
+      )
+      .default(''),
     layoutId: LayoutId,
     accent: AccentColor.default('primary'),
     /** One per layout position. `refineSlotsAgainstLayout` holds them to it. */
-    slots: z.array(SlotConfig).min(1).max(MAX_SLOTS),
+    slots: z
+      .array(SlotConfig, { error: 'Add at least one slot.' })
+      .min(1, 'Add at least one slot.')
+      .max(MAX_SLOTS, `A widget can have at most ${MAX_SLOTS} slots.`),
     /** Absent when the upstream needs no key. */
     apiKey: CustomJsonApiKeyPlacement.optional(),
   })

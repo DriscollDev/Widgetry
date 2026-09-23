@@ -14,11 +14,16 @@ import { z } from 'zod';
  * and the private-IP blocklist on every poll and on every redirect - because a
  * hostname that resolves publicly today can resolve to 127.0.0.1 tomorrow, and
  * no amount of write-time validation can see that coming.
+ *
+ * #221: a blank/missing field and a too-short one are different Zod issue
+ * codes (invalid_type vs too_small) and each needs its own message - setting
+ * only `.min()`'s message still leaves the raw "expected string, received
+ * undefined" text for a field the form never touched at all.
  */
 export const PollableUrl = z
-  .string()
-  .min(1)
-  .max(2048)
+  .string({ error: 'Enter a URL to check.' })
+  .min(1, 'Enter a URL to check.')
+  .max(2048, 'That URL is too long.')
   .superRefine((value, ctx) => {
     let parsed: URL;
     try {
