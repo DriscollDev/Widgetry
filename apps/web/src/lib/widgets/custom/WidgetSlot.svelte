@@ -13,6 +13,7 @@
   import BadgePrimitive from './primitives/BadgePrimitive.svelte';
   import LinePrimitive from './primitives/LinePrimitive.svelte';
   import UptimeStripPrimitive from './primitives/UptimeStripPrimitive.svelte';
+  import ImagePrimitive from './primitives/ImagePrimitive.svelte';
 
   type Props = {
     config: SlotConfig;
@@ -101,6 +102,8 @@
       />
     {:else if config.primitive === 'uptime-strip'}
       <UptimeStripPrimitive statusSeries={data.statusSeries ?? []} />
+    {:else if config.primitive === 'image'}
+      <ImagePrimitive value={data.value} label={config.label} tall={slotClass !== 'compact'} />
     {/if}
 
     {#if data.state === 'stale'}

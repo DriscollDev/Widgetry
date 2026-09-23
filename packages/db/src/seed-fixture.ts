@@ -40,13 +40,21 @@
 
 import type { WidgetType } from '@widgetry/shared';
 
-export type SeedPrimitive = 'ring' | 'number' | 'gauge' | 'bar' | 'badge' | 'line' | 'uptime-strip';
+export type SeedPrimitive =
+  | 'ring'
+  | 'number'
+  | 'gauge'
+  | 'bar'
+  | 'badge'
+  | 'line'
+  | 'uptime-strip'
+  | 'image';
 
 export type SeedSlot = {
   primitive: SeedPrimitive;
   /** The bound field's shape. Persisted since the US-C4 fix, so the edit form
    * reopens on what was actually chosen. */
-  kind?: 'number' | 'string' | 'series' | 'status' | 'status-series';
+  kind?: 'number' | 'string' | 'series' | 'status' | 'status-series' | 'image-url';
   label: string;
   jsonPath: string;
   max?: number;
@@ -440,6 +448,29 @@ export const SEED_BOARDS: readonly SeedBoard[] = [
         // errors mid-history show the other half of that split - a check that
         // could not be run at all, which the strip also draws as downtime.
         uptimeHistory(205, 240, [44, 45, 46, 47], [12, 13]),
+      ),
+      customWidget(
+        {
+          // NASA's Astronomy Picture of the Day: the case the `image` primitive
+          // exists for, where the interesting part of the response IS the
+          // picture. DEMO_KEY is NASA's own published placeholder, rate-limited
+          // and deliberately public - it is not a secret, and nothing in the
+          // repo depends on it being one.
+          url: 'https://api.nasa.gov/planetary/apod?api_key=DEMO_KEY',
+          title: 'Astronomy picture of the day',
+          accent: 'tertiary',
+          slots: [
+            { primitive: 'image', kind: 'image-url', label: 'Today', jsonPath: 'url' },
+            { primitive: 'number', kind: 'string', label: 'Title', jsonPath: 'title' },
+          ],
+        },
+        { gridCol: 0, gridRow: 6, gridWidth: 6, gridHeight: 4 },
+        // A real APOD image, so a freshly seeded board shows a picture before
+        // the worker's first sweep replaces it with the actual day's one.
+        customHistory(206, [
+          steady('https://apod.nasa.gov/apod/image/2312/M27_Hubble_960.jpg'),
+          steady('The Dumbbell Nebula from Hubble'),
+        ]),
       ),
     ],
   },

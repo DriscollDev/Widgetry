@@ -17,6 +17,7 @@ import {
   getWidgetTypeDef,
   parseWidgetConfig,
   CustomJsonSnapshotValue,
+  SLOT_PRIMITIVES,
   StockSnapshotValue,
   UptimeSnapshotValue,
   type WidgetType,
@@ -46,9 +47,9 @@ describe('the fixture matches what EX-52 specifies', () => {
     expect(SEED_BOARDS).toHaveLength(3);
   });
 
-  it('has twenty-one widgets', () => {
-    expect(SEED_WIDGET_COUNT).toBe(21);
-    expect(allWidgets).toHaveLength(21);
+  it('has twenty-two widgets', () => {
+    expect(SEED_WIDGET_COUNT).toBe(22);
+    expect(allWidgets).toHaveLength(22);
   });
 
   it('gives every board a distinct name', () => {
@@ -301,14 +302,17 @@ describe('the fixture shows off what the product can do', () => {
     // picked first before the US-C4 revision, and the old fixture used five of
     // them. A demo board that never draws a line chart does not show that the
     // product can.
+    //
+    // Compared against SLOT_PRIMITIVES rather than a list written out here, so
+    // that adding a primitive fails this test until the fixture shows it off.
+    // The hand-copied list silently went stale when `image` was added, which is
+    // the whole failure mode a demo fixture exists to prevent.
     const used = new Set(
       allWidgets
         .filter((w) => w.widgetType === 'custom_json')
         .flatMap((w) => (w.config.slots as { primitive: string }[]).map((s) => s.primitive)),
     );
-    expect(used).toEqual(
-      new Set(['ring', 'number', 'gauge', 'bar', 'badge', 'line', 'uptime-strip']),
-    );
+    expect([...used].sort()).toEqual([...SLOT_PRIMITIVES].sort());
   });
 
   it('includes a widget carrying the full six-slot maximum', () => {

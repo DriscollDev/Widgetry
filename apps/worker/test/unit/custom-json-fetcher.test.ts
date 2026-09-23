@@ -402,3 +402,76 @@ describe('custom JSON fetcher - API key (US-C2, FR-6.4)', () => {
     expect(JSON.stringify(outcome)).not.toContain(KEY);
   });
 });
+
+describe('custom JSON fetcher - image slots', () => {
+  const APOD = 'https://apod.nasa.gov/apod/image/2609/sombrero.jpg';
+
+  function imageSlot(jsonPath = 'data.value') {
+    return config({ slots: [{ primitive: 'image', kind: 'image-url', label: 'Photo', jsonPath }] });
+  }
+
+  /**
+   * The stored entry for a ONE-slot widget whose only slot failed.
+   *
+   * A widget whose every slot fails is a failed poll, not a row of failures -
+   * so a single-slot image widget with a bad URL surfaces as an error outcome.
+   * The per-slot degradation these checks are really about is asserted by the
+   * two-slot case at the end, where a sibling survives.
+   */
+  function soleFailure(outcome: Awaited<ReturnType<typeof customJsonFetcher>>) {
+    if (outcome.ok) throw new Error('expected the poll to fail');
+    return outcome.error;
+  }
+
+  it('stores an http(s) image URL unchanged', async () => {
+    safeFetch.mockResolvedValue(responded({ data: { value: APOD } }));
+    const outcome = await customJsonFetcher(imageSlot(), ctx);
+    expect(slotOf(outcome)).toEqual({ ok: true, value: APOD });
+  });
+
+  it.each([
+    ['a data URI', 'data:image/svg+xml;base64,PHN2Zz48L3N2Zz4='],
+    ['a javascript: URL', 'javascript:alert(1)'],
+    ['a file: URL', 'file:///etc/passwd'],
+    ['a relative path', '/apod/image/sombrero.jpg'],
+    ['a bare word', 'sombrero.jpg'],
+    ['an empty string', ''],
+    ['a URL carrying credentials', 'https://user:pw@example.com/a.png'],
+  ])('refuses %s rather than storing it', async (_label, value) => {
+    safeFetch.mockResolvedValue(responded({ data: { value } }));
+    const outcome = await customJsonFetcher(imageSlot(), ctx);
+    expect(soleFailure(outcome).kind).toBe('invalid_response');
+    // Whatever the upstream sent, it does not come back out in the error.
+    expect(JSON.stringify(outcome)).not.toContain('data:image');
+    expect(JSON.stringify(outcome)).not.toContain('javascript:');
+  });
+
+  it('names the path when the field is not a URL at all', async () => {
+    safeFetch.mockResolvedValue(responded({ data: { value: 42 } }));
+    expect(soleFailure(await customJsonFetcher(imageSlot(), ctx)).message).toContain('data.value');
+  });
+
+  it('refuses a URL too long to store rather than truncating it to a broken one', async () => {
+    // storedScalar would happily truncate this to fit a snapshot, and a
+    // truncated URL is a 404 with no explanation attached.
+    const tooLong = `https://example.com/${'a'.repeat(1000)}.jpg`;
+    safeFetch.mockResolvedValue(responded({ data: { value: tooLong } }));
+    expect(soleFailure(await customJsonFetcher(imageSlot(), ctx)).kind).toBe('invalid_response');
+  });
+
+  it('leaves sibling slots rendering when only the image fails', async () => {
+    safeFetch.mockResolvedValue(responded({ data: { value: 'nope', count: 7 } }));
+    const outcome = await customJsonFetcher(
+      config({
+        layoutId: 'split',
+        slots: [
+          { primitive: 'image', kind: 'image-url', label: 'Photo', jsonPath: 'data.value' },
+          { primitive: 'number', kind: 'number', label: 'Count', jsonPath: 'data.count' },
+        ],
+      }),
+      ctx,
+    );
+    expect(slotOf(outcome, 0)).toMatchObject({ ok: false });
+    expect(slotOf(outcome, 1)).toEqual({ ok: true, value: 7 });
+  });
+});
