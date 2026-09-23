@@ -71,6 +71,11 @@ export const CLOCK_DATE_STYLES = ['full', 'long', 'medium', 'short'] as const;
 export const ClockDateStyle = z.enum(CLOCK_DATE_STYLES, { error: 'Choose a date format.' });
 export type ClockDateStyle = z.infer<typeof ClockDateStyle>;
 
+/** Only matters when `display` shows the time; the date is text either way. */
+export const CLOCK_FACES = ['digital', 'analog'] as const;
+export const ClockFace = z.enum(CLOCK_FACES, { error: 'Choose a clock face.' });
+export type ClockFace = z.infer<typeof ClockFace>;
+
 export const CLOCK_LABEL_MAX_LENGTH = 40;
 
 /**
@@ -87,6 +92,7 @@ export const CLOCK_LABEL_MAX_LENGTH = 40;
 export const ClockConfig = z
   .strictObject({
     display: ClockDisplay.default('both').describe('Show'),
+    face: ClockFace.default('digital').describe('Clock face'),
     timeZone: ClockTimeZone.default('local').describe('Time zone'),
     hour12: z.boolean().default(true).describe('12-hour clock'),
     showSeconds: z.boolean().default(true).describe('Show seconds'),

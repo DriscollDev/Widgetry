@@ -13,6 +13,10 @@
 
   Monospace tabular digits per Design Principles §4.1 - the time is a value
   that changes in place, and proportional digits make it jitter.
+
+  `face: 'analog'` swaps the digital time span for an SVG clock face - only
+  the time's presentation changes, the date caption and everything else about
+  `display` behave the same either way.
 -->
 <script lang="ts">
   import { ClockConfig, resolveTimeZone } from '@widgetry/shared';
@@ -54,6 +58,29 @@
   const showTime = $derived(config.display !== 'date');
   const showDate = $derived(config.display !== 'time');
 
+  /** Hour/minute/second in the target zone, for the analog face's hands. Only
+   *  computed when it's actually drawn - the digital face never needs it. */
+  const handAngles = $derived.by(() => {
+    if (config.face !== 'analog' || !showTime) return { hour: 0, minute: 0, second: 0 };
+
+    const byType = Object.fromEntries(
+      new Intl.DateTimeFormat('en-US', {
+        timeZone,
+        hour12: false,
+        hour: 'numeric',
+        minute: 'numeric',
+        second: 'numeric',
+      })
+        .formatToParts(now.value)
+        .map((part) => [part.type, part.value]),
+    );
+    const hours = Number(byType.hour) % 12;
+    const minutes = Number(byType.minute);
+    const seconds = Number(byType.second);
+
+    return { hour: hours * 30 + minutes * 0.5, minute: minutes * 6, second: seconds * 6 };
+  });
+
   /** The city, not the region: "America/St_Johns" is not a caption. Shown only
    * for a zone that is NOT the viewer's own, where it is the difference
    * between a clock and a world clock. */
@@ -88,7 +115,51 @@
     <p class="clock__caption">{caption}</p>
   {/if}
   {#if showTime}
-    <span class="clock__time">{time}</span>
+    {#if config.face === 'analog'}
+      <svg class="clock__analog" viewBox="0 0 100 100" aria-hidden="true">
+        <circle cx="50" cy="50" r="46" class="clock__analog-face" />
+        {#each Array.from({ length: 12 }) as _, i (i)}
+          <line
+            x1="50"
+            y1="6"
+            x2="50"
+            y2={i % 3 === 0 ? 13 : 9}
+            transform="rotate({i * 30} 50 50)"
+            class="clock__tick"
+            class:clock__tick--major={i % 3 === 0}
+          />
+        {/each}
+        <line
+          x1="50"
+          y1="50"
+          x2="50"
+          y2="26"
+          transform="rotate({handAngles.hour} 50 50)"
+          class="clock__hand clock__hand--hour"
+        />
+        <line
+          x1="50"
+          y1="50"
+          x2="50"
+          y2="16"
+          transform="rotate({handAngles.minute} 50 50)"
+          class="clock__hand clock__hand--minute"
+        />
+        {#if config.showSeconds}
+          <line
+            x1="50"
+            y1="50"
+            x2="50"
+            y2="12"
+            transform="rotate({handAngles.second} 50 50)"
+            class="clock__hand clock__hand--second"
+          />
+        {/if}
+        <circle cx="50" cy="50" r="2.5" class="clock__pivot" />
+      </svg>
+    {:else}
+      <span class="clock__time">{time}</span>
+    {/if}
   {/if}
   {#if showDate}
     <span class="clock__date" class:clock__date--only={!showTime}>{date}</span>
@@ -135,5 +206,48 @@
   .clock__date--only {
     font-size: clamp(0.75rem, 9cqw, 1.75rem);
     color: light-dark(var(--color-surface-900), var(--color-surface-50));
+  }
+
+  .clock__analog {
+    width: min(100%, 10rem);
+    aspect-ratio: 1;
+  }
+
+  .clock__analog-face {
+    fill: light-dark(var(--color-surface-50), var(--color-surface-950));
+    stroke: light-dark(var(--color-surface-200), var(--color-surface-800));
+    stroke-width: 1.5;
+  }
+
+  .clock__tick {
+    stroke: light-dark(var(--color-surface-400), var(--color-surface-600));
+    stroke-width: 1;
+  }
+
+  .clock__tick--major {
+    stroke: light-dark(var(--color-surface-600), var(--color-surface-300));
+    stroke-width: 1.5;
+  }
+
+  .clock__hand {
+    stroke: light-dark(var(--color-surface-900), var(--color-surface-50));
+    stroke-linecap: round;
+  }
+
+  .clock__hand--hour {
+    stroke-width: 3;
+  }
+
+  .clock__hand--minute {
+    stroke-width: 2;
+  }
+
+  .clock__hand--second {
+    stroke: var(--color-primary-500);
+    stroke-width: 1;
+  }
+
+  .clock__pivot {
+    fill: light-dark(var(--color-surface-900), var(--color-surface-50));
   }
 </style>
