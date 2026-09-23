@@ -226,10 +226,8 @@ describe('CreateWidgetRequest (placement + type + carried config)', () => {
     expect(result.data?.config).toBeUndefined();
   });
 
-  // US-C5. Same split as config above: this schema only knows the shape (a
-  // positive integer), not whether it is allowed for the chosen type or
-  // clears that type's floor - that is validateRefreshInterval's job in
-  // src/routes/widgets.ts, checked against the registry.
+  // US-C5. This schema only knows the shape (a positive integer) - whether
+  // it's allowed for the chosen type is validateRefreshInterval's job.
   it('carries refreshIntervalSeconds through as a positive integer', () => {
     const result = CreateWidgetRequest.safeParse({
       ...placement,
@@ -258,9 +256,8 @@ describe('CreateWidgetRequest (placement + type + carried config)', () => {
   });
 
   it('does not itself validate the interval against the type - a client-polled type still parses', () => {
-    // 'clock' has no minRefreshSeconds at all (null) - this schema does not
-    // know that, and must not: only the handler's validateRefreshInterval,
-    // checked against the registry, refuses it.
+    // This schema doesn't know 'clock' has no minRefreshSeconds - only the
+    // handler's validateRefreshInterval refuses it.
     const result = CreateWidgetRequest.safeParse({
       ...placement,
       widgetType: 'clock',

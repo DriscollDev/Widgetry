@@ -1,9 +1,8 @@
 // apps/api/test/integration/board-payload.test.ts
 //
-// GET /v1/boards/:id carries each widget's allowlisted config and its latest
-// snapshot (Task #235, issue #233). Snapshots are
-// seeded straight into the database, because the worker does not run in the
-// integration suite. Same ci-test gating as the rest of the suite (Eng §13.2).
+// GET /v1/boards/:id carries each widget's allowlisted config and latest
+// snapshot (Task #235, issue #233). Snapshots are seeded directly since the
+// worker doesn't run here. Same ci-test gating as the rest of the suite.
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createDb, schema } from '@widgetry/db';

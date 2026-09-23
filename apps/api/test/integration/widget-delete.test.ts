@@ -1,14 +1,10 @@
 // apps/api/test/integration/widget-delete.test.ts
 //
 // DELETE /v1/widgets/:id end to end (US-W4, Task #210) against a real
-// database. Cross-tenant behaviour is NOT tested here - isolation.test.ts owns
-// that and covers this endpoint. This file is about an owner deleting their own
-// widgets: the response, the second delete, the cells being freed, and the
-// neighbours surviving. Overlap is exercised through PATCH (FR-3.3, #188) so
-// this file does not depend on POST overlap rejection (#198).
+// database: the owner's own delete, the second delete, cells freed,
+// neighbours surviving. Cross-tenant behaviour lives in isolation.test.ts.
 //
 // Same ci-test gating as the rest of the integration suite (Eng §13.2, §14.1).
-// Test users are left behind on purpose - CI truncates every table each run.
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { FastifyInstance } from 'fastify';

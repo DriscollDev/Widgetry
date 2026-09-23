@@ -1,12 +1,10 @@
 // apps/api/test/integration/widget-snapshot-cascade.test.ts
 //
 // DELETE /v1/widgets/:id must take the widget's history with it (US-W4, Eng §5.2:
-// widget_snapshots.widget_id is ON DELETE CASCADE) and must not touch any other
-// widget's history. Snapshots are seeded straight into the database, because the
-// worker that normally writes them does not run in the integration suite.
+// ON DELETE CASCADE) and leave other widgets' history alone. Snapshots are
+// seeded directly since the worker doesn't run here.
 //
 // Same ci-test gating as the rest of the integration suite (Eng §13.2, §14.1).
-// Test users are left behind on purpose - CI truncates every table each run.
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { count, eq } from 'drizzle-orm';

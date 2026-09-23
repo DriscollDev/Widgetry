@@ -1,12 +1,10 @@
 // apps/api/test/integration/widget-patch-overlap.test.ts
 //
 // PATCH /v1/widgets/:id overlap rejection end to end (FR-3.3, EX-Overlap-Server,
-// Task #188) against a real database. #188 shipped the check without a test of
-// its own (flagged in #204); this is that test. POST has its own file,
-// widget-overlap.test.ts.
+// Task #188) - #188 shipped without a test of its own (flagged in #204), this
+// is that test. POST has its own file, widget-overlap.test.ts.
 //
 // Same ci-test gating as the rest of the integration suite (Eng §13.2, §14.1).
-// Test users are left behind on purpose - CI truncates every table each run.
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { FastifyInstance } from 'fastify';
@@ -127,8 +125,7 @@ describeIntegration('PATCH /v1/widgets/:id - overlap rejection (FR-3.3)', () => 
     await app.close();
   });
 
-  // Every test owns its own band of rows on the shared board (0, 4, 8, ...), so
-  // they cannot interfere with each other. All widgets are 2x2.
+  // Every test owns its own band of rows on the shared board so they can't interfere.
 
   it('rejects a move onto another widget', async () => {
     await createWidget(0, 0);

@@ -1,14 +1,10 @@
 // apps/api/test/integration/widget-overlap.test.ts
 //
 // POST /v1/boards/:id/widgets overlap rejection end to end (FR-3.3,
-// EX-Overlap-Server, Task #198) against a real database. A widget whose
-// rectangle intersects an existing widget on the same board gets a 409
-// OVERLAP_REJECTED; touching edges do not count as overlap, and widgets on
-// other boards never block placement.
+// EX-Overlap-Server, Task #198): an intersecting rectangle gets a 409
+// OVERLAP_REJECTED, touching edges don't count, other boards never block.
 //
-// Same ci-test gating as the rest of the integration suite (Eng §13.2, §14.1):
-// without a database whose name ends in `_ci_test` this file skips. Test users
-// are left behind on purpose - CI truncates every table at the start of a run.
+// Same ci-test gating as the rest of the integration suite (Eng §13.2, §14.1).
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { FastifyInstance } from 'fastify';
@@ -122,9 +118,7 @@ describeIntegration('POST /v1/boards/:id/widgets - overlap rejection (FR-3.3)', 
     await app.close();
   });
 
-  // Each test owns its own region of the shared board so they cannot interfere:
-  // cols 0-3 rows 0-1, cols 4-5 rows 0-1, cols 8-9 rows 0-1, cols 0-3 rows 4-7,
-  // and the single cell at col 10 row 4.
+  // Each test owns its own region of the shared board so they can't interfere.
 
   it('rejects a widget placed exactly on top of an existing one', async () => {
     expectCreated(await postWidget(boardId, at(0, 0)));

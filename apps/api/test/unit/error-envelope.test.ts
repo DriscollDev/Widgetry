@@ -85,14 +85,9 @@ describe('§6.1 error envelope', () => {
     expect(unauthenticated.statusCode).toBe(401);
     expect(unauthenticated.json().error.code).toBe(ApiErrorCode.UNAUTHENTICATED);
 
-    // A path outside `PUBLIC_PATHS` has no session-free way to reach the
-    // not-found handler directly - it hits the 401 auth gate first (EX-13). So
-    // this test can't just be "any nonexistent widgets path" anymore now that
-    // /v1/widgets/catalog is a live route (EX-24). Instead, exercise the
-    // not-found handler through the one endpoint we know is public and has no
-    // GET-body-parsing concern: hit /v1/widgets/catalog with a verb it has no
-    // handler for. PUT, because DELETE and PATCH on /v1/widgets/:id are real
-    // routes now and "catalog" matches `:id` - a DELETE here reaches the auth gate.
+    // A path outside `PUBLIC_PATHS` hits the 401 auth gate before it can reach
+    // the not-found handler, so this hits the public catalog route with a verb
+    // (PUT) that has no handler for it instead.
     const missing = await app.inject({ method: 'PUT', url: '/v1/widgets/catalog' });
     expect(missing.statusCode).toBe(404);
     expect(missing.json().error.code).toBe(ApiErrorCode.NOT_FOUND);

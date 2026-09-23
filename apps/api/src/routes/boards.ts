@@ -198,11 +198,9 @@ export async function boardRoutes(fastify: FastifyInstance): Promise<void> {
    * re-polls on the board's own refresh interval (locked decision 3:
    * client-pull only, no sockets).
    *
-   * Each widget carries `config` (allowlisted, display-only - see
-   * widgets/config-view.ts) and `latest` (its newest snapshot, or null). The
-   * snapshots come from ONE extra query for the whole board, not one per widget
-   * (issue #233). This is the piece FR-2.4's 2s
-   * budget actually pays for.
+   * Each widget carries `config` (allowlisted, display-only) and `latest`
+   * (newest snapshot). One extra query for the whole board, not one per widget
+   * (issue #233) - the piece FR-2.4's 2s budget pays for.
    */
   fastify.get(
     '/v1/boards/:id',
@@ -221,9 +219,8 @@ export async function boardRoutes(fastify: FastifyInstance): Promise<void> {
         .where(eq(schema.boards.id, board.id))
         .orderBy(schema.widgets.gridRow, schema.widgets.gridCol);
 
-      // Newest snapshot per widget. DISTINCT ON needs the ORDER BY to lead with
-      // widget_id; `id` breaks a captured_at tie so the pick is deterministic.
-      // Driven from `boards` so the ownership predicate sits on the driving table.
+      // Newest snapshot per widget - DISTINCT ON needs the ORDER BY to lead
+      // with widget_id, `id` breaks a captured_at tie.
       const latestRows =
         widgets.length === 0
           ? []

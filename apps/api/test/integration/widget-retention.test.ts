@@ -82,9 +82,8 @@ describeIntegration('PATCH /v1/widgets/:id - retention (US-H2, FR-5.2)', () => {
 
   const email = `retention-${runId}@widgetry.test`;
 
-  /** Create a widget on the shared board and return its id. Each call gets a
-   * distinct grid position so tests don't collide under FR-3.3 overlap
-   * rejection (Task #198) when a test file creates several widgets. */
+  /** Creates a widget on the shared board; each call gets a distinct grid
+   *  position so tests don't collide under FR-3.3 overlap rejection. */
   const createWidget = async (widgetType = 'uptime'): Promise<string> => {
     const response = await app.inject({
       method: 'POST',
@@ -402,9 +401,8 @@ describeIntegration('POST/PATCH /v1/widgets - refresh interval (US-C5, FR-4.2)',
   });
 
   it('refuses an interval on a client-polled widget, unlike retention', async () => {
-    // The inverse of retention's "accepted inertly" rule above: there is no
-    // poll loop for a clock widget that would ever read this, so it is a 400
-    // rather than a silently-ignored write.
+    // A clock widget has no poll loop to read this, so it's a 400, not a
+    // silently-ignored write.
     const response = await createWidget('clock', { refreshIntervalSeconds: 3600 });
     expect(response.statusCode, response.body).toBe(400);
     expect(response.json().error.code).toBe('validation_failed');
@@ -594,9 +592,8 @@ describeIntegration('GET/PATCH /v1/widgets/:id - editing config (US-C6)', () => 
     const response = await getWidget(widgetId);
     expect(response.statusCode, response.body).toBe(200);
     const body = response.json();
-    // Never sent on the board payload (apps/api/src/widgets/config-view.ts),
-    // because that endpoint renders for everyone who can see the board; this
-    // one is fetched by the owner alone, specifically to edit them.
+    // Not sent on the board payload (viewable by anyone) - only here, fetched
+    // by the owner alone to edit.
     expect(body.config.headers).toEqual([{ name: 'X-Client', value: 'widgetry' }]);
     expect(body.config.apiKey).toEqual({ in: 'header', name: 'X-Api-Key' });
     expect(body.hasCredential).toBe(false);
