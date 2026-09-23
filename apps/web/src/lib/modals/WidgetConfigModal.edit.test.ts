@@ -233,15 +233,20 @@ describe('WidgetConfigModal edit mode - Custom JSON path (US-C6)', () => {
     expect(calls[0]!.url).toBe('/v1/widgets/w-custom');
   });
 
-  it('DELETEs the credential when auth is turned off on a widget that had one', async () => {
+  it('leaves credential removal to the PATCH when auth is turned off', async () => {
+    // The browser used to issue a separate best-effort DELETE here. It
+    // swallowed a 4xx/5xx, so the form could report auth as off while the
+    // encrypted row survived, and it never ran for a caller using the api
+    // directly. The PATCH now drops the row in the same transaction as the
+    // config write (apps/api/src/routes/widgets.ts), so the ONLY request this
+    // flow makes is the PATCH.
     const calls: Array<{ url: string; init: RequestInit }> = [];
     vi.stubGlobal(
       'fetch',
       vi.fn(async (url: string, init?: RequestInit) => {
         if (init === undefined) return jsonResponse({ ...customJsonDetail, hasCredential: true });
         calls.push({ url, init });
-        if (init.method === 'PATCH') return jsonResponse({ id: 'w-custom' });
-        return jsonResponse({ widgetId: 'w-custom', hasCredential: false, savedAt: null });
+        return jsonResponse({ id: 'w-custom' });
       }),
     );
 
@@ -249,13 +254,14 @@ describe('WidgetConfigModal edit mode - Custom JSON path (US-C6)', () => {
     await screen.findByText(/stub-initial-url/);
     await fireEvent.click(screen.getByText('stub-submit-clear-auth'));
 
-    await waitFor(() => expect(calls).toHaveLength(2));
-    expect(calls[1]!.url).toBe('/v1/widgets/w-custom/credential');
-    expect(calls[1]!.init.method).toBe('DELETE');
     await waitFor(() => expect(onUpdated).toHaveBeenCalledTimes(1));
+    expect(calls).toHaveLength(1);
+    expect(calls[0]!.url).toBe('/v1/widgets/w-custom');
+    expect(calls[0]!.init.method).toBe('PATCH');
+    expect(calls.some((c) => c.init.method === 'DELETE')).toBe(false);
   });
 
-  it('does not call DELETE when auth is turned off on a widget that never had a credential', async () => {
+  it('makes no extra call when auth is turned off on a widget that never had a credential', async () => {
     const calls: Array<{ url: string; init: RequestInit }> = [];
     vi.stubGlobal(
       'fetch',

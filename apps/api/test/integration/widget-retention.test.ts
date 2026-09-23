@@ -600,4 +600,105 @@ describeIntegration('GET/PATCH /v1/widgets/:id - editing config (US-C6)', () => 
     expect(response.json().hasCredential).toBe(true);
     expect(response.body).not.toContain('sk_edit_widget_test');
   });
+
+  it('PATCH drops the credential when the new config no longer places an api key', async () => {
+    // US-C6 / US-S3. "Turn auth off" has to be durable, and it has to hold for
+    // a caller using the api directly - not only for the browser form. Before
+    // this the row survived any PATCH and was cleaned up, if at all, by a
+    // separate best-effort DELETE from the client.
+    const created = await createWidget('custom_json', {
+      config: {
+        url: 'https://api.example.test/status',
+        layoutId: 'single',
+        slots: [{ primitive: 'number', label: 'CPU', jsonPath: 'data.cpu' }],
+        apiKey: { in: 'header', name: 'X-Api-Key' },
+      },
+    });
+    const widgetId = created.json().id as string;
+
+    const put = await app.inject({
+      method: 'PUT',
+      url: `/v1/widgets/${widgetId}/credential`,
+      remoteAddress: nextIp(),
+      headers: { cookie, 'content-type': 'application/json' },
+      payload: { apiKey: 'sk_drop_on_patch_test' },
+    });
+    expect(put.statusCode, put.body).toBe(200);
+    expect((await getWidget(widgetId)).json().hasCredential).toBe(true);
+
+    // Same config minus the apiKey placement - the key now has nowhere to go.
+    const patched = await patchWidget(widgetId, {
+      config: {
+        url: 'https://api.example.test/status',
+        layoutId: 'single',
+        slots: [{ primitive: 'number', label: 'CPU', jsonPath: 'data.cpu' }],
+      },
+    });
+    expect(patched.statusCode, patched.body).toBe(200);
+
+    const after = await getWidget(widgetId);
+    expect(after.json().hasCredential).toBe(false);
+    expect(after.body).not.toContain('sk_drop_on_patch_test');
+  });
+
+  it('PATCH keeps the credential when the config still places an api key', async () => {
+    // The complement, and the one that would break if the delete were run
+    // unconditionally on every config PATCH: editing a URL must not silently
+    // discard the stored key.
+    const created = await createWidget('custom_json', {
+      config: {
+        url: 'https://api.example.test/status',
+        layoutId: 'single',
+        slots: [{ primitive: 'number', label: 'CPU', jsonPath: 'data.cpu' }],
+        apiKey: { in: 'header', name: 'X-Api-Key' },
+      },
+    });
+    const widgetId = created.json().id as string;
+
+    await app.inject({
+      method: 'PUT',
+      url: `/v1/widgets/${widgetId}/credential`,
+      remoteAddress: nextIp(),
+      headers: { cookie, 'content-type': 'application/json' },
+      payload: { apiKey: 'sk_kept_on_patch_test' },
+    });
+
+    const patched = await patchWidget(widgetId, {
+      config: {
+        url: 'https://api.example.test/status-v2',
+        layoutId: 'single',
+        slots: [{ primitive: 'number', label: 'CPU', jsonPath: 'data.cpu' }],
+        apiKey: { in: 'header', name: 'X-Api-Key' },
+      },
+    });
+    expect(patched.statusCode, patched.body).toBe(200);
+
+    expect((await getWidget(widgetId)).json().hasCredential).toBe(true);
+  });
+
+  it('a placement-only PATCH leaves the credential alone', async () => {
+    // `config` absent entirely must not be read as "config without an apiKey".
+    const created = await createWidget('custom_json', {
+      config: {
+        url: 'https://api.example.test/status',
+        layoutId: 'single',
+        slots: [{ primitive: 'number', label: 'CPU', jsonPath: 'data.cpu' }],
+        apiKey: { in: 'header', name: 'X-Api-Key' },
+      },
+    });
+    const widgetId = created.json().id as string;
+
+    await app.inject({
+      method: 'PUT',
+      url: `/v1/widgets/${widgetId}/credential`,
+      remoteAddress: nextIp(),
+      headers: { cookie, 'content-type': 'application/json' },
+      payload: { apiKey: 'sk_placement_only_test' },
+    });
+
+    const patched = await patchWidget(widgetId, { gridCol: 2, gridRow: 2 });
+    expect(patched.statusCode, patched.body).toBe(200);
+
+    expect((await getWidget(widgetId)).json().hasCredential).toBe(true);
+  });
 });

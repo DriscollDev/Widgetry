@@ -320,20 +320,13 @@
         status = 'error';
         return;
       }
-    } else if (isEditing && detail?.hasCredential && submission.config.apiKey === undefined) {
-      // US-C6: auth was turned off (no secret entered, and the new config no
-      // longer names a placement) on a widget that had a credential saved.
-      // Leaving the row behind would be inert (nothing reads it once config
-      // has no apiKey) but stale, and the user asked for auth to be off, not
-      // just for the placement to stop being shown - so clean it up. Best
-      // effort: the widget save above already succeeded, and a failure here
-      // is not worth blocking on or reporting as this save's error.
-      try {
-        await fetch(`/v1/widgets/${saved!.id}/credential`, { method: 'DELETE' });
-      } catch {
-        // See above - not fatal to this save.
-      }
     }
+    // US-C6: turning auth off needs no call from here. The PATCH above removes
+    // the credential row in the same transaction as the config write when the
+    // new config no longer places an api key (see widgets.ts). This used to be
+    // a best-effort DELETE issued after the save, which swallowed a 4xx/5xx
+    // and left the encrypted row alive while the form reported auth as off -
+    // and which never ran at all for anyone using the api directly.
 
     finishSaved(saved);
     close();

@@ -25,7 +25,7 @@
 // Snapshots are not implemented yet, and the credential verbs live in
 // ./credentials.ts.
 
-import { and, count, eq, ne, sql } from 'drizzle-orm';
+import { and, count, eq, inArray, ne, sql } from 'drizzle-orm';
 import { ZodError } from 'zod';
 import { db, schema } from '@widgetry/db';
 import {
@@ -47,6 +47,7 @@ import type { FastifyInstance } from 'fastify';
 import { ApiError, limitExceeded, overlapRejected, validationFailed } from '../lib/errors.js';
 import {
   findOwnedWidget,
+  ownedWidgetIds,
   requireBoardOwnership,
   requireWidgetOwnership,
   type Widget,
@@ -515,6 +516,40 @@ export async function widgetRoutes(fastify: FastifyInstance): Promise<void> {
           })
           .where(eq(schema.widgets.id, widget.id))
           .returning();
+
+        // US-C6 / US-S3: a config with no `apiKey` placement has nowhere to
+        // send a stored key, so the credential row is orphaned - the worker
+        // reads the placement from the config and would never attach it again.
+        // Deleting it here, in the same transaction as the config write, is
+        // what makes "turn auth off" durable: the browser used to issue a
+        // separate best-effort DELETE afterwards, which left the encrypted row
+        // alive whenever that second call failed, and never ran at all for a
+        // caller using the api directly.
+        //
+        // Unconditional on the new config rather than diffed against the old:
+        // the question is whether the key has a destination NOW, and a type
+        // that cannot hold credentials simply has no row to delete.
+        if (config !== undefined && config.apiKey === undefined) {
+          const orphaned = await tx
+            .delete(schema.apiCredentials)
+            .where(
+              and(
+                eq(schema.apiCredentials.widgetId, widget.id),
+                // EX-18: api_credentials has no user_id of its own. Scoped
+                // through the widgets -> boards chain, same shape as the
+                // DELETE verb in credentials.ts.
+                inArray(schema.apiCredentials.widgetId, ownedWidgetIds(user.id)),
+              ),
+            )
+            .returning({ id: schema.apiCredentials.id });
+
+          if (orphaned.length > 0) {
+            request.log.info(
+              { widgetId: widget.id },
+              'credential removed - config no longer places an api key (US-C6/US-S3)',
+            );
+          }
+        }
 
         return row!;
       });
