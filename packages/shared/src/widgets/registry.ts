@@ -31,6 +31,7 @@ import { z } from 'zod';
 import type { WidgetType } from '../api/widgets.js';
 import { WIDGET_TYPES } from '../api/widgets.js';
 import type { ServerPolledWidgetTypeDef, WidgetTypeDef } from './types.js';
+import { ClockConfig } from './clock.js';
 import { CustomJsonConfig } from './custom-json.js';
 import { UptimeConfig } from './uptime.js';
 
@@ -106,29 +107,34 @@ export const WIDGET_TYPE_DEFS: Record<WidgetType, WidgetTypeDef> = {
     minRefreshSeconds: null,
   },
 
-  // TODO(F5.2): purely local - renders from Date.now() and a configured
-  // timezone, no HTTP anywhere (Eng §7.2). Stored as polling 'client' because
-  // the column has no third value, NOT because anything fetches for it.
-  // configSchema needs the timezone and format.
+  // F5.1 + F5.2, merged into `clock`. This id is RETIRED, not removed: it is
+  // still in WIDGET_TYPES and still in the `widgets_widget_type_check`
+  // constraint, so a row that somehow still carries it renders and validates
+  // exactly like a clock instead of falling through to the fallback renderer.
+  // It is hidden from the catalog, so nothing new can be created as one, and
+  // the migration moves the existing rows across. See ./clock.ts on why the
+  // constraint is left alone.
   datetime: {
     id: 'datetime',
     displayName: 'Date & Time',
     category: 'informational',
-    configSchema: NOT_YET_CONFIGURABLE,
+    configSchema: ClockConfig,
     renderer: 'value',
     polling: 'client',
     supportsHistory: false,
     defaultRefreshSeconds: null,
     minRefreshSeconds: null,
+    hiddenFromCatalog: true,
   },
 
-  // TODO(F5.1): purely local, same note as datetime. configSchema needs the
-  // timezone and the analog/digital face choice.
+  // F5.1 + F5.2. Purely local: renders from Date.now() in the browser, no HTTP
+  // anywhere (Eng §7.2). Stored as polling 'client' because the column has no
+  // third value, NOT because anything fetches for it.
   clock: {
     id: 'clock',
-    displayName: 'Clock',
+    displayName: 'Clock & Date',
     category: 'informational',
-    configSchema: NOT_YET_CONFIGURABLE,
+    configSchema: ClockConfig,
     renderer: 'value',
     polling: 'client',
     supportsHistory: false,

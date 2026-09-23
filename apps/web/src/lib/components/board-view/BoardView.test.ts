@@ -39,8 +39,10 @@ describe('BoardView', () => {
     // and still falls back to its type name.
     expect(screen.getByText('weather')).toBeInTheDocument();
     // Clock has a real renderer now (Task #228), so it draws the time, not its type
-    // name. Its label starts with "Clock:".
-    expect(screen.getByRole('img', { name: /^Clock:/ })).toBeInTheDocument();
+    // name. F5.1+F5.2 merged Clock and Date/Time into one type that defaults
+    // to showing both, so the fixture's configless clock announces itself as
+    // "Clock and date:".
+    expect(screen.getByRole('img', { name: /^Clock and date:/ })).toBeInTheDocument();
   });
   it('renders the error state', () => {
     render(BoardView, { props: { board: errorBoardFixture, state: 'error' } });

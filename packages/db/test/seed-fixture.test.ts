@@ -121,8 +121,12 @@ describe('every widget config is one the api would accept', () => {
   it('only uses types that have a renderer today', () => {
     // The deliberate scope call recorded in seed-fixture.ts: weather, stock and
     // currency would draw as the fallback, so the fixture leaves them out.
+    //
+    // `datetime` left this set when F5.1 and F5.2 merged - both fixture rows
+    // are `clock` now, one of them configured to show the date, which is what
+    // that type id used to mean.
     const used = new Set<WidgetType>(allWidgets.map((w) => w.widgetType));
-    expect(used).toEqual(new Set(['uptime', 'custom_json', 'clock', 'datetime']));
+    expect(used).toEqual(new Set(['uptime', 'custom_json', 'clock']));
   });
 
   it('covers both polling modes', () => {

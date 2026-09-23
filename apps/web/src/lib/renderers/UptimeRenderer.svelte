@@ -17,6 +17,7 @@
   import { STATUS_META } from '$lib/widgets/status';
   import UptimeHistory from './UptimeHistory.svelte';
   import { toUptimeView } from './uptime-adapter';
+  import { WIDGET_CARD, WIDGET_CARD_ERROR } from './card';
   import type { RenderableWidget } from './types';
 
   let { widget }: { widget: RenderableWidget } = $props();
@@ -26,7 +27,7 @@
 
 {#if view.ok}
   <div
-    class="flex h-full flex-col justify-between gap-3 rounded-xl border border-surface-200-800 bg-surface-50-950 p-4"
+    class="{WIDGET_CARD} flex flex-col justify-between gap-3"
     data-widget-id={widget.id}
   >
     <p class="truncate font-mono text-xs text-surface-500" title={view.target}>{view.target}</p>
@@ -58,7 +59,7 @@
   </div>
 {:else}
   <div
-    class="flex h-full flex-col justify-center gap-1 rounded-xl border border-error-500/40 bg-surface-50-950 p-4"
+    class="{WIDGET_CARD_ERROR} flex flex-col justify-center gap-1"
     data-widget-id={widget.id}
     role="status"
   >

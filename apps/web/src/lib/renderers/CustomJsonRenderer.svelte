@@ -24,6 +24,7 @@
   import CustomWidget from '$lib/widgets/custom/CustomWidget.svelte';
   import { toCustomJsonView } from './custom-json-adapter';
   import { fetchHistory } from './snapshots';
+  import { WIDGET_CARD_ERROR } from './card';
   import type { RenderableWidget } from './types';
 
   let { widget }: { widget: RenderableWidget } = $props();
@@ -64,7 +65,7 @@
   <CustomWidget config={view.config} slotData={view.slotData} />
 {:else}
   <div
-    class="flex h-full flex-col justify-center gap-1 rounded-xl border border-error-500/40 bg-surface-50-950 p-4"
+    class="{WIDGET_CARD_ERROR} flex flex-col justify-center gap-1"
     data-widget-id={widget.id}
     role="status"
   >

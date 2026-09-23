@@ -68,6 +68,16 @@ export type WidgetTypeDef = {
    * may raise its own floor above that, never lower it.
    */
   minRefreshSeconds: number | null;
+  /**
+   * Kept out of `GET /v1/widgets/catalog`, so nothing new can be created as
+   * this type while every existing row of it keeps rendering and validating.
+   * That is the whole retirement mechanism: a type id in `WIDGET_TYPES` and in
+   * the `widgets_widget_type_check` constraint cannot be deleted without a
+   * constraint change, and changing a constraint in the same release that
+   * changes behaviour is what CLAUDE.md's forward-only migration policy rules
+   * out. Absent on every live type.
+   */
+  hiddenFromCatalog?: boolean;
 };
 
 /**

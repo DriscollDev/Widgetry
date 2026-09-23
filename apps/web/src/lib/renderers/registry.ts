@@ -9,7 +9,6 @@
 import type { Component } from 'svelte';
 import type { WidgetType } from '@widgetry/shared';
 import ClockRenderer from './ClockRenderer.svelte';
-import DateTimeRenderer from './DateTimeRenderer.svelte';
 import CustomJsonRenderer from './CustomJsonRenderer.svelte';
 import UptimeRenderer from './UptimeRenderer.svelte';
 import FallbackRenderer from './FallbackRenderer.svelte';
@@ -17,12 +16,16 @@ import type { RenderableWidget } from './types';
 
 export type WidgetRenderer = Component<{ widget: RenderableWidget }>;
 
-// Types with a real renderer. Clock and Date/Time (Task #228) are client-local
-// and need no data; the Weather and Stock components from $lib/widgets register
-// here as their adapters land.
+// Types with a real renderer. Clock is client-local and needs no data; the
+// Weather, Currency and Stock components register here as their adapters land.
+//
+// `datetime` maps to ClockRenderer on purpose: F5.1 and F5.2 merged into one
+// type whose `display` field chooses between them, and the old id is retired
+// rather than deleted (see WidgetTypeDef.hiddenFromCatalog), so its existing
+// rows must keep drawing something real instead of falling to the fallback.
 const RENDERERS = new Map<WidgetType, WidgetRenderer>([
   ['clock', ClockRenderer],
-  ['datetime', DateTimeRenderer],
+  ['datetime', ClockRenderer],
   ['custom_json', CustomJsonRenderer],
   ['uptime', UptimeRenderer],
 ]);

@@ -46,9 +46,25 @@ describe('toConfigView (Task #235)', () => {
   });
 
   it('sends nothing for types without an allowlist entry', () => {
-    expect(toConfigView('clock', {})).toBeNull();
+    // clock USED to be in here: it had no config at all. F5.1+F5.2 merged it
+    // with Date/Time and gave it six display settings, every one of which the
+    // browser has to read to draw the tile - see the CLOCK_KEYS note.
     expect(toConfigView('weather', { city: 'Providence' })).toBeNull();
     expect(toConfigView('constructor', { url: 'x' })).toBeNull();
+  });
+
+  it('sends the clock display settings, under both the live and retired ids', () => {
+    const config = {
+      display: 'both',
+      timeZone: 'Asia/Tokyo',
+      hour12: false,
+      showSeconds: true,
+      dateStyle: 'full',
+      label: 'Tokyo office',
+    };
+    expect(toConfigView('clock', config)).toEqual(config);
+    // `datetime` is retired, not removed, and its rows still have to render.
+    expect(toConfigView('datetime', config)).toEqual(config);
   });
 
   it('returns null when the stored config is not a plain object', () => {

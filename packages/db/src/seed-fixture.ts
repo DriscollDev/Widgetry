@@ -150,22 +150,33 @@ export const SEED_BOARDS: readonly SeedBoard[] = [
     refreshMode: 'auto',
     refreshIntervalSeconds: 300,
     widgets: [
+      // F5.1 + F5.2 merged: both of these are `clock` now, and `display` is
+      // what used to be the difference between two widget types. Seeded with a
+      // second zone on one of them so a fresh demo board shows the setting
+      // doing something rather than two tiles reading the same instant.
       {
         widgetType: 'clock',
         gridCol: 0,
         gridRow: 0,
         gridWidth: 3,
         gridHeight: 2,
-        config: {},
+        config: { display: 'time', showSeconds: true },
         snapshot: null,
       },
       {
-        widgetType: 'datetime',
+        widgetType: 'clock',
         gridCol: 3,
         gridRow: 0,
         gridWidth: 3,
         gridHeight: 2,
-        config: {},
+        config: {
+          display: 'both',
+          timeZone: 'Europe/London',
+          hour12: false,
+          showSeconds: false,
+          dateStyle: 'medium',
+          label: 'London',
+        },
         snapshot: null,
       },
       uptimeWidget(
