@@ -76,8 +76,8 @@
         {/if}
 
         <p class="text-sm">
-          This permanently deletes your account and everything in it: every board, every widget,
-          all collected history, and any saved API keys. This can’t be undone.
+          This permanently deletes your account and everything in it: every board, every widget, all
+          collected history, and any saved API keys. This can’t be undone.
         </p>
 
         <p class="text-sm text-surface-600-400">

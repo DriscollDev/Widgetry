@@ -255,8 +255,8 @@
     <section class="rounded-xl border border-error-500/40 bg-surface-50-950 p-5">
       <h2 class="text-base font-semibold text-error-600-400">Danger zone</h2>
       <p class="mt-2 text-sm text-surface-600-400">
-        Deleting your account removes every board, widget, collected reading and saved API key.
-        It can’t be undone.
+        Deleting your account removes every board, widget, collected reading and saved API key. It
+        can’t be undone.
       </p>
       <button
         type="button"

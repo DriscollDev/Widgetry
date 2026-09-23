@@ -66,8 +66,7 @@ export const actions: Actions = {
 
     const apiError = await readApiError(response);
     return fail(response.status === 429 ? 429 : 400, {
-      deleteMessage:
-        apiError?.message ?? 'Could not delete your account. Try again in a moment.',
+      deleteMessage: apiError?.message ?? 'Could not delete your account. Try again in a moment.',
     });
   },
 

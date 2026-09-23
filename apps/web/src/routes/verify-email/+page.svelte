@@ -70,8 +70,8 @@
     {:else}
       <h1 class="text-2xl font-semibold text-white">Thanks for confirming</h1>
       <p class="mt-3 text-sm text-neutral-300">
-        If you opened this link on a different device than the one you're signed in on, that's
-        fine - your address is confirmed either way. Sign in to carry on.
+        If you opened this link on a different device than the one you're signed in on, that's fine
+        - your address is confirmed either way. Sign in to carry on.
       </p>
       <a
         href="/sign-in"

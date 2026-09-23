@@ -79,16 +79,20 @@ describe('ForgotPasswordForm (SCR-AUTH-03)', () => {
     expect(ForgotPasswordForm.safeParse({ email: 'dana@example.com' }).success).toBe(true);
   });
 
-  it.each([['blank', ''], ['no domain', 'dana@'], ['no @', 'dana.example.com']])(
-    'rejects %s',
-    (_label, email) => {
-      expect(ForgotPasswordForm.safeParse({ email }).success).toBe(false);
-    },
-  );
+  it.each([
+    ['blank', ''],
+    ['no domain', 'dana@'],
+    ['no @', 'dana.example.com'],
+  ])('rejects %s', (_label, email) => {
+    expect(ForgotPasswordForm.safeParse({ email }).success).toBe(false);
+  });
 });
 
 describe('ResetPasswordForm (SCR-AUTH-04)', () => {
-  const ok = { newPassword: 'a-perfectly-fine-password', confirmPassword: 'a-perfectly-fine-password' };
+  const ok = {
+    newPassword: 'a-perfectly-fine-password',
+    confirmPassword: 'a-perfectly-fine-password',
+  };
 
   it('accepts a matching pair that clears the length rule', () => {
     expect(ResetPasswordForm.safeParse(ok).success).toBe(true);
@@ -106,13 +110,13 @@ describe('ResetPasswordForm (SCR-AUTH-04)', () => {
     // Composed from PasswordField rather than restated, so the form cannot
     // reject a password the api would accept.
     const short = 'x'.repeat(MIN_PASSWORD_LENGTH - 1);
-    expect(ResetPasswordForm.safeParse({ newPassword: short, confirmPassword: short }).success).toBe(
-      false,
-    );
+    expect(
+      ResetPasswordForm.safeParse({ newPassword: short, confirmPassword: short }).success,
+    ).toBe(false);
     const atMin = 'x'.repeat(MIN_PASSWORD_LENGTH);
-    expect(ResetPasswordForm.safeParse({ newPassword: atMin, confirmPassword: atMin }).success).toBe(
-      true,
-    );
+    expect(
+      ResetPasswordForm.safeParse({ newPassword: atMin, confirmPassword: atMin }).success,
+    ).toBe(true);
   });
 
   it('does not carry the token - only the api can judge that', () => {

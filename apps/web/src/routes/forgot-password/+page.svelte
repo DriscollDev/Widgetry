@@ -48,8 +48,8 @@
     {#if sent}
       <h1 class="text-2xl font-semibold text-white">Check your email</h1>
       <p class="mt-3 text-sm text-neutral-300">
-        If <strong class="text-neutral-100">{form?.email}</strong> has an account, a link to set a
-        new password is on its way. It expires in an hour.
+        If <strong class="text-neutral-100">{form?.email}</strong> has an account, a link to set a new
+        password is on its way. It expires in an hour.
       </p>
       <p class="mt-3 text-sm text-neutral-400">
         Nothing arrived? Check your spam folder, then
@@ -57,9 +57,7 @@
       </p>
     {:else}
       <h1 class="text-2xl font-semibold text-white">Reset your password</h1>
-      <p class="mt-1 text-sm text-neutral-400">
-        We'll email you a link to set a new one.
-      </p>
+      <p class="mt-1 text-sm text-neutral-400">We'll email you a link to set a new one.</p>
 
       {#if data.signedIn}
         <p
