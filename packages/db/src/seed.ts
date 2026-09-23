@@ -3,6 +3,11 @@
 // Rebuilds the demo fixture (EX-12, EX-52, Feature Spec §9.2: "a seeded demo
 // user with a 3-board, 15-widget configuration loads in <2s").
 //
+// The fixture is 21 widgets rather than the 15 EX-52 names, because that item
+// also asks for "across all widget types" and there are six of them plus seven
+// custom primitives to show. The <2s budget is unaffected: the board payload
+// carries one latest-snapshot per widget and history is lazy-loaded per tile.
+//
 // Usage:
 //   pnpm --filter @widgetry/db seed                  # write
 //   pnpm --filter @widgetry/db seed --dry-run        # report, change nothing
