@@ -1,9 +1,7 @@
 // apps/web/src/lib/renderers/now.svelte.ts
 //
-// A reactive "current time" for client-local widgets (Story #223, Task #228).
-// Clock and Date/Time are purely local (Eng 7.2): they read the browser clock and
-// need no polling, snapshots or server. One timer per mounted widget, cleared
-// when it unmounts.
+// A reactive "current time" for client-local widgets (Story #223, Task #228,
+// Eng §7.2). One timer per mounted widget, cleared on unmount.
 
 import { onDestroy } from 'svelte';
 

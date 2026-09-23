@@ -2,9 +2,8 @@
 //
 // Which component draws which widget type (Story #223, EX-22/EX-23).
 //
-// A Map, not a plain object: a widget type comes from the database, and an
-// object lookup would resolve "constructor" or "__proto__" to something that is
-// not a renderer.
+// A Map, not a plain object - a widget type comes from the database, and an
+// object lookup could resolve "constructor" or "__proto__" to something unsafe.
 
 import type { Component } from 'svelte';
 import type { WidgetType } from '@widgetry/shared';

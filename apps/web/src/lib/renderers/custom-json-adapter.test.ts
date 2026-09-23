@@ -188,12 +188,8 @@ describe('toCustomJsonView - snapshots', () => {
     expect(view.slotData).toHaveLength(1);
   });
 
-  // Cast, because that is the point of these cases. Task #236 narrowed
-  // `RenderableWidget.latest` from `unknown` to `LatestSnapshot | null`, which is
-  // the right shape for callers - but the value reaching the adapter comes from a
-  // jsonb column through an api allowlist, so a row that does not match the type
-  // is a real thing that can arrive. The cast asserts these are deliberately
-  // ill-formed, not that the type is wrong.
+  // Cast is the point here - a jsonb row that doesn't match the type is a real
+  // thing that can arrive, and these cases are deliberately ill-formed.
   const malformed = (latest: unknown) => latest as RenderableWidget['latest'];
 
   it.each([

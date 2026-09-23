@@ -1,17 +1,8 @@
 <!--
   Widget frame (Story #224, Task #246): the one place loading/value/error is
-  decided for a widget's whole content area, from widgetState() (#243) alone.
-  A renderer mounted through this frame never has to invent its own loading
-  or error slot - it is only ever mounted for the 'value' state.
-
-  SCOPE: only widgets in SERVER_POLLED_WIDGET_TYPES are framed. `latest` is a
-  snapshot of a server-polled widget (see LatestSnapshot's own doc comment in
-  packages/shared) - it is always null for a local widget (Clock, Date & Time,
-  Eng §7.2) and for a client-polled one (Weather, Currency), because neither
-  ever gets a `widget_snapshots` row. widgetState(null) reads as 'loading', so
-  framing those types here would show a permanent loading skeleton over
-  content that is already there. Everything outside the server-polled set
-  always renders its value slot, unchanged from before this frame existed.
+  decided for a widget's content area, from widgetState() (#243) alone. Only
+  server-polled types are framed - local/client-polled widgets have no
+  snapshot at all and always render their value slot.
 -->
 <script lang="ts">
   import { SERVER_POLLED_WIDGET_TYPES, type WidgetType } from '@widgetry/shared';
@@ -43,14 +34,8 @@
     <span class="mt-1 text-xs text-surface-600-400">{WIDGET_FRAME_META.loading.label}</span>
   </div>
 {:else if state === 'error'}
-  <!-- Task #247, decided 2026-09-22: show error.message verbatim below, no
-       separate per-kind message map. SnapshotError's own doc comment
-       (packages/shared/src/widgets/snapshot.ts) already requires the worker to
-       write a safe, user-ready sentence - duplicating that translation here
-       would be a second copy to keep in sync with the worker's. `error.kind`
-       is read nowhere in this branch; it stays on the type for a future
-       icon/grouping treatment (retryable vs. not), which #247 left optional
-       and undecided. -->
+  <!-- Task #247: shows error.message verbatim, no per-kind message map - the
+       worker already writes a safe, user-ready sentence (SnapshotError). -->
   <div
     class="{WIDGET_FRAME_META.error
       .preset} flex h-full w-full flex-col justify-center gap-1 rounded-xl p-4"

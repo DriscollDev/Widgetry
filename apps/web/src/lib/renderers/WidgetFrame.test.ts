@@ -1,9 +1,7 @@
 // @vitest-environment happy-dom
 
-// Story #224, Task #246: WidgetFrame picks the loading/value/error slot from
-// widgetState() alone, scoped to server-polled widget types (see the
-// component's own doc comment for why local/client-polled types are never
-// framed).
+// Story #224, Task #246: WidgetFrame picks loading/value/error from
+// widgetState() alone, scoped to server-polled widget types.
 
 import { afterEach, describe, expect, it } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/svelte';
