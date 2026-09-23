@@ -15,6 +15,7 @@ export * from './api/credentials.js';
 export * from './api/errors.js';
 export * from './api/health.js';
 export * from './api/me.js';
+export * from './api/widget-data.js';
 export * from './api/widgets.js';
 
 export * from './widgets/index.js';

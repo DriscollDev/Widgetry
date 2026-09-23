@@ -27,6 +27,7 @@
 // cannot see: a snapshot that IS a value row but does not parse as an uptime
 // payload, or a config with no url.
 
+import { uptimeDisplayStatus } from '@widgetry/shared';
 import type { WidgetStatus } from '$lib/widgets/status';
 import { agoLabel, isRecord, readLatest } from './snapshot-read';
 import type { RenderableWidget } from './types';
@@ -38,10 +39,12 @@ export type UptimeView =
       /** The polled URL, from config. Shown so the widget says what it is watching. */
       target: string;
       /**
-       * 'up' or 'down' only. `WidgetStatus` also has 'degraded', which this type
-       * never produces - uptimeStatusFor() in packages/shared is a two-way split
-       * on `httpStatus < 400`. Typed as WidgetStatus anyway so STATUS_META keys
-       * line up without a cast.
+       * What to SHOW, which is not always what was polled: the snapshot's own
+       * status is the two-way `httpStatus < 400` split, and a widget with a
+       * `degradedAboveMs` set turns a slow-but-responding reading into
+       * 'degraded' here. Read-side only - see uptimeDisplayStatus. That the
+       * threshold re-reads stored history rather than invalidating it is the
+       * point of doing it here and not in the worker.
        */
       status: WidgetStatus;
       /** Null when no response was ever received (the network-failure 'down' case). */
@@ -49,6 +52,11 @@ export type UptimeView =
       responseTimeMs: number;
       /** "2 min ago". Undefined when capturedAt is unreadable. */
       updatedAtLabel: string | undefined;
+      /** The user's name for this target. Empty when unset - the URL is shown
+       * either way, so there is nothing to fall back to. */
+      label: string;
+      /** US-H3's strip. False only when the user turned it off. */
+      showHistory: boolean;
     }
   | { ok: false; reason: string };
 
@@ -56,6 +64,31 @@ export type UptimeView =
 function readTarget(raw: unknown): string | null {
   if (!isRecord(raw)) return null;
   return typeof raw.url === 'string' && raw.url.length > 0 ? raw.url : null;
+}
+
+/**
+ * The display settings, read one key at a time rather than by parsing the
+ * whole config. A row saved before any of them existed simply has none, and a
+ * value of the wrong type falls back instead of blanking the widget - the same
+ * defensiveness readReading applies to the snapshot, for the same reason.
+ */
+function readDisplayConfig(raw: unknown): {
+  label: string;
+  degradedAboveMs: number | undefined;
+  showHistory: boolean;
+} {
+  const record = isRecord(raw) ? raw : {};
+  const threshold = record.degradedAboveMs;
+  return {
+    label: typeof record.label === 'string' ? record.label : '',
+    degradedAboveMs:
+      typeof threshold === 'number' && Number.isFinite(threshold) && threshold > 0
+        ? threshold
+        : undefined,
+    // Absent means shown: the chart predates the setting, and a widget saved
+    // before it existed should not lose its history.
+    showHistory: record.showHistory !== false,
+  };
 }
 
 /**
@@ -69,7 +102,9 @@ function readTarget(raw: unknown): string | null {
  */
 function readReading(
   value: unknown,
-): { status: WidgetStatus; httpStatus: number | null; responseTimeMs: number } | null {
+): { status: 'up' | 'down'; httpStatus: number | null; responseTimeMs: number } | null {
+  // Narrowed to the two the SNAPSHOT can hold, not the three the display can:
+  // 'degraded' is decided here from the user's threshold, never polled.
   if (!isRecord(value)) return null;
 
   const { status, httpStatus, responseTimeMs } = value;
@@ -102,12 +137,16 @@ export function toUptimeView(widget: RenderableWidget): UptimeView {
     return { ok: false, reason: 'The last check could not be read.' };
   }
 
+  const display = readDisplayConfig(widget.config);
+
   return {
     ok: true,
     target,
-    status: reading.status,
+    status: uptimeDisplayStatus(reading.status, reading.responseTimeMs, display.degradedAboveMs),
     httpStatus: reading.httpStatus,
     responseTimeMs: reading.responseTimeMs,
     updatedAtLabel: agoLabel(latest.capturedAt),
+    label: display.label,
+    showHistory: display.showHistory,
   };
 }

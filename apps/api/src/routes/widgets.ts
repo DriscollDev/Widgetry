@@ -143,12 +143,16 @@ export async function widgetRoutes(fastify: FastifyInstance): Promise<void> {
    * configSchema - not JSON-serializable, and the catalog modal (#191)
    * doesn't need it; the config modal (#192) reads the registry directly. */
   fastify.get('/v1/widgets/catalog', async (_request, reply) => {
-    const widgetTypes = Object.values(WIDGET_TYPE_DEFS).map((def) => ({
-      id: def.id,
-      displayName: def.displayName,
-      category: def.category,
-      supportsHistory: def.supportsHistory,
-    }));
+    const widgetTypes = Object.values(WIDGET_TYPE_DEFS)
+      // A retired type still validates and still renders, so its existing rows
+      // keep working - it is only unofferable. See WidgetTypeDef.
+      .filter((def) => !def.hiddenFromCatalog)
+      .map((def) => ({
+        id: def.id,
+        displayName: def.displayName,
+        category: def.category,
+        supportsHistory: def.supportsHistory,
+      }));
 
     return reply.status(200).send({ widgetTypes });
   });

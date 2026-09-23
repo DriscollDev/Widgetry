@@ -5,8 +5,7 @@
 //
 // An ALLOWLIST, per widget type: a key is private until it is listed here, so a
 // config field added later cannot leak by default. A type with no entry sends
-// nothing - clock and datetime have no config, and weather, stock and currency
-// have no schema yet.
+// nothing. Every MVP type has a schema now.
 //
 // custom_json's entry carries the per-slot layout model (Feature Spec v1.3,
 // Eng §7.3): a renderer cannot draw the widget without `layoutId` and `slots`,
@@ -23,8 +22,20 @@
 // Widening this is a one-line change; narrowing it after a field has shipped is
 // not. The bar for adding a key is that a renderer needs it.
 
+/** Clock's whole config, because every field of it IS a display choice the
+ * browser has to make - there is no server-side half to withhold. Listed key
+ * by key anyway rather than passed through wholesale, so a field added later
+ * still has to be considered. `datetime` is the retired id for the same type
+ * and gets the same list. */
+const CLOCK_KEYS = ['display', 'timeZone', 'hour12', 'showSeconds', 'dateStyle', 'label'] as const;
+
 const CONFIG_ALLOWLIST: Readonly<Record<string, readonly string[]>> = {
-  uptime: ['url'],
+  uptime: ['url', 'label', 'degradedAboveMs', 'showHistory'],
+  clock: CLOCK_KEYS,
+  datetime: CLOCK_KEYS,
+  weather: ['location', 'temperatureUnit', 'windSpeedUnit', 'showDetails', 'label'],
+  stock: ['symbol', 'label', 'currencySymbol', 'showDayRange', 'showHistory'],
+  currency: ['base', 'quote', 'amount', 'decimals', 'showInverse', 'label'],
   custom_json: ['title', 'layoutId', 'accent', 'slots', 'url'],
 };
 

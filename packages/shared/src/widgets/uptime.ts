@@ -10,15 +10,28 @@
 import { z } from 'zod';
 import { PollableUrl } from './url.js';
 
+/** A label can be at most this long. Fits the tile's header at 2 columns. */
+export const UPTIME_LABEL_MAX_LENGTH = 40;
+
 /**
- * A poll target. One field, because the catalog entry describes exactly one
- * input: the URL to ping.
+ * The widest "slow" threshold worth offering. Past a minute the poll's own 5s
+ * timeout has long since fired and the reading is `down`, not slow.
+ */
+export const UPTIME_MAX_DEGRADED_MS = 60_000;
+
+/**
+ * A poll target, plus how to READ the result.
  *
- * Deliberately absent: an expected-status field, a request method, a body, a
- * headers map. None of them appear in §4.4 and each is a scope decision the
- * spec has not made - the shape "is this URL responding" needs none of them, and
- * an uptime widget that can send arbitrary methods with arbitrary headers is a
- * custom JSON widget wearing a different name (§4.5).
+ * Still deliberately absent: an expected-status field, a request method, a
+ * body, a headers map. None of them appear in §4.4 and each is a scope
+ * decision the spec has not made - the shape "is this URL responding" needs
+ * none of them, and an uptime widget that can send arbitrary methods with
+ * arbitrary headers is a custom JSON widget wearing a different name (§4.5).
+ *
+ * Everything added beyond `url` is on the READ side, which is why it does not
+ * reopen that question: `label` and `showHistory` are presentation, and
+ * `degradedAboveMs` reinterprets a `responseTimeMs` the snapshot already
+ * records. The request the worker makes is byte-for-byte what it was.
  *
  * `.strict()` so an unknown key is a 400 at the api rather than a silent strip.
  * A user who typed `{"URL": "..."}` has a broken widget either way; the
@@ -26,7 +39,26 @@ import { PollableUrl } from './url.js';
  */
 export const UptimeConfig = z
   .strictObject({
-    url: PollableUrl,
+    url: PollableUrl.describe('URL to check'),
+    label: z
+      .string()
+      .trim()
+      .max(UPTIME_LABEL_MAX_LENGTH, `A label can be at most ${UPTIME_LABEL_MAX_LENGTH} characters.`)
+      .default('')
+      .describe('Label (optional)'),
+    /**
+     * Above this many milliseconds a responding target reads `degraded`
+     * instead of `up`. Optional because "slow" is not a universal number - a
+     * widget with none set keeps the plain up/down split it always had.
+     */
+    degradedAboveMs: z
+      .number({ error: 'Enter a number.' })
+      .int('Enter a whole number of milliseconds.')
+      .positive('Must be greater than zero.')
+      .max(UPTIME_MAX_DEGRADED_MS, `Must be at most ${UPTIME_MAX_DEGRADED_MS} ms.`)
+      .optional()
+      .describe('Call it slow above (ms)'),
+    showHistory: z.boolean().default(true).describe('Show history chart'),
   })
   .describe('Uptime widget configuration');
 
@@ -69,4 +101,23 @@ export type UptimeSnapshotValue = z.infer<typeof UptimeSnapshotValue>;
  */
 export function uptimeStatusFor(httpStatus: number): 'up' | 'down' {
   return httpStatus < 400 ? 'up' : 'down';
+}
+
+/**
+ * The status to DISPLAY, which is the polled status plus the user's own idea
+ * of "slow".
+ *
+ * Read-side only, and deliberately so: the snapshot keeps recording `up`, so
+ * turning the threshold up or down re-reads the history that is already
+ * stored rather than invalidating it. A target that is down is never
+ * degraded - it did not respond slowly, it did not respond.
+ */
+export function uptimeDisplayStatus(
+  status: 'up' | 'down',
+  responseTimeMs: number,
+  degradedAboveMs: number | undefined,
+): 'up' | 'degraded' | 'down' {
+  if (status === 'down') return 'down';
+  if (degradedAboveMs !== undefined && responseTimeMs > degradedAboveMs) return 'degraded';
+  return 'up';
 }

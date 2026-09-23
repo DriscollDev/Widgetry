@@ -11,26 +11,28 @@
 //   web     - builds the catalog picker and the config form (Eng §7.4).
 //
 // ---------------------------------------------------------------------------
-// SCOPE OF THIS SLICE
+// EVERY TYPE HAS A REAL SCHEMA
 // ---------------------------------------------------------------------------
-// Every one of the seven types is registered, because `polling` must be
-// resolvable for all of them - it is what replaced the PROVISIONAL_POLLING_MODE
-// map that used to live in apps/api/src/routes/widgets.ts.
+// It did not always. Five of the seven carried `NOT_YET_CONFIGURABLE` - a
+// strict empty object - which was an exact statement of the behaviour at the
+// time (those widgets really did take no configuration and really were created
+// with `config = {}`) but had a consequence nobody had looked at: the generic
+// config form DERIVES its controls from the schema's shape, so a schema with no
+// fields renders a modal with nothing in it. Five of the seven widget types
+// opened an empty settings dialog.
 //
-// The `configSchema` entries are NOT all real. Only `uptime` and `custom_json`
-// have one, because they are the only types with a fetcher so far. Every other type carries
-// `NOT_YET_CONFIGURABLE` - a strict empty object, which is an exact statement of
-// today's behaviour rather than a placeholder that lies: those widgets really do
-// take no configuration yet, and really are created with `config = {}`. Filling
-// one in is the first step of building that widget type; see the per-type TODOs.
-// Do not replace it with a permissive passthrough object - that would let
-// unvalidated user input into the jsonb column, which is the one thing the
-// registry exists to prevent.
+// The rule that placeholder existed to protect still stands and now applies
+// everywhere: every schema here is a strict object. A permissive passthrough
+// would let unvalidated user input into the jsonb column, which is the one
+// thing this registry exists to prevent.
 
-import { z } from 'zod';
 import type { WidgetType } from '../api/widgets.js';
 import { WIDGET_TYPES } from '../api/widgets.js';
 import type { ServerPolledWidgetTypeDef, WidgetTypeDef } from './types.js';
+import { ClockConfig } from './clock.js';
+import { CurrencyConfig } from './currency.js';
+import { StockConfig } from './stock.js';
+import { WeatherConfig } from './weather.js';
 import { CustomJsonConfig } from './custom-json.js';
 import { UptimeConfig } from './uptime.js';
 
@@ -39,13 +41,6 @@ import { UptimeConfig } from './uptime.js';
  * A type may set `minRefreshSeconds` above this; nothing may set it below.
  */
 export const MIN_SERVER_POLL_SECONDS = 3600;
-
-/**
- * The config schema for a type that has not been built yet: accepts `{}` and
- * nothing else. See the scope note above for why this is strict and not
- * permissive.
- */
-const NOT_YET_CONFIGURABLE = z.strictObject({});
 
 export const WIDGET_TYPE_DEFS: Record<WidgetType, WidgetTypeDef> = {
   uptime: {
@@ -60,14 +55,15 @@ export const WIDGET_TYPE_DEFS: Record<WidgetType, WidgetTypeDef> = {
     minRefreshSeconds: MIN_SERVER_POLL_SECONDS,
   },
 
-  // TODO(F5.3): Open-Meteo, no API key. Client-polled through
+  // F5.3. Open-Meteo, no API key, client-polled through
   // `/v1/widget-data/weather` so the upstream call and its Redis cache stay
-  // server-side (Eng §7.2). configSchema needs the location.
+  // server-side (Eng §7.2). The user types a PLACE and the api geocodes it -
+  // see ./weather.ts on why that beats two coordinate boxes.
   weather: {
     id: 'weather',
     displayName: 'Weather',
     category: 'informational',
-    configSchema: NOT_YET_CONFIGURABLE,
+    configSchema: WeatherConfig,
     renderer: 'value',
     polling: 'client',
     supportsHistory: false,
@@ -75,16 +71,17 @@ export const WIDGET_TYPE_DEFS: Record<WidgetType, WidgetTypeDef> = {
     minRefreshSeconds: null,
   },
 
-  // TODO(F5.5): server-polled with history per FR-4.1/4.2 and the v1.1
-  // resolution - the "stocks-no-history client-polled" variant is dead (locked
-  // decision 8). The upstream (Alpha Vantage vs Finnhub) is still an open
-  // decision in Feature Spec §4.4, and its free-tier rate limit may force
-  // `minRefreshSeconds` above the 3600 floor. configSchema needs the ticker.
+  // F5.5. Server-polled with history per FR-4.1/4.2 and the v1.1 resolution -
+  // the "stocks-no-history client-polled" variant is dead (locked decision 8).
+  // §4.4's open upstream choice is settled on Finnhub, whose free tier allows
+  // 60 requests a MINUTE; Alpha Vantage's 25 a day would not have supported a
+  // second widget at the 3600s floor. That budget is why minRefreshSeconds
+  // stays at the floor rather than being raised. See ./stock.ts.
   stock: {
     id: 'stock',
     displayName: 'Stock Price',
     category: 'informational',
-    configSchema: NOT_YET_CONFIGURABLE,
+    configSchema: StockConfig,
     renderer: 'timeline',
     polling: 'server',
     supportsHistory: true,
@@ -92,13 +89,15 @@ export const WIDGET_TYPE_DEFS: Record<WidgetType, WidgetTypeDef> = {
     minRefreshSeconds: MIN_SERVER_POLL_SECONDS,
   },
 
-  // TODO(F5.6): exchangerate.host or Frankfurter, decision open. Client-polled
-  // through the api proxy. configSchema needs the base/quote currency pair.
+  // F5.6. Frankfurter, settling §4.4's open choice - it needs no API key, and
+  // exchangerate.host's free tier now does. Client-polled through
+  // /v1/widget-data/currency, which caches the upstream for 60s across all
+  // users (Eng §7.2). See ./currency.ts.
   currency: {
     id: 'currency',
     displayName: 'Currency Exchange',
     category: 'informational',
-    configSchema: NOT_YET_CONFIGURABLE,
+    configSchema: CurrencyConfig,
     renderer: 'value',
     polling: 'client',
     supportsHistory: false,
@@ -106,29 +105,34 @@ export const WIDGET_TYPE_DEFS: Record<WidgetType, WidgetTypeDef> = {
     minRefreshSeconds: null,
   },
 
-  // TODO(F5.2): purely local - renders from Date.now() and a configured
-  // timezone, no HTTP anywhere (Eng §7.2). Stored as polling 'client' because
-  // the column has no third value, NOT because anything fetches for it.
-  // configSchema needs the timezone and format.
+  // F5.1 + F5.2, merged into `clock`. This id is RETIRED, not removed: it is
+  // still in WIDGET_TYPES and still in the `widgets_widget_type_check`
+  // constraint, so a row that somehow still carries it renders and validates
+  // exactly like a clock instead of falling through to the fallback renderer.
+  // It is hidden from the catalog, so nothing new can be created as one, and
+  // the migration moves the existing rows across. See ./clock.ts on why the
+  // constraint is left alone.
   datetime: {
     id: 'datetime',
     displayName: 'Date & Time',
     category: 'informational',
-    configSchema: NOT_YET_CONFIGURABLE,
+    configSchema: ClockConfig,
     renderer: 'value',
     polling: 'client',
     supportsHistory: false,
     defaultRefreshSeconds: null,
     minRefreshSeconds: null,
+    hiddenFromCatalog: true,
   },
 
-  // TODO(F5.1): purely local, same note as datetime. configSchema needs the
-  // timezone and the analog/digital face choice.
+  // F5.1 + F5.2. Purely local: renders from Date.now() in the browser, no HTTP
+  // anywhere (Eng §7.2). Stored as polling 'client' because the column has no
+  // third value, NOT because anything fetches for it.
   clock: {
     id: 'clock',
-    displayName: 'Clock',
+    displayName: 'Clock & Date',
     category: 'informational',
-    configSchema: NOT_YET_CONFIGURABLE,
+    configSchema: ClockConfig,
     renderer: 'value',
     polling: 'client',
     supportsHistory: false,

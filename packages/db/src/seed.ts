@@ -56,7 +56,7 @@ import { loadRootEnv } from './load-env.js';
 import { hashPassword } from './password.js';
 import * as schema from './schema/index.js';
 import { buildDemoAuthRows } from './seed-auth-rows.js';
-import { SEED_BOARDS, SEED_WIDGET_COUNT } from './seed-fixture.js';
+import { SEED_BOARDS, SEED_SNAPSHOT_COUNT, SEED_WIDGET_COUNT } from './seed-fixture.js';
 import { isDryRun, resolveApiUrl, resolveDemoAccount } from './seed-config.js';
 import { checkSeedTarget } from './seed-guard.js';
 
@@ -239,8 +239,8 @@ async function dryRunReport(): Promise<void> {
   }
 
   console.log(
-    `[seed] a real run would then write ${SEED_BOARDS.length} boards and ` +
-      `${SEED_WIDGET_COUNT} widgets.`,
+    `[seed] a real run would then write ${SEED_BOARDS.length} boards, ` +
+      `${SEED_WIDGET_COUNT} widgets and ${SEED_SNAPSHOT_COUNT} snapshots.`,
   );
   console.log('\n[seed] dry run complete - nothing was written.\n');
 }
@@ -300,13 +300,21 @@ async function apply(): Promise<void> {
 
       widgetTotal += 1;
 
-      if (widget.snapshot) {
-        await db.insert(schema.widgetSnapshots).values({
-          widgetId: insertedWidget!.id,
-          value: widget.snapshot,
-          error: null,
-        });
-        snapshotTotal += 1;
+      if (widget.history.length > 0) {
+        // ONE insert per widget, not one per reading. A widget now carries 48
+        // hourly readings so its timeline has a shape the moment the board
+        // loads, and this database is always remote (locked decision 9) - a
+        // round trip per row would be some 800 of them across the fixture.
+        const now = Date.now();
+        await db.insert(schema.widgetSnapshots).values(
+          widget.history.map((snapshot) => ({
+            widgetId: insertedWidget!.id,
+            capturedAt: new Date(now - snapshot.minutesAgo * 60_000),
+            value: snapshot.value,
+            error: snapshot.error,
+          })),
+        );
+        snapshotTotal += widget.history.length;
       }
     }
 

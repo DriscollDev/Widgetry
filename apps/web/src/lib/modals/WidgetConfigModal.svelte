@@ -7,6 +7,7 @@
   import type { CustomJsonConfig, WidgetType } from '@widgetry/shared';
   import { NEW_WIDGET_HEIGHT, NEW_WIDGET_WIDTH } from '$lib/widget-placement';
   import { configFieldErrors } from './api-field-errors';
+  import { coerceConfigValues, toFormValues } from './config-fields';
   import type { CustomWidgetSubmission } from '$lib/widgets/custom/types';
 
   type WidgetTypeSummary = {
@@ -155,13 +156,14 @@
     // Edit mode: seed the generic form's values from the fetched config the
     // moment it arrives. ConfigForm only knows string values (Eng §7.4), so
     // this coerces the same way `submit` below coerces back on the way out.
+    //
+    // Driven by the SCHEMA rather than by the stored object's own keys, so a
+    // field the widget was saved without shows the default the api would apply
+    // instead of an empty control that saves something different from what it
+    // displayed. See toFormValues.
     if (isEditing && detail) {
-      values = Object.fromEntries(
-        Object.entries(detail.config).map(([key, value]) => [
-          key,
-          value == null ? '' : String(value),
-        ]),
-      );
+      const editedDef = WIDGET_TYPE_DEFS[detail.widgetType as WidgetType];
+      values = editedDef ? toFormValues(editedDef.configSchema, detail.config) : {};
       errors = {};
       status = 'idle';
       customError = null;
@@ -199,12 +201,11 @@
     status = 'submitting';
     errors = {};
 
-    // Coerce string form values into the shape the API's config schema
-    // expects (numbers/booleans back to real types) before sending.
-    const config: Record<string, unknown> = {};
-    for (const [key, raw] of Object.entries(values)) {
-      config[key] = raw;
-    }
+    // Coerce the form's string values into the shape the config schema
+    // expects - numbers and booleans back to real types, blanks dropped so
+    // they fall to their defaults. This loop used to claim to do that and
+    // simply copied the strings through; see config-fields.ts.
+    const config = coerceConfigValues(def.configSchema, values);
 
     try {
       const res = isEditing

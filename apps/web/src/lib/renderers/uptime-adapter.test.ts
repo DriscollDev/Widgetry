@@ -156,3 +156,62 @@ describe('toUptimeView - malformed stored values', () => {
     expect(view.updatedAtLabel).toBeUndefined();
   });
 });
+
+describe('toUptimeView - the display settings', () => {
+  const withConfig = (config: Record<string, unknown>) =>
+    toUptimeView(widget({ config: { ...CONFIG, ...config }, latest: polled(UP) }));
+
+  it('defaults to what a widget saved before any of them existed showed', () => {
+    // Every row of this type was written with `{ url }` and nothing else.
+    const view = toUptimeView(widget({ latest: polled(UP) }));
+
+    expect(view.ok).toBe(true);
+    if (!view.ok) return;
+    expect(view.label).toBe('');
+    expect(view.showHistory).toBe(true);
+    expect(view.status).toBe('up');
+  });
+
+  it('carries the label through', () => {
+    const view = withConfig({ label: 'Status page' });
+    expect(view.ok && view.label).toBe('Status page');
+  });
+
+  it('reads a slow response as degraded without changing what was polled', () => {
+    // 143ms is the fixture's responseTimeMs; the snapshot still says 'up'.
+    const view = withConfig({ degradedAboveMs: 100 });
+    expect(view.ok && view.status).toBe('degraded');
+    expect(view.ok && view.responseTimeMs).toBe(143);
+  });
+
+  it('leaves a fast response alone', () => {
+    const view = withConfig({ degradedAboveMs: 500 });
+    expect(view.ok && view.status).toBe('up');
+  });
+
+  it('never degrades an unreachable target', () => {
+    const view = toUptimeView(
+      widget({ config: { ...CONFIG, degradedAboveMs: 100 }, latest: polled(DOWN_NETWORK) }),
+    );
+    expect(view.ok && view.status).toBe('down');
+  });
+
+  it('turns the history chart off only when asked', () => {
+    const off = withConfig({ showHistory: false });
+    expect(off.ok && off.showHistory).toBe(false);
+
+    const on = withConfig({ showHistory: true });
+    expect(on.ok && on.showHistory).toBe(true);
+  });
+
+  it('ignores settings stored with the wrong type instead of blanking the tile', () => {
+    // Same defensiveness the snapshot read applies: this is a jsonb column.
+    const view = withConfig({ label: 42, degradedAboveMs: 'slow', showHistory: 'no' });
+    expect(view.ok).toBe(true);
+    if (!view.ok) return;
+    expect(view.label).toBe('');
+    expect(view.status).toBe('up');
+    // Only an explicit `false` hides it - a junk value must not lose history.
+    expect(view.showHistory).toBe(true);
+  });
+});

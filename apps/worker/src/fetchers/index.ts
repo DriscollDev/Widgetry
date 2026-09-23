@@ -14,6 +14,7 @@
 import { SERVER_POLLED_WIDGET_TYPES, type WidgetType } from '@widgetry/shared';
 import { customJsonFetcher } from './custom-json.js';
 import type { Fetcher } from './types.js';
+import { stockFetcher } from './stock.js';
 import { uptimeFetcher } from './uptime.js';
 
 /**
@@ -27,9 +28,10 @@ import { uptimeFetcher } from './uptime.js';
 export const FETCHERS: Partial<Record<WidgetType, Fetcher>> = {
   uptime: uptimeFetcher,
   custom_json: customJsonFetcher,
-
-  // TODO(F5.5): stock. Server-polled with history (locked decision 8). Needs the
-  //   Alpha Vantage / Finnhub decision first (Feature Spec §4.4).
+  // F5.5. Server-polled with history (locked decision 8), against Finnhub -
+  // §4.4's open choice, settled on the free tier's request budget. See
+  // packages/shared/src/widgets/stock.ts.
+  stock: stockFetcher,
 };
 
 export function getFetcher(type: WidgetType): Fetcher | undefined {

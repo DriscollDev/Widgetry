@@ -63,12 +63,14 @@ describe('WidgetConfigModal edit mode - generic ConfigForm path (US-C6)', () => 
       props: { open: true, boardId: 'board-1', widgetType: null, editWidgetId: 'w-uptime' },
     });
 
+    // The field is labelled from the schema's `.describe()`. It used to have
+    // none, so the form fell back to the raw key and the control read "url".
     expect(screen.getByText('Loading widget…')).toBeInTheDocument();
     expect(fetchMock).toHaveBeenCalledWith('/v1/widgets/w-uptime');
 
     resolveGet(jsonResponse(widgetDetail));
 
-    const input = await screen.findByLabelText('url');
+    const input = await screen.findByLabelText('URL to check');
     expect((input as HTMLInputElement).value).toBe('https://existing.example.test/');
     expect(screen.getByRole('button', { name: 'Save changes' })).toBeInTheDocument();
   });
@@ -119,15 +121,19 @@ describe('WidgetConfigModal edit mode - generic ConfigForm path (US-C6)', () => 
       },
     });
 
-    const input = await screen.findByLabelText('url');
+    const input = await screen.findByLabelText('URL to check');
     await fireEvent.input(input, { target: { value: 'https://new.example.test/' } });
     await fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
 
     await waitFor(() => expect(calls).toHaveLength(1));
     expect(calls[0]!.url).toBe('/v1/widgets/w-uptime');
     expect(calls[0]!.init.method).toBe('PATCH');
+    // `showHistory` rides along although the user never touched it: an
+    // unchecked box is a real `false`, so a checkbox is the one control that
+    // is never omitted for being blank. `label` IS omitted, which is what lets
+    // it fall to its schema default. See coerceConfigValues.
     expect(JSON.parse(String(calls[0]!.init.body))).toEqual({
-      config: { url: 'https://new.example.test/' },
+      config: { url: 'https://new.example.test/', showHistory: true },
     });
 
     expect(onUpdated).toHaveBeenCalledTimes(1);

@@ -6,12 +6,13 @@
   reaches the widget and starts a drag.
 -->
 <script lang="ts">
+  import { WIDGET_CARD } from './card';
   import type { RenderableWidget } from './types';
 
   let { widget }: { widget: RenderableWidget } = $props();
 </script>
 
-<div class="renderer-fallback">
+<div class="{WIDGET_CARD} renderer-fallback pointer-events-none">
   <span>{widget.widgetType}</span>
 </div>
 
@@ -20,16 +21,6 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 100%;
-    height: 100%;
-    pointer-events: none;
-    /* See ClockRenderer's matching comment - BoardView's cell no longer
-       draws the card. */
-    border-radius: 0.75rem;
-    background: light-dark(var(--color-surface-50), var(--color-surface-950));
-    border: 1px solid light-dark(var(--color-surface-200), var(--color-surface-800));
-    padding: 1rem;
-    box-sizing: border-box;
   }
 
   .renderer-fallback span {

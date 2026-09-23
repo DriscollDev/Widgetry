@@ -45,10 +45,28 @@ describe('toConfigView (Task #235)', () => {
     expect(allowlistedKeys('custom_json')).toEqual(expect.arrayContaining(['layoutId', 'slots']));
   });
 
-  it('sends nothing for types without an allowlist entry', () => {
-    expect(toConfigView('clock', {})).toBeNull();
-    expect(toConfigView('weather', { city: 'Providence' })).toBeNull();
+  it('sends nothing for something that is not a widget type', () => {
+    // This used to list clock, weather and stock, none of which had a config at
+    // all. All seven have real schemas now and all seven have an entry, so what
+    // is left to check is that the lookup is a genuine allowlist: a key off
+    // Object.prototype must not resolve to one.
     expect(toConfigView('constructor', { url: 'x' })).toBeNull();
+    expect(toConfigView('__proto__', { url: 'x' })).toBeNull();
+    expect(toConfigView('not_a_type', { url: 'x' })).toBeNull();
+  });
+
+  it('sends the clock display settings, under both the live and retired ids', () => {
+    const config = {
+      display: 'both',
+      timeZone: 'Asia/Tokyo',
+      hour12: false,
+      showSeconds: true,
+      dateStyle: 'full',
+      label: 'Tokyo office',
+    };
+    expect(toConfigView('clock', config)).toEqual(config);
+    // `datetime` is retired, not removed, and its rows still have to render.
+    expect(toConfigView('datetime', config)).toEqual(config);
   });
 
   it('returns null when the stored config is not a plain object', () => {

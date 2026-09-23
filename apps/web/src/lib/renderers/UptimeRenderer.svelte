@@ -17,6 +17,7 @@
   import { STATUS_META } from '$lib/widgets/status';
   import UptimeHistory from './UptimeHistory.svelte';
   import { toUptimeView } from './uptime-adapter';
+  import { WIDGET_CARD, WIDGET_CARD_ERROR } from './card';
   import type { RenderableWidget } from './types';
 
   let { widget }: { widget: RenderableWidget } = $props();
@@ -25,11 +26,13 @@
 </script>
 
 {#if view.ok}
-  <div
-    class="flex h-full flex-col justify-between gap-3 rounded-xl border border-surface-200-800 bg-surface-50-950 p-4"
-    data-widget-id={widget.id}
-  >
-    <p class="truncate font-mono text-xs text-surface-500" title={view.target}>{view.target}</p>
+  <div class="{WIDGET_CARD} flex flex-col justify-between gap-3" data-widget-id={widget.id}>
+    <div class="min-w-0">
+      {#if view.label}
+        <p class="truncate text-sm font-medium text-surface-950-50">{view.label}</p>
+      {/if}
+      <p class="truncate font-mono text-xs text-surface-500" title={view.target}>{view.target}</p>
+    </div>
 
     <div class="flex items-baseline gap-2">
       <span class="size-2.5 shrink-0 rounded-full {STATUS_META[view.status].dot}" aria-hidden="true"
@@ -42,8 +45,11 @@
 
     <!-- US-H3. Draws itself once its own fetch lands, and nothing before then -
          the current value above is already on screen, so a skeleton here would
-         be motion for its own sake. -->
-    <UptimeHistory widgetId={widget.id} />
+         be motion for its own sake. Skipped entirely when the user turned it
+         off, so the request is not made either. -->
+    {#if view.showHistory}
+      <UptimeHistory widgetId={widget.id} />
+    {/if}
 
     <p class="flex gap-2 text-xs text-surface-600-400">
       {#if view.httpStatus !== null}
@@ -58,7 +64,7 @@
   </div>
 {:else}
   <div
-    class="flex h-full flex-col justify-center gap-1 rounded-xl border border-error-500/40 bg-surface-50-950 p-4"
+    class="{WIDGET_CARD_ERROR} flex flex-col justify-center gap-1"
     data-widget-id={widget.id}
     role="status"
   >

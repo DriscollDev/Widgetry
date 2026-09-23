@@ -535,7 +535,15 @@ describeIntegration('GET/PATCH /v1/widgets/:id - editing config (US-C6)', () => 
       .from(schema.widgets)
       .where(eq(schema.widgets.id, widgetId))
       .limit(1);
-    expect(row?.config).toEqual({ url: 'https://new.example.test/' });
+    // The stored row is the PARSED config, not the request body: PATCH
+    // replaces the whole object and UptimeConfig fills its defaults on the way
+    // through. `degradedAboveMs` stays absent because it has no default - it
+    // is genuinely optional, and "no threshold set" is a real state.
+    expect(row?.config).toEqual({
+      url: 'https://new.example.test/',
+      label: '',
+      showHistory: true,
+    });
   });
 
   it('rejects a config PATCH that does not match the STORED type, config.-rooted', async () => {
