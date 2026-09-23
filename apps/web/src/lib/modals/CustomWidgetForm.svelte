@@ -22,9 +22,11 @@
     MIN_SERVER_POLL_SECONDS,
     primitivesForClass,
     type CustomJsonConfig,
+    type CustomPreviewResponse,
   } from '@widgetry/shared';
   import CustomWidget from '../widgets/custom/CustomWidget.svelte';
   import { previewDataFor } from './custom-widget-preview';
+  import { fetchPreview } from './custom-preview';
   import { ACCENT_COLORS, type AccentColor } from '../widgets/accent';
   import {
     DATA_KINDS,
@@ -291,6 +293,55 @@
     return { in: authType, name: authParamName.trim() };
   }
 
+  // ---------------------------------------------------------------------
+  // Fetch-then-pick (US-C3)
+  // ---------------------------------------------------------------------
+  // Typing `data.items[0].price` correctly requires already knowing the shape
+  // of a response you have not seen, and a wrong guess does not surface until
+  // the tile writes an error snapshot an hour later. So: fetch the endpoint
+  // once, here, and let the fields be chosen from what actually came back.
+  //
+  // Picking a field also sets the slot's `kind`, which is what the "Field type"
+  // select below is for when there is nothing fetched to pick from.
+
+  let previewBusy = $state(false);
+  /** Null until a preview has been run; then the last result, good or bad. */
+  let preview = $state<CustomPreviewResponse | null>(null);
+
+  let previewFieldList = $derived(preview?.ok ? preview.fields : []);
+  let pickable = $derived(previewFieldList.length > 0);
+
+  async function runPreview() {
+    if (!endpointOk || previewBusy) return;
+    previewBusy = true;
+    try {
+      preview = await fetchPreview({
+        url: endpointUrl,
+        headers,
+        placement: apiKeyPlacement() ?? null,
+        secret,
+      });
+    } finally {
+      previewBusy = false;
+    }
+  }
+
+  /**
+   * Bind a slot to a fetched field.
+   *
+   * Sets the path AND the kind together, because the kind is now KNOWN rather
+   * than guessed - that pairing is the whole point of fetching first. `setKind`
+   * then pulls the primitive into line if the current one cannot draw it, so
+   * picking an image URL on a slot showing a ring lands on the image primitive
+   * instead of on a ring that will never render.
+   */
+  function pickField(index: number, path: string) {
+    const field = previewFieldList.find((f) => f.path === path);
+    if (!field) return;
+    slots[index].jsonPath = field.path;
+    setKind(index, field.kind);
+  }
+
   /**
    * Minimum tile size for the slot count, replacing the layout's fixed pair.
    * One slot fits a 1x1; anything arranged side by side or in a grid needs
@@ -399,6 +450,49 @@
         />
         {#if endpointTouched && !endpointOk}
           <p class="mt-1 text-xs text-error-500">Must be a full http:// or https:// URL.</p>
+        {/if}
+
+        <!-- Fetch-then-pick. Optional: the path boxes still accept typing, so
+             an endpoint that cannot be reached from the server (or that the
+             user would rather not call yet) does not block building a widget. -->
+        <div class="mt-2 flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onclick={runPreview}
+            disabled={!endpointOk || previewBusy}
+            class="rounded-lg border border-surface-200-800 px-3 py-1.5 text-xs font-medium text-surface-950-50 disabled:opacity-50"
+          >
+            {previewBusy ? 'Fetching…' : 'Fetch fields'}
+          </button>
+          <span class="text-xs text-surface-500">
+            Reads the endpoint once so you can pick fields instead of typing paths.
+          </span>
+        </div>
+
+        {#if preview && !preview.ok}
+          <p class="mt-2 text-xs text-error-500">{preview.message}</p>
+        {:else if preview?.ok}
+          <p class="mt-2 text-xs text-success-500">
+            Found {preview.fields.length}
+            {preview.fields.length === 1 ? 'field' : 'fields'}.
+            {#if preview.truncated}Showing the first {preview.fields.length}.{/if}
+          </p>
+          {#if !preview.usedCredential && authType !== 'none'}
+            <!-- The api has no decrypt path by design (FR-6.2), so a key that
+                 is only in the database cannot be used here. Say so, rather
+                 than let a 401 look like a broken endpoint. -->
+            <p class="mt-1 text-xs text-warning-500">
+              Run without a key. Re-enter it below to preview as the widget will.
+            </p>
+          {/if}
+          {#if preview.skipped.length > 0}
+            <p class="mt-1 text-xs text-surface-500">
+              {preview.skipped.length}
+              {preview.skipped.length === 1 ? 'field is' : 'fields are'} not addressable: paths use plain
+              field names, so keys like <code>x-rate-limit</code> and a response that is a list at the
+              top level cannot be reached.
+            </p>
+          {/if}
         {/if}
       </div>
 
@@ -586,6 +680,26 @@
               <label for="path-{i}" class="mb-1 block text-xs text-surface-600-400">
                 JSON field path
               </label>
+
+              {#if pickable}
+                <!-- Present only once an endpoint has been fetched. Choosing
+                     here sets the path AND the field type together, which is
+                     the pairing the type select below has to ask for when
+                     there is nothing to pick from. -->
+                <select
+                  value={previewFieldList.some((f) => f.path === slot.jsonPath)
+                    ? slot.jsonPath
+                    : ''}
+                  onchange={(e) => pickField(i, e.currentTarget.value)}
+                  class="mb-1 w-full rounded-lg border border-surface-200-800 bg-surface-100-900 px-3 py-2 text-sm text-surface-950-50"
+                >
+                  <option value="">Pick a field…</option>
+                  {#each previewFieldList as field (field.path)}
+                    <option value={field.path}>{field.path} — {field.preview}</option>
+                  {/each}
+                </select>
+              {/if}
+
               <input
                 id="path-{i}"
                 type="text"
@@ -594,7 +708,9 @@
                 class="w-full rounded-lg border border-surface-200-800 bg-surface-100-900 px-3 py-2 font-mono text-sm text-surface-950-50"
               />
               <p class="mt-1 text-xs text-surface-500">
-                A field inside this widget's one response.
+                {pickable
+                  ? 'Picked from the response, or typed if you prefer.'
+                  : "A field inside this widget's one response."}
               </p>
             </div>
 

@@ -62,19 +62,13 @@ export const PURGE_BATCH_SIZE = 10_000;
  * ./scheduler.ts) cover the whole retry sequence.
  */
 
-/** Eng §11.3 step 5: per-request timeout for any outbound fetch. */
-export const OUTBOUND_TIMEOUT_MS = 5_000;
-
-/** Eng §11.3 step 5: hard cap on a response body. */
-export const OUTBOUND_MAX_BYTES = 256 * 1024;
-
-/** Eng §11.3 step 6: at most three redirects, each re-validated. */
-export const OUTBOUND_MAX_REDIRECTS = 3;
-
-/**
- * Sent on every outbound request. A monitored host's operator seeing unexplained
- * traffic should be able to find out what it is, and some WAFs reject a missing
- * or empty User-Agent outright - which would read to the user as their site
- * being down.
- */
-export const OUTBOUND_USER_AGENT = 'Widgetry/0.1 (+https://github.com/pokeballers/widgetry)';
+// The outbound limits (timeout, body cap, redirect cap, User-Agent) moved to
+// `@widgetry/net` with the SSRF gate itself - they are the gate's policy, not
+// the worker's, and the api applies the same ones now. Re-exported so existing
+// worker imports keep resolving.
+export {
+  OUTBOUND_MAX_BYTES,
+  OUTBOUND_MAX_REDIRECTS,
+  OUTBOUND_TIMEOUT_MS,
+  OUTBOUND_USER_AGENT,
+} from '@widgetry/net';

@@ -1,4 +1,4 @@
-// apps/worker/test/unit/safe-fetch-http.test.ts
+// packages/net/test/safe-fetch-http.test.ts
 //
 // EX-29 (redirect status detection) and EX-Size-Timeout: `requestOnce`'s HTTP
 // mechanics, verified against a real local server. Previously implemented but
@@ -28,7 +28,7 @@
 
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { requestOnce } from '../../src/lib/safe-fetch.js';
+import { requestOnce } from '../src/index.js';
 
 type Handler = (req: IncomingMessage, res: ServerResponse) => void;
 
