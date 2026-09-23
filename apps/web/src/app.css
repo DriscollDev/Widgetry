@@ -3,8 +3,8 @@
  *
  * Theme selection lives on <html data-theme="...">, set by the blocking
  * script in app.html (no flash) and changed at runtime by $lib/theme.ts. The
- * five imported here are the OQ-2 shortlist (Design Principles §7) - see
- * theme.ts for the calm-to-vivid gradient plus Ember, the warm outlier. */
+ * ten imported here are the OQ-2 set (Design Principles §7) - see theme.ts
+ * for the calm-to-vivid gradient plus the wider red/pastel spread after it. */
 
 @import 'tailwindcss';
 
@@ -15,6 +15,11 @@
 @import '@skeletonlabs/skeleton/themes/concord';
 @import '@skeletonlabs/skeleton/themes/terminus';
 @import '@skeletonlabs/skeleton/themes/crimson';
+@import '@skeletonlabs/skeleton/themes/sahara';
+@import '@skeletonlabs/skeleton/themes/rose';
+@import '@skeletonlabs/skeleton/themes/modern';
+@import '@skeletonlabs/skeleton/themes/seafoam';
+@import '@skeletonlabs/skeleton/themes/vox';
 
 /* Let Tailwind see the class names used inside Skeleton's Svelte components. */
 @source '../node_modules/@skeletonlabs/skeleton-svelte/dist';
