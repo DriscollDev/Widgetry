@@ -85,6 +85,35 @@ export const SignInEmailRequest = z.object({
 });
 export type SignInEmailRequest = z.infer<typeof SignInEmailRequest>;
 
+/**
+ * SCR-AUTH-03: ask for a reset link.
+ *
+ * Better-Auth calls this `/request-password-reset`. The response is
+ * `{ status: true }` for ANY well-formed address, whether or not an account
+ * exists and whether or not it is verified (FR-1.7 bars unverified accounts by
+ * declining to send, not by answering differently) - so this request shape is
+ * the only thing either side needs to agree on. The screen must not branch on
+ * the outcome; doing so would turn it into an account-enumeration oracle.
+ */
+export const RequestPasswordResetRequest = z.object({
+  email: EmailField,
+});
+export type RequestPasswordResetRequest = z.infer<typeof RequestPasswordResetRequest>;
+
+/**
+ * SCR-AUTH-04: set a new password using an emailed token.
+ *
+ * `token` is opaque and single-use (FR-1.8) - bounded here only to keep an
+ * absurd body from reaching Better-Auth, never parsed or interpreted by us. The
+ * password gets the same rules as sign-up: one definition of "acceptable
+ * password" for the whole product.
+ */
+export const ResetPasswordRequest = z.object({
+  token: z.string().min(1, 'This reset link is missing its token.').max(512),
+  newPassword: PasswordField,
+});
+export type ResetPasswordRequest = z.infer<typeof ResetPasswordRequest>;
+
 // ---- Responses -------------------------------------------------------------
 
 // The signed-in user's shape is NOT defined here. `GET /v1/me` is the endpoint

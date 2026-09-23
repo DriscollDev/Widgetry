@@ -17,9 +17,8 @@
     - Google OAuth (FR-1.3, p1) - the markup below is `hidden` until
       GOOGLE_OAUTH_CLIENT_ID/SECRET are configured, since the api only
       registers the provider when both are present.
-    - The "Forgot password?" link points at /forgot-password (SCR-AUTH-03),
-      which does not exist yet. The api half of the reset flow is built and
-      working; only the two screens are missing.
+    - SCR-AUTH-03/04/05 now exist, so the "Forgot password?" link is live and
+      a completed reset lands back here with ?reset=1.
 -->
 <script lang="ts">
   import BrandMark from '$lib/components/BrandMark.svelte';
@@ -60,7 +59,15 @@
     <h1 class="text-2xl font-semibold text-white">Welcome back</h1>
     <p class="mt-1 text-sm text-neutral-400">Sign in to your workspace</p>
 
-    {#if data.sessionExpired && !form?.message}
+    {#if data.passwordReset && !form?.message}
+      <p
+        class="mt-4 rounded-lg border border-green-500/40 bg-green-500/10 px-3 py-2 text-sm text-green-300"
+      >
+        Your password has been changed. Sign in with the new one.
+      </p>
+    {/if}
+
+    {#if data.sessionExpired && !data.passwordReset && !form?.message}
       <p
         class="mt-4 rounded-lg border border-neutral-700 bg-neutral-800/60 px-3 py-2 text-sm text-neutral-300"
       >
@@ -118,10 +125,9 @@
       <div>
         <div class="mb-1.5 flex items-center justify-between">
           <label for="password" class="text-sm text-neutral-300">Password</label>
-          <a href="/forgot-password" class="text-sm text-blue-400 hover:text-blue-300 hidden"
+          <a href="/forgot-password" class="text-sm text-blue-400 hover:text-blue-300"
             >Forgot password?</a
           >
-          <!--HIDDEN UNTIL IMPLEMENTED TODO: UNHIDE -->
         </div>
         <input
           id="password"

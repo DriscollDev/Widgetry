@@ -9,6 +9,16 @@ export const DEFAULT_SIGNED_IN_PATH = '/boards';
 export const SIGN_IN_PATH = '/sign-in';
 
 /**
+ * SCR-AUTH-05. Where an emailed verification link lands AFTER the api has
+ * verified it - passed as Better-Auth's `callbackURL`, not visited directly.
+ *
+ * Named here rather than written out at each call site because both sign-up
+ * and the resend action have to agree: a mismatch would send half the
+ * verification emails somewhere that cannot report `?error=…`.
+ */
+export const VERIFY_EMAIL_PATH = '/verify-email';
+
+/**
  * Sanitise a `returnTo` that came in on the query string.
  *
  * `returnTo` is attacker-supplied - anyone can mail out

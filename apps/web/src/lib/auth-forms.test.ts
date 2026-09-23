@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { EmailField, MIN_PASSWORD_LENGTH, PasswordField } from '@widgetry/shared';
-import { fieldError, fullName, SignUpForm } from './auth-forms.js';
+import {
+  fieldError,
+  ForgotPasswordForm,
+  fullName,
+  ResetPasswordForm,
+  SignUpForm,
+} from './auth-forms.js';
 
 const VALID = {
   firstName: 'Adrian',
@@ -65,5 +71,53 @@ describe('fieldError', () => {
 
   it('surfaces the first message so a field can render it on blur', () => {
     expect(fieldError(EmailField, 'nope')).toBe('Enter a valid email address.');
+  });
+});
+
+describe('ForgotPasswordForm (SCR-AUTH-03)', () => {
+  it('accepts a well-formed address', () => {
+    expect(ForgotPasswordForm.safeParse({ email: 'dana@example.com' }).success).toBe(true);
+  });
+
+  it.each([['blank', ''], ['no domain', 'dana@'], ['no @', 'dana.example.com']])(
+    'rejects %s',
+    (_label, email) => {
+      expect(ForgotPasswordForm.safeParse({ email }).success).toBe(false);
+    },
+  );
+});
+
+describe('ResetPasswordForm (SCR-AUTH-04)', () => {
+  const ok = { newPassword: 'a-perfectly-fine-password', confirmPassword: 'a-perfectly-fine-password' };
+
+  it('accepts a matching pair that clears the length rule', () => {
+    expect(ResetPasswordForm.safeParse(ok).success).toBe(true);
+  });
+
+  it('reports a mismatch against the confirm field', () => {
+    const result = ResetPasswordForm.safeParse({ ...ok, confirmPassword: 'something-else-here' });
+    expect(result.success).toBe(false);
+    if (result.success) return;
+    expect(result.error.issues[0]?.path).toEqual(['confirmPassword']);
+    expect(result.error.issues[0]?.message).toBe('Passwords do not match.');
+  });
+
+  it('applies the same length rule the api does', () => {
+    // Composed from PasswordField rather than restated, so the form cannot
+    // reject a password the api would accept.
+    const short = 'x'.repeat(MIN_PASSWORD_LENGTH - 1);
+    expect(ResetPasswordForm.safeParse({ newPassword: short, confirmPassword: short }).success).toBe(
+      false,
+    );
+    const atMin = 'x'.repeat(MIN_PASSWORD_LENGTH);
+    expect(ResetPasswordForm.safeParse({ newPassword: atMin, confirmPassword: atMin }).success).toBe(
+      true,
+    );
+  });
+
+  it('does not carry the token - only the api can judge that', () => {
+    // The token rides a hidden field and is validated server-side; modelling
+    // it here would invite the screen to pre-judge something it cannot check.
+    expect(Object.keys(ResetPasswordForm.parse(ok))).toEqual(['newPassword', 'confirmPassword']);
   });
 });
