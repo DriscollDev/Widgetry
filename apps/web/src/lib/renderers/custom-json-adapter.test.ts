@@ -46,11 +46,27 @@ describe('toCustomJsonView - config', () => {
     expect(view.config.slots).toHaveLength(3);
   });
 
+  it('draws a config with NO layout, arranged by slot count (US-C4 revision)', () => {
+    // This used to be in the undrawable list below. Layouts are optional now -
+    // a widget built by adding slots carries none, and CustomWidget arranges it
+    // from how many there are.
+    const view = toCustomJsonView(
+      widget({
+        config: { title: 'Auto', accent: 'primary', url: 'https://x.test', slots: SLOTS },
+        latest: polled([{ ok: true, value: 1 }]),
+      }),
+    );
+
+    expect(view.ok).toBe(true);
+    if (!view.ok) return;
+    expect(view.config.layoutId).toBeUndefined();
+    expect(view.config.slots).toHaveLength(3);
+  });
+
   it.each([
     ['null', null],
     ['an array', []],
     ['a string', 'nope'],
-    ['no layout', { slots: SLOTS }],
     ['no slots', { layoutId: 'single' }],
     ['an empty slot list', { layoutId: 'single', slots: [] }],
   ])('refuses to draw when the config is %s', (_label, config) => {
@@ -225,5 +241,89 @@ describe('toCustomJsonView - series primitives', () => {
     expect(view.ok).toBe(true);
     if (!view.ok) return;
     expect(view.slotData[0].updatedAtLabel).toBe('2 hr ago');
+  });
+});
+
+describe('toCustomJsonView - charting slots once history exists (US-C4)', () => {
+  const LINE_SLOTS = [
+    { primitive: 'number', label: 'Now', jsonPath: 'data.ms' },
+    { primitive: 'line', label: 'Latency', jsonPath: 'data.ms' },
+  ];
+  const STRIP_SLOTS = [
+    { primitive: 'number', label: 'Now', jsonPath: 'data.ms' },
+    { primitive: 'uptime-strip', label: 'Health', jsonPath: 'data.healthy' },
+  ];
+
+  /** A historical custom_json snapshot with the given per-slot values. */
+  const past = (values: unknown[]) => ({
+    capturedAt: new Date().toISOString(),
+    value: { slots: values.map((value) => ({ ok: true, value })), slotCount: values.length },
+    error: null,
+  });
+
+  function widgetWith(slots: unknown[], latestValues: unknown[]) {
+    return widget({
+      config: { ...CONFIG, layoutId: 'split', slots },
+      latest: polled(latestValues.map((value) => ({ ok: true, value }))),
+    });
+  }
+
+  it('fills a line slot with the real series', () => {
+    const history = [past([1, 10]), past([2, 20]), past([3, 30])];
+    const view = toCustomJsonView(widgetWith(LINE_SLOTS, [3, 30]), history);
+
+    expect(view.ok).toBe(true);
+    if (!view.ok) return;
+    expect(view.slotData[1]).toMatchObject({ state: 'value', series: [10, 20, 30] });
+  });
+
+  it('keeps a line slot stale on a single reading - one point is not a line', () => {
+    const view = toCustomJsonView(widgetWith(LINE_SLOTS, [1, 10]), [past([1, 10])]);
+
+    expect(view.ok).toBe(true);
+    if (!view.ok) return;
+    expect(view.slotData[1].state).toBe('stale');
+    expect(view.slotData[1].series).toBeUndefined();
+  });
+
+  it('fills an uptime-strip slot with a status series', () => {
+    const history = [past([1, true]), past([2, false]), past([3, 'ok'])];
+    const view = toCustomJsonView(widgetWith(STRIP_SLOTS, [3, true]), history);
+
+    expect(view.ok).toBe(true);
+    if (!view.ok) return;
+    expect(view.slotData[1]).toMatchObject({
+      state: 'value',
+      statusSeries: ['up', 'down', 'up'],
+    });
+  });
+
+  it('draws a strip from a single reading, unlike a line', () => {
+    // One mark is a legitimate strip; one point is not a line.
+    const view = toCustomJsonView(widgetWith(STRIP_SLOTS, [1, true]), [past([1, true])]);
+
+    expect(view.ok).toBe(true);
+    if (!view.ok) return;
+    expect(view.slotData[1]).toMatchObject({ state: 'value', statusSeries: ['up'] });
+  });
+
+  it('leaves non-charting slots exactly as they were', () => {
+    const history = [past([1, 10]), past([2, 20])];
+    const view = toCustomJsonView(widgetWith(LINE_SLOTS, [2, 20]), history);
+
+    expect(view.ok).toBe(true);
+    if (!view.ok) return;
+    expect(view.slotData[0]).toMatchObject({ state: 'value', value: 2 });
+    expect(view.slotData[0].series).toBeUndefined();
+  });
+
+  it('still says so when a charting slot has no history at all', () => {
+    // The pre-endpoint behaviour, which is still the right answer for a widget
+    // created a minute ago or one whose history retention has expired.
+    const view = toCustomJsonView(widgetWith(LINE_SLOTS, [1, 10]), []);
+
+    expect(view.ok).toBe(true);
+    if (!view.ok) return;
+    expect(view.slotData[1]).toMatchObject({ state: 'stale', value: 10 });
   });
 });

@@ -5,7 +5,12 @@
 // instead of a broken widget.
 
 import { describe, expect, it } from 'vitest';
-import { CUSTOM_JSON_MAX_HEADERS, CustomJsonConfig, parseWidgetConfig } from '@widgetry/shared';
+import {
+  CUSTOM_JSON_MAX_HEADERS,
+  CustomJsonConfig,
+  kindForSlot,
+  parseWidgetConfig,
+} from '@widgetry/shared';
 
 const SLOT = {
   primitive: 'number' as const,
@@ -95,6 +100,66 @@ describe('CustomJsonConfig - accepted', () => {
   });
 });
 
+describe('CustomJsonConfig - the US-C4 revision', () => {
+  it('accepts any primitive in any slot', () => {
+    // The slot class used to restrict this, which left four of the seven
+    // primitives unreachable from a single-slot widget. It only orders the
+    // menu now.
+    for (const primitive of ['ring', 'number', 'gauge', 'bar', 'badge', 'line', 'uptime-strip']) {
+      const result = CustomJsonConfig.safeParse({
+        ...VALID,
+        slots: [{ ...SLOT, primitive }],
+      });
+      expect(result.success, `${primitive} was rejected`).toBe(true);
+    }
+  });
+
+  it('accepts a config with no layout, arranged by slot count', () => {
+    const { layoutId: _layoutId, ...rest } = VALID;
+    expect(CustomJsonConfig.safeParse(rest).success).toBe(true);
+  });
+
+  it('round-trips the bound field type, so an edited widget reopens on it', () => {
+    // The kind used to be UI-only and re-derived from the primitive on edit,
+    // which always returned the FIRST kind that primitive accepts. A field set
+    // to Text and shown as a big number therefore came back as Number every
+    // single time, with no way to make the choice stick.
+    const parsed = CustomJsonConfig.parse({
+      ...VALID,
+      slots: [{ ...SLOT, kind: 'string' }],
+    });
+    expect(parsed.slots[0]!.kind).toBe('string');
+  });
+
+  it.each(['number', 'string', 'series', 'status', 'status-series'])(
+    'accepts the field type %s',
+    (kind) => {
+      expect(CustomJsonConfig.safeParse({ ...VALID, slots: [{ ...SLOT, kind }] }).success).toBe(
+        true,
+      );
+    },
+  );
+
+  it('rejects a field type that is not one of them', () => {
+    expect(issuesFor({ ...VALID, slots: [{ ...SLOT, kind: 'blob' }] })).toContain('slots.0.kind');
+  });
+
+  it('backfills a slot saved before the field type was persisted', () => {
+    // Optional, so every pre-revision config still parses; kindForSlot is the
+    // one place that guesses, and it guesses a pairing the menu will offer.
+    expect(CustomJsonConfig.safeParse(VALID).success).toBe(true);
+    expect(kindForSlot({ primitive: 'number' })).toBe('number');
+    expect(kindForSlot({ primitive: 'badge' })).toBe('status');
+    expect(kindForSlot({ primitive: 'number', kind: 'string' })).toBe('string');
+  });
+
+  it("still holds a config that NAMES a layout to that layout's slot count", () => {
+    // Pre-revision widgets carry a layoutId, and it still pins the arrangement.
+    const result = CustomJsonConfig.safeParse({ ...VALID, slots: [SLOT, SLOT] });
+    expect(result.success).toBe(false);
+  });
+});
+
 describe('CustomJsonConfig - rejected', () => {
   it.each([
     ['a missing URL', { ...VALID, url: undefined }, 'url'],
@@ -117,12 +182,6 @@ describe('CustomJsonConfig - rejected', () => {
     ['no slots at all', { ...VALID, slots: [] }, 'slots'],
     // A single-slot layout given two slots: arity is checked, not just shape.
     ['too many slots for the layout', { ...VALID, slots: [SLOT, SLOT] }, 'slots'],
-    // 'line' is a wide-slot primitive; 'single' offers a feature slot.
-    [
-      'a primitive the slot class does not offer',
-      { ...VALID, slots: [{ ...SLOT, primitive: 'line' }] },
-      'slots.0.primitive',
-    ],
     ['a slot with no label', { ...VALID, slots: [{ ...SLOT, label: '' }] }, 'slots.0.label'],
     ['an unknown key', { ...VALID, token: 'secret' }, ''],
     // The key itself never lives in config (FR-6.1) - only where it goes.

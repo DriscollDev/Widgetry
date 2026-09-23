@@ -162,13 +162,18 @@ describe('CustomJsonConfig (#221)', () => {
     slots: [{ primitive: 'number', label: 'CPU', jsonPath: 'data.cpu' }],
   };
 
-  it('gives a plain message when the layout is missing', () => {
+  it('ACCEPTS a config with no layout at all (US-C4 revision)', () => {
+    // This used to be an error with the message "Choose a layout." Layouts are
+    // no longer chosen up front - a widget is built by adding slots and the
+    // arrangement follows from how many there are - so a config without one is
+    // now the normal shape for anything created after the revision.
     const { layoutId: _layoutId, ...rest } = validConfig;
     const result = CustomJsonConfig.safeParse(rest);
-    expect(result.success).toBe(false);
-    if (!result.success) expect(messageFor(result)).toBe('Choose a layout.');
+    expect(result.success, JSON.stringify(result.error?.issues)).toBe(true);
   });
 
+  // A config that DOES name a layout must still name a real one - pre-revision
+  // widgets carry theirs, and an unrecognised id would arrange them wrongly.
   it('gives a plain message for an unknown layout id', () => {
     const result = CustomJsonConfig.safeParse({ ...validConfig, layoutId: 'nonsense' });
     expect(result.success).toBe(false);

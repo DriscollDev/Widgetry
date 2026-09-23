@@ -15,6 +15,7 @@
 -->
 <script lang="ts">
   import { STATUS_META } from '$lib/widgets/status';
+  import UptimeHistory from './UptimeHistory.svelte';
   import { toUptimeView } from './uptime-adapter';
   import type { RenderableWidget } from './types';
 
@@ -38,6 +39,11 @@
         {view.responseTimeMs}<span class="text-xs text-surface-600-400"> ms</span>
       </span>
     </div>
+
+    <!-- US-H3. Draws itself once its own fetch lands, and nothing before then -
+         the current value above is already on screen, so a skeleton here would
+         be motion for its own sake. -->
+    <UptimeHistory widgetId={widget.id} />
 
     <p class="flex gap-2 text-xs text-surface-600-400">
       {#if view.httpStatus !== null}

@@ -26,6 +26,7 @@ import {
   type SlotConfig,
 } from '@widgetry/shared';
 import type { CustomWidgetConfig, SlotData } from '$lib/widgets/custom/types';
+import { lineSeries, statusSeries } from './custom-series';
 import { agoLabel, isRecord, readLatest } from './snapshot-read';
 import type { RenderableWidget } from './types';
 
@@ -47,16 +48,24 @@ function readConfig(raw: unknown): CustomWidgetConfig | null {
 
   const layoutId = raw.layoutId;
   const slots = raw.slots;
-  if (typeof layoutId !== 'string' || !Array.isArray(slots) || slots.length === 0) return null;
+  if (!Array.isArray(slots) || slots.length === 0) return null;
 
-  // getLayout falls back to 'single' for an unknown id, which would silently
-  // draw the wrong arrangement. An id we do not know is a config we cannot honour.
-  const layout = getLayout(layoutId as CustomWidgetConfig['layoutId']);
-  if (layout.id !== layoutId) return null;
+  // `layoutId` is optional since the US-C4 revision - a config without one is
+  // arranged from its slot count by CustomWidget. When one IS present it must
+  // be a layout we know: getLayout falls back to 'single' for an unknown id,
+  // which would silently draw the wrong arrangement, so an unrecognised id is
+  // a config we cannot honour rather than one we guess at.
+  let resolvedLayout: CustomWidgetConfig['layoutId'];
+  if (layoutId !== undefined) {
+    if (typeof layoutId !== 'string') return null;
+    const layout = getLayout(layoutId as NonNullable<CustomWidgetConfig['layoutId']>);
+    if (layout.id !== layoutId) return null;
+    resolvedLayout = layout.id;
+  }
 
   return {
     title: typeof raw.title === 'string' ? raw.title : '',
-    layoutId: layout.id,
+    layoutId: resolvedLayout,
     accent: (typeof raw.accent === 'string'
       ? raw.accent
       : 'primary') as CustomWidgetConfig['accent'],
@@ -87,6 +96,8 @@ function toSlotData(
   slot: SlotConfig,
   stored: CustomJsonSnapshotValue['slots'][number] | undefined,
   capturedAt: string,
+  slotIndex: number,
+  history: LatestSnapshot[],
 ): SlotData {
   if (!stored) {
     // The config gained a slot since this row was written (US-C6).
@@ -105,11 +116,28 @@ function toSlotData(
   const scalar = typeof value === 'boolean' ? String(value) : value;
 
   if (needsSeries(slot.primitive)) {
-    return {
-      state: 'stale',
-      value: scalar,
-      updatedAtLabel: agoLabel(capturedAt) ?? 'History is not available yet',
-    };
+    // US-C4 + EX-Snapshots-Endpoint. Until the snapshots endpoint existed these
+    // drew their latest value with a "no history" note; they draw the real
+    // series now, and fall back to that note when a widget genuinely has no
+    // history yet (just created, or history purged by retention).
+    if (slot.primitive === 'uptime-strip') {
+      const statuses = statusSeries(history, slotIndex);
+      return statuses.length > 0
+        ? { state: 'value', value: scalar, statusSeries: statuses }
+        : { state: 'stale', value: scalar, updatedAtLabel: 'History is not available yet' };
+    }
+
+    const series = lineSeries(history, slotIndex);
+    // One point is not a line. Two is the minimum that draws a segment, and
+    // buildSparklinePath returns an empty path below that anyway - so a single
+    // reading stays the stale-with-value state rather than an empty chart.
+    return series.length >= 2
+      ? { state: 'value', value: scalar, series }
+      : {
+          state: 'stale',
+          value: scalar,
+          updatedAtLabel: agoLabel(capturedAt) ?? 'History is not available yet',
+        };
   }
 
   return { state: 'value', value: scalar, updatedAtLabel: agoLabel(capturedAt) };
@@ -122,7 +150,10 @@ function toSlotData(
  * that is shorter (config gained a slot) or longer (config lost one) renders the
  * current layout rather than the old one.
  */
-export function toCustomJsonView(widget: RenderableWidget): CustomJsonView {
+export function toCustomJsonView(
+  widget: RenderableWidget,
+  history: LatestSnapshot[] = [],
+): CustomJsonView {
   const config = readConfig(widget.config);
   if (!config) {
     return { ok: false, reason: 'This widget’s configuration could not be read.' };
@@ -141,7 +172,7 @@ export function toCustomJsonView(widget: RenderableWidget): CustomJsonView {
   }
 
   const slotData = config.slots.map((slot, index) =>
-    toSlotData(slot, snapshot.slots[index], latest.capturedAt),
+    toSlotData(slot, snapshot.slots[index], latest.capturedAt, index, history),
   );
 
   return { ok: true, config, slotData };
