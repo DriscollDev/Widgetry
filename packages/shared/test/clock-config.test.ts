@@ -6,6 +6,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   CLOCK_DISPLAYS,
+  CLOCK_FACES,
   CLOCK_TIME_ZONES,
   ClockConfig,
   parseWidgetConfig,
@@ -19,6 +20,7 @@ describe('ClockConfig', () => {
     // this type had no schema at all carry `{}`.
     expect(ClockConfig.parse({})).toEqual({
       display: 'both',
+      face: 'digital',
       timeZone: 'local',
       hour12: true,
       showSeconds: true,
@@ -29,6 +31,10 @@ describe('ClockConfig', () => {
 
   it.each(CLOCK_DISPLAYS)('accepts the %s display', (display) => {
     expect(ClockConfig.safeParse({ display }).success).toBe(true);
+  });
+
+  it.each(CLOCK_FACES)('accepts the %s face', (face) => {
+    expect(ClockConfig.safeParse({ face }).success).toBe(true);
   });
 
   it.each(CLOCK_TIME_ZONES)('accepts the zone %s', (timeZone) => {
@@ -52,6 +58,7 @@ describe('ClockConfig', () => {
 
   it.each([
     ['an unknown display', { display: 'sundial' }],
+    ['an unknown face', { face: 'sundial' }],
     ['an unknown zone', { timeZone: 'Mars/Olympus' }],
     ['an unknown date format', { dateStyle: 'enormous' }],
     ['a non-boolean hour12', { hour12: 'yes' }],

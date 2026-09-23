@@ -88,6 +88,7 @@ describe('toFormValues', () => {
     // displayed is worse than one that shows the truth.
     expect(toFormValues(ClockConfig, {})).toEqual({
       display: 'both',
+      face: 'digital',
       timeZone: 'local',
       hour12: 'true',
       showSeconds: 'true',
