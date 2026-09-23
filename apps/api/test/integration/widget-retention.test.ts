@@ -16,7 +16,7 @@
 // and the contract's rules are carried by test/unit/update-widget-contract.ts.
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { createDb, schema } from '@widgetry/db';
 import {
   BoardResponse,
@@ -177,8 +177,25 @@ describeIntegration('PATCH /v1/widgets/:id - retention (US-H2, FR-5.2)', () => {
     return row!.lastPolledAt;
   };
 
+  /** Park a widget as freshly polled, so it is definitively NOT due. */
+  const markJustPolled = async (widgetId: string): Promise<void> => {
+    // The DB clock, not the app's: the scheduler's due predicate is evaluated
+    // by Postgres, and this repo already documents Railway's Postgres running
+    // ahead of a dev machine. Setting the baseline with `now()` keeps the
+    // assertion below independent of that skew.
+    await db
+      .update(schema.widgets)
+      .set({ lastPolledAt: sql`now()` })
+      .where(eq(schema.widgets.id, widgetId));
+  };
+
   it('makes a widget due again when its config changes', async () => {
     const widgetId = await createWidget('uptime');
+
+    // Park it first. Without this the widget is ALREADY due from creation
+    // (POST seeds it due-now and no worker runs in this suite), so a PATCH
+    // that did nothing at all would pass just as well.
+    await markJustPolled(widgetId);
     const before = await lastPolledAtOf(widgetId);
 
     const response = await patchWidget(widgetId, {
@@ -186,12 +203,25 @@ describeIntegration('PATCH /v1/widgets/:id - retention (US-H2, FR-5.2)', () => {
     });
     expect(response.statusCode, response.body).toBe(200);
 
-    // Due means last_polled_at is at least one interval in the past, which is
-    // what the scheduler's sweep tests for. Asserting "moved backwards" rather
-    // than an exact instant keeps this independent of the type's interval.
-    const after = await lastPolledAtOf(widgetId);
-    expect(after.getTime()).toBeLessThanOrEqual(before.getTime());
-    expect(after.getTime()).toBeLessThanOrEqual(Date.now());
+    const [row] = await db
+      .select()
+      .from(schema.widgets)
+      .where(eq(schema.widgets.id, widgetId))
+      .limit(1);
+    const after = row!.lastPolledAt;
+    const intervalMs = row!.refreshIntervalSeconds! * 1000;
+
+    // The scheduler claims a row when
+    //   last_polled_at + refresh_interval < now()
+    // so "due" means the timestamp was rewound by at least one interval from
+    // the just-polled baseline. Asserted as the DISTANCE between two readings
+    // of the same column rather than against a wall clock, which is what keeps
+    // it immune to app-vs-DB skew.
+    //
+    // 0.9 rather than 1.0 because the baseline and the rewound value are taken
+    // a round trip apart; the gap is milliseconds against an interval of at
+    // least an hour, and an exact bound would fail on that alone.
+    expect(before.getTime() - after.getTime()).toBeGreaterThan(intervalMs * 0.9);
   });
 
   it('leaves the schedule alone when only placement changes', async () => {
