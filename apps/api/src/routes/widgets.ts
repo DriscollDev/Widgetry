@@ -35,7 +35,7 @@ import {
   getWidgetTypeDef,
   GRID_COLUMNS,
   MAX_WIDGETS_PER_BOARD,
-  MIN_SERVER_POLL_SECONDS,
+  jitteredLastPolledAt,
   parseWidgetConfig,
   UpdateWidgetRequest,
   type WidgetDetail,
@@ -71,15 +71,6 @@ export function toPlacement(widget: Widget): BoardWidgetPlacement {
     createdAt: widget.createdAt.toISOString(),
     updatedAt: widget.updatedAt.toISOString(),
   };
-}
-
-/** Eng §5.2: seeds last_polled_at to a random point in the widget's own
- * refresh window (not NOW()) so a cohort created together doesn't all come
- * due in the same 60s scheduler sweep. Column is NOT NULL even for
- * client-polled/unconfigured widgets, which the §8.1 sweep just ignores. */
-function jitteredLastPolledAt(def: WidgetTypeDef): Date {
-  const windowMs = (def.defaultRefreshSeconds ?? MIN_SERVER_POLL_SECONDS) * 1000;
-  return new Date(Date.now() - Math.floor(Math.random() * windowMs));
 }
 
 /** Re-roots config validation issues under `config.<field>` so the form can

@@ -48,6 +48,23 @@ describe('BoardView', () => {
     expect(screen.getByText('Retry')).toBeInTheDocument();
   });
 
+  it('calls onRetry when Retry is clicked (SCP-038)', async () => {
+    // This button was a console.log stub: the one control a stuck user would
+    // reach for, wired to nothing.
+    const onRetry = vi.fn();
+    render(BoardView, { props: { board: errorBoardFixture, state: 'error', onRetry } });
+
+    await fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    expect(onRetry).toHaveBeenCalledTimes(1);
+  });
+
+  it('disables Retry when no handler is wired, rather than lying', () => {
+    // The /dev harness omits it; a button that looks live and does nothing is
+    // what SCP-038 was.
+    render(BoardView, { props: { board: errorBoardFixture, state: 'error' } });
+    expect(screen.getByRole('button', { name: 'Retry' })).toBeDisabled();
+  });
+
   it('renders the board name from fixture props in the header', () => {
     render(BoardView, { props: { board: populatedBoardFixture, state: 'populated' } });
     expect(screen.getByText(populatedBoardFixture.name)).toBeInTheDocument();

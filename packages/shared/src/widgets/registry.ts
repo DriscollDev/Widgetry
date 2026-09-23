@@ -186,3 +186,75 @@ export const SERVER_POLLED_WIDGET_TYPES: readonly WidgetType[] = WIDGET_TYPES.fi
 export function parseWidgetConfig(type: WidgetType, config: unknown) {
   return WIDGET_TYPE_DEFS[type].configSchema.safeParse(config);
 }
+
+/**
+ * How long a newly created widget may wait for its FIRST poll.
+ *
+ * Slightly wider than the 60s scheduler tick, so a cohort created together
+ * lands across two sweeps rather than one, and no widget waits appreciably
+ * longer than a user is willing to watch a blank tile.
+ */
+export const FIRST_POLL_MAX_DELAY_SECONDS = 90;
+
+/**
+ * A `last_polled_at` value for a newly created widget (Eng §5.2, EX-36).
+ *
+ * NOT `now()`. The scheduler sweep (§8.1) enqueues every server-polled widget
+ * whose `last_polled_at` is older than its interval, so a cohort of widgets
+ * created in the same moment would all fall due in the same 60s sweep - a
+ * thundering herd on the worker, and visibly synchronised refreshes on the
+ * board. Each widget is offset so the cohort spreads.
+ *
+ * ---------------------------------------------------------------------------
+ * WHY THE OFFSET IS BOUNDED, which Eng §5.2 does not yet say
+ * ---------------------------------------------------------------------------
+ * §5.2 and EX-36 specify a seed anywhere in `[NOW() - interval, NOW())`. That
+ * spreads the cohort perfectly and has one consequence the document does not
+ * account for: it also delays each widget's FIRST poll by `interval - offset`,
+ * uniformly distributed over the whole interval. At FR-4.2's 3600s minimum
+ * that is an average of THIRTY MINUTES during which a freshly created widget
+ * has no snapshot, so the board renders a loading skeleton over it. A user who
+ * has just added a widget reasonably reads that as broken.
+ *
+ * So the offset is bounded: the widget is seeded to fall due within
+ * FIRST_POLL_MAX_DELAY_SECONDS of creation instead of within its full
+ * interval. First data arrives in about a minute, and a cohort still spreads
+ * across two sweeps rather than arriving in one.
+ *
+ * What this gives up is permanent spread. Under §5.2's version a cohort stayed
+ * spread across the whole interval forever; here they stay within ~90s of each
+ * other, since the sweep stamps `last_polled_at = now()` on every poll. At the
+ * MVP's scale - 100 concurrent users, batches of 500 per tick, SKIP LOCKED and
+ * oldest-first ordering already in the sweep - that clustering is well inside
+ * budget, and the scheduler handles a backlog by design. Revisit if the widget
+ * count per tick ever approaches what one tick can actually poll.
+ *
+ * ACTION: this narrows §5.2/EX-36's stated window and should go through
+ * /doc-sync.
+ * ---------------------------------------------------------------------------
+ *
+ * The column is NOT NULL even for client-polled and purely local types, which
+ * the sweep simply ignores - reporting a value for them is cheaper than making
+ * the column nullable and teaching every reader about a third state.
+ *
+ * Lives here, beside the registry it reads, because it has two writers: the
+ * widget-create path in the api and the demo seed in packages/db (SCP-035).
+ * A second copy is how the two drift.
+ *
+ * @param def the widget type's registry entry
+ * @param now injectable for tests; defaults to the current time
+ * @param random injectable for tests; defaults to Math.random
+ */
+export function jitteredLastPolledAt(
+  def: WidgetTypeDef,
+  now: number = Date.now(),
+  random: () => number = Math.random,
+): Date {
+  const intervalMs = (def.defaultRefreshSeconds ?? MIN_SERVER_POLL_SECONDS) * 1000;
+  // Never wider than the interval itself: a type whose interval is somehow
+  // shorter than the cap must not be seeded into the future.
+  const spreadMs = Math.min(intervalMs, FIRST_POLL_MAX_DELAY_SECONDS * 1000);
+
+  // due = lastPolledAt + interval = now + [0, spread)
+  return new Date(now - intervalMs + Math.floor(random() * spreadMs));
+}
