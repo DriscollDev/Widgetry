@@ -1,9 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { startBoardAutoRefresh, type BoardAutoRefreshEnv } from './board-auto-refresh';
 
-/** A fake env whose visibility can be flipped from the test, driving whatever
- *  listener(s) startBoardAutoRefresh registered - real setInterval/clearInterval
- *  so vi's fake timers still control the clock. */
+/** A fake env whose visibility can be flipped from the test; real timers so
+ *  vi's fake timers still control the clock. */
 function fakeEnv() {
   let hidden = false;
   const listeners: Array<() => void> = [];

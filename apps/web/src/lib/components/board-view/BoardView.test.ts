@@ -30,16 +30,12 @@ describe('BoardView', () => {
 
   it('renders the populated state with all widgets', () => {
     render(BoardView, { props: { board: populatedBoardFixture, state: 'populated' } });
-    // uptime and custom_json are server-polled (SERVER_POLLED_WIDGET_TYPES) and
-    // this fixture carries placement only - no snapshot - so WidgetFrame (#246)
-    // now shows its loading slot for both instead of either renderer improvising
-    // its own "no data yet" state.
+    // uptime/custom_json are server-polled with no snapshot, so WidgetFrame
+    // (#246) shows its loading slot for both.
     expect(screen.getAllByText(WIDGET_FRAME_META.loading.label)).toHaveLength(2);
-    // weather has no renderer yet and is not server-polled, so it is never framed
-    // and still falls back to its type name.
+    // weather has no renderer yet, so it falls back to its type name.
     expect(screen.getByText('weather')).toBeInTheDocument();
-    // Clock has a real renderer now (Task #228), so it draws the time, not its type
-    // name. Its label starts with "Clock:".
+    // Clock has a real renderer (Task #228) and draws the time.
     expect(screen.getByRole('img', { name: /^Clock:/ })).toBeInTheDocument();
   });
   it('renders the error state', () => {

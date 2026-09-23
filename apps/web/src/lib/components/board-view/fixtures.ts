@@ -3,13 +3,10 @@ import type { LatestSnapshot } from '@widgetry/shared';
 // Mirrors packages/shared BoardResponse shape (Eng Doc §6.3) so swapping
 // these for a live fetch later is a prop-source change, not a rewrite.
 
-// can only be one of two exact strings.
 export type BoardRefreshMode = 'auto' | 'manual';
 export type BoardViewState = 'loading' | 'empty' | 'populated' | 'error';
 
-// This defines the shape of a widget entry. Grid position/size fields added
-// for Task #166 (US-W2 drag mechanics) — #142/#143 only needed widget count,
-// so this fixture never had to carry real grid geometry until now.
+// Grid position/size fields added for Task #166 (US-W2 drag mechanics).
 export type BoardWidgetSummary = {
   id: string;
   widgetType: string;
@@ -17,13 +14,13 @@ export type BoardWidgetSummary = {
   grid_row: number; // >= 0, grows as needed
   grid_width: number; // 1–6
   grid_height: number; // 1–6
-  // Story #225 / Task #236: what the api sends per widget. Optional so fixtures
-  // and tests written before the payload carried them keep compiling.
+  // Story #225 / Task #236: what the api sends per widget. Optional so older
+  // fixtures/tests keep compiling.
   config?: Record<string, unknown> | null;
   latest?: LatestSnapshot | null;
 };
 
-// Defines the full board shape-- esentially the contract for what data BoardView can recieve
+// The full board shape BoardView receives.
 export type BoardViewFixture = {
   id: string;
   name: string;
@@ -31,8 +28,6 @@ export type BoardViewFixture = {
   refreshIntervalSeconds: number | null;
   widgets: BoardWidgetSummary[];
 };
-
-//this object literally has zero widgets in its array. This object sits in memory doing nothing until something imports and uses it.
 
 export const emptyBoardFixture: BoardViewFixture = {
   id: 'fixture-empty',

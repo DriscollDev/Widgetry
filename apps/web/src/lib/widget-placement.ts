@@ -2,10 +2,8 @@
 //
 // Where a newly added widget goes (Task #219, US-W1).
 //
-// The API rejects a widget that overlaps another one on the board (FR-3.3, POST
-// since #204), so "add a widget" has to pick a free spot itself instead of
-// sending a fixed position. This scans the board from the top-left, row by row,
-// with the same rectangle test the grid and the API use.
+// The API rejects an overlapping widget (FR-3.3), so this picks a free spot
+// itself by scanning the board top-left, row by row.
 
 import { GRID_COLUMNS } from '@widgetry/shared';
 
@@ -24,12 +22,8 @@ function overlaps(a: Rect, b: Rect): boolean {
   );
 }
 
-/**
- * The first free spot, reading left to right and top to bottom, where a widget
- * of `size` fits without overlapping any of `occupied`. Rows have no upper bound
- * (FR-3.1: rows grow as needed), so a spot always exists: the row just below the
- * lowest widget is empty.
- */
+/** First free spot, left-to-right/top-to-bottom, where `size` fits without
+ *  overlapping `occupied`. Rows have no upper bound (FR-3.1), so one always exists. */
 export function findFreeSlot(
   occupied: readonly Rect[],
   size: { width: number; height: number },

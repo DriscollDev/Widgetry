@@ -1,15 +1,11 @@
 // @vitest-environment happy-dom
 
-// Task #236: BoardView hands each renderer the widget's config and latest
-// snapshot. The registry is replaced with a probe that prints what it receives,
-// because no real renderer draws these yet (#224). A separate file, so the
-// mock cannot touch the tests that rely on the real Clock renderer.
+// Task #236: BoardView hands each renderer the widget's config/latest snapshot.
+// The registry is replaced with a probe that prints what it receives - a
+// separate file so the mock doesn't touch the real-Clock-renderer tests.
 //
-// Task #246: a server-polled widget (both w1/w2/w3 below are 'custom_json' or
-// 'uptime') now mounts its renderer only in the 'value' state - WidgetFrame
-// intercepts 'loading' and 'error' and draws its own slot instead, so the
-// probe never mounts for those two and the payload it would have received is
-// no longer the observable thing; what WidgetFrame shows is.
+// Task #246: a server-polled widget only mounts its renderer in the 'value'
+// state; WidgetFrame draws loading/error itself, so the probe never sees those.
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, cleanup } from '@testing-library/svelte';

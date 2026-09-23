@@ -9,68 +9,35 @@
   export let state: BoardViewState = 'populated';
   /** Opens SCR-MOD-02. The route owns the modal; the /dev harness omits it. */
   export let onOpenSettings: (() => void) | undefined = undefined;
-  /**
-   * Task #219 (US-W1): called when the user asks to add a widget, from the
-   * header button or the empty-state button. The route owns the catalog and
-   * config modals. When omitted the header button is disabled and the
-   * empty-state button is not shown.
-   */
+  /** Task #219 (US-W1): opens the add-widget flow. Omitted - button hidden/disabled. */
   export let onAddWidget: (() => void) | undefined = undefined;
-  /**
-   * Task #214 (US-W4): called with a widget's id when the user picks Delete
-   * from that widget's menu. What happens next belongs to the route - the
-   * confirm modal and the DELETE call are Task #211. When this is omitted no
-   * widget shows a menu button at all, so a page that has not adopted
-   * deletion yet looks exactly as it did before.
-   */
+  /** Task #214 (US-W4): Delete from a widget's menu; route owns the confirm+DELETE.
+   *  Omitted - no menu button shows at all. */
   export let onDeleteWidget: ((widgetId: string) => void) | undefined = undefined;
-  /**
-   * US-C6: called with a widget's id when the user picks Edit from that
-   * widget's menu. What happens next belongs to the route - fetching the
-   * widget's full config and opening WidgetConfigModal in edit mode. Shown
-   * alongside Delete in the same menu, so it follows the same
-   * omit-to-hide rule Task #214 established for that entry point.
-   */
+  /** US-C6: Edit from a widget's menu; route owns fetching config + opening the
+   *  edit modal. Same omit-to-hide rule as Delete. */
   export let onEditWidget: ((widgetId: string) => void) | undefined = undefined;
-  /**
-   * Task #222: fires whenever a drag or resize starts or ends, so the route's
-   * auto-refresh scheduler can skip a tick mid-gesture rather than reloading
-   * the board out from under the user's cursor.
-   */
+  /** Task #222: fires on drag/resize start+end, so auto-refresh can skip a
+   *  mid-gesture tick. */
   export let onInteractionChange: ((interacting: boolean) => void) | undefined = undefined;
-  /**
-   * SCP-038: called when the user clicks Retry on the error state. The route
-   * owns the re-fetch (`invalidateAll`), same division as every other callback
-   * here - this component does no I/O. When omitted the button is disabled
-   * rather than absent, so the error state keeps its shape in the /dev
-   * harness.
-   *
-   * Until this existed the button was a `console.log` stub: the one control on
-   * the screen a stuck user would reach for, and it did nothing.
-   */
+  /** SCP-038: Retry on the error state; route owns the re-fetch. Omitted - button
+   *  is disabled rather than absent. */
   export let onRetry: (() => void) | undefined = undefined;
 
   $: refreshLabel = formatRefresh(board);
   $: onInteractionChange?.(interactionMode !== null);
 
-  // --- Task #166 scope: cursor-follow + snap preview only. No SERVER persistence
-  // — that's Task #170's debounced PATCH (Eng Doc §9.3), directly below. Local/
-  // optimistic position updates on release DO belong here — the drop needs to
-  // visually stick before any network call exists, otherwise every drag
-  // silently no-ops. ---
+  // Task #166: cursor-follow + snap preview only, no server persistence yet
+  // (that's Task #170's debounced PATCH below).
   let gridEl: HTMLDivElement;
   let previewCol = 0;
   let previewRow = 0;
   let pointerOffsetX = 0;
   let pointerOffsetY = 0;
 
-  // Extended in Task #178 to optionally carry width/height alongside col/row;
-  // Task #179 is what actually makes use of those fields for persistence —
-  // same object, same commit-on-release pattern as drag already established.
+  // Task #178 extended this to optionally carry width/height for resize.
   type WidgetPlacement = { col: number; row: number; width?: number; height?: number };
-  // A placement where width/height are always known, never optional. Used
-  // wherever a full rectangle is required — overlap checks (#187) and the
-  // rollback target both need concrete numbers, never "maybe."
+  // Same shape but width/height always known - for overlap checks (#187) and rollback.
   type FullPlacement = { col: number; row: number; width: number; height: number };
   let localPositions: Record<string, WidgetPlacement> = {};
 
@@ -78,20 +45,15 @@
   const ROW_HEIGHT = 80; // px, matches grid-auto-rows minmax(80px, auto)
   const GAP = 8; // px, matches grid gap
 
-  // --- Task #178 scope (US-W3): which single mode is active right now, if any.
-  // Both drag (#166/#170) and resize (#178) funnel through this one flag so
-  // onPointerMove/onPointerUp have exactly one branch point each, rather than
-  // two parallel and easily-divergent sets of pointer handlers. ---
+  // Task #178 (US-W3): drag and resize funnel through this one flag so
+  // onPointerMove/onPointerUp have exactly one branch point each.
   type InteractionMode = 'drag' | 'resize' | null;
   let interactionMode: InteractionMode = null;
   let activeWidgetId: string | null = null;
   let activeHandle: ResizeHandlePosition | null = null;
 
-  // The widget's rect at the MOMENT a resize starts, captured once and never
-  // mutated during the drag. Every frame's new rect is computed fresh from
-  // this origin + the pointer's current cell, not incrementally from the
-  // previous frame — incremental math accumulates rounding drift over a long
-  // drag; recomputing from a fixed origin every time doesn't.
+  // Captured once when a resize starts; every frame recomputes from this fixed
+  // origin rather than incrementally, to avoid rounding drift.
   let resizeOrigin = { col: 0, row: 0, width: 1, height: 1 };
   let previewWidth = 1;
   let previewHeight = 1;
@@ -99,13 +61,8 @@
   const MIN_SPAN = 1;
   const MAX_SPAN = 6; // FR-3.2
 
-  // --- Task #187 scope (US-W6 / FR-3.3): the widget currently flashing a
-  // rejected-overlap conflict, if any. A single id (not a set) is enough —
-  // only one widget can be actively dragged/resized at a time, so only one
-  // can ever be mid-rejection at once. Cleared automatically after
-  // CONFLICT_FLASH_MS; the timer is tracked so a second rapid rejection on
-  // the same widget restarts the flash instead of the first timer cutting
-  // the second flash short. ---
+  // Task #187 (US-W6/FR-3.3): the widget currently flashing a rejected-overlap
+  // conflict. Single id is enough - only one widget can be mid-gesture at a time.
   let conflictWidgetId: string | null = null;
   let conflictTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -132,20 +89,9 @@
     );
   }
 
-  /**
-   * Would placing `candidateWidgetId` at `candidate` overlap any OTHER widget
-   * on the board? Siblings are read at their current RESTING placement
-   * (localPositions override, falling back to the widget's server-known
-   * rect) — never their preview state, because only the widget actually
-   * being dragged/resized ever has a preview; every sibling is at rest for
-   * the entire duration of that gesture.
-   *
-   * This is the client-side half of FR-3.3 (EX-Overlap-Client) — UX-only,
-   * no network round trip. It does not replace the server-side check
-   * (EX-Overlap-Server, a separate Task): this can be bypassed by a caller
-   * that skips the UI, or race with a second tab. The server has the final
-   * word; this exists so the common case never needs to ask it.
-   */
+  /** Would placing `candidateWidgetId` at `candidate` overlap another widget?
+   *  Client-side half of FR-3.3 (EX-Overlap-Client) - UX only, the server
+   *  check (EX-Overlap-Server) is still the final word. */
   function overlapsAnySibling(
     candidateWidgetId: string,
     candidate: FullPlacement,
@@ -165,35 +111,18 @@
     });
   }
 
-  // --- Task #170 scope: persist a drag to the server. FR-3.4's 500ms budget is
-  // debounce (300ms, Eng §9.3) + the PATCH round trip, so the debounce alone
-  // eats the majority of that budget — a slow network hop is the only way to
-  // blow it, which is a backend/infra concern, not something to compensate for
-  // here by shrinking the debounce below spec.
-  //
-  // --- Task #179 scope: this pipeline is now shared between drag and resize.
-  // patchWidgetPlacement/rollbackPosition/schedulePlacementPatch all operate
-  // on the full WidgetPlacement shape (col/row/width/height) rather than
-  // col/row alone — a drag only ever changes col/row and a resize only ever
-  // changes col/row/width/height together (per #178's anchor math, resizing
-  // can shift col/row too, e.g. dragging the `nw` handle), but there's no
-  // reason to maintain two near-identical PATCH pipelines when one generic
-  // one covers both call sites. ---
+  // Task #170: persist a drag to the server, debounced (FR-3.4's 500ms budget).
+  // Task #179: this pipeline is shared between drag and resize rather than
+  // maintaining two near-identical PATCH paths.
 
-  /** One pending timer per widget id, so dragging/resizing widget A mid-debounce
-   *  on widget B cannot cancel B's pending save — each widget's persistence is
-   *  independent of every other widget's. */
+  /** One pending timer per widget id, so persistence on one widget can't cancel
+   *  another's. */
   const pendingPatchTimers: Record<string, ReturnType<typeof setTimeout>> = {};
 
   const DEBOUNCE_MS = 300;
 
-  /**
-   * PATCH the widget's placement. Body only includes the fields that actually
-   * changed for this interaction — a drag never sends gridWidth/gridHeight,
-   * a resize always sends all four — matching UpdateWidgetRequest's
-   * `.partial()` shape (packages/shared/src/api/widgets.ts) rather than
-   * always sending a fully-populated body regardless of what happened.
-   */
+  /** PATCH the widget's placement. Body only includes fields this interaction
+   *  actually changed - a drag never sends gridWidth/gridHeight. */
   async function patchWidgetPlacement(
     widgetId: string,
     placement: { gridCol: number; gridRow: number; gridWidth?: number; gridHeight?: number },
@@ -207,41 +136,26 @@
         body: JSON.stringify(placement),
       });
     } catch {
-      // Network failure (offline, DNS, etc.) — same rollback as a rejected
-      // response below. The optimistic UI must not claim a position/size the
-      // server never actually recorded.
+      // Network failure - same rollback as a rejected response below.
       rollbackPosition(widgetId, previousPosition);
       return;
     }
 
     if (!response.ok) {
-      // Covers both a validation failure (this widget's own placement is
-      // somehow invalid) and an FR-3.3 overlap rejection FROM THE SERVER —
-      // the backstop half (EX-Overlap-Server), distinct from the client-side
-      // check above. Either way the server did not accept the drop/resize,
-      // so the optimistic local state is now a lie and has to be corrected.
+      // Validation failure or server-side overlap rejection (EX-Overlap-Server) -
+      // either way the optimistic local state is now wrong.
       rollbackPosition(widgetId, previousPosition);
     }
-    // On success, localPositions already holds the value the server just
-    // confirmed (set optimistically in onPointerUp) — nothing further to do.
+    // On success, localPositions already holds the server-confirmed value.
   }
 
   function rollbackPosition(widgetId: string, previousPosition: WidgetPlacement) {
     localPositions = { ...localPositions, [widgetId]: previousPosition };
   }
 
-  /**
-   * `includeSpan` is passed explicitly by the caller (true for resize, false
-   * for drag) rather than inferred from whether nextPosition.width is
-   * defined. It's ALWAYS defined in practice — currentPlacement() falls back
-   * to the widget's own grid_width/grid_height whenever there's no local
-   * override, so even a widget's first-ever drag carries a defined width.
-   * Inferring intent from that would silently send gridWidth/gridHeight on
-   * every plain drag, growing #170's PATCH body for no reason and risking an
-   * unintended width/height overwrite on every move. The caller already
-   * knows which interaction this is — asking it to say so directly is more
-   * reliable than reverse-engineering it from the data shape.
-   */
+  /** `includeSpan` is passed explicitly (true for resize, false for drag) rather
+   *  than inferred from whether width is defined - it's always defined in
+   *  practice, so inferring it would leak width/height into every drag PATCH. */
   function schedulePlacementPatch(
     widgetId: string,
     nextPosition: WidgetPlacement,
@@ -262,15 +176,8 @@
         gridCol: nextPosition.col,
         gridRow: nextPosition.row,
       };
-      // Only include width/height when this interaction actually set them —
-      // keeps a plain drag's PATCH body identical to what #170 always sent,
-      // rather than growing every drag's payload just because the type now
-      // technically allows width/height to be present. Deliberately checking
-      // the explicit `includeSpan` flag here, NOT `nextPosition.width !==
-      // undefined` — that check is always true in practice (currentPlacement
-      // always fills in width/height), which was the exact bug fixed once
-      // already; regressing to it would silently start sending width/height
-      // on every plain drag again.
+      // Checks the explicit `includeSpan` flag, not whether width is defined -
+      // width is always defined in practice, which was the exact bug fixed once.
       if (includeSpan) {
         placement.gridWidth = nextPosition.width;
         placement.gridHeight = nextPosition.height;
@@ -280,21 +187,15 @@
     }, DEBOUNCE_MS);
   }
 
-  // Leaving the board mid-debounce (nav away, harness state switch) should not
-  // fire a PATCH into a view nobody is looking at anymore. Does not attempt to
-  // flush pending saves synchronously on unmount — that is a real UX tradeoff
-  // (a very-last-moment drag/resize could be lost) but forcing a
-  // beforeunload-style flush is out of scope for #170/#179's stated ACs.
+  // Cancel pending saves on unmount rather than firing a PATCH into a view
+  // nobody's looking at. Does not flush synchronously - out of scope for now.
   onDestroy(() => {
     for (const timer of Object.values(pendingPatchTimers)) clearTimeout(timer);
     if (conflictTimer) clearTimeout(conflictTimer);
   });
 
-  // --- Task #214 (US-W4): the per-widget menu. ONE id, not a set: opening a
-  // second widget's menu replaces the first, so at most one menu is ever open.
-  // Its pointer events never reach the widget (see the template), so opening
-  // it can never start a drag. The only item today is Delete; the route owns
-  // what Delete does (confirm modal + DELETE call are Task #211). ---
+  // Task #214 (US-W4): the per-widget menu. One id, not a set - at most one
+  // menu is ever open.
   let openMenuWidgetId: string | null = null;
 
   /** True when the event came from inside some widget's menu (button or list). */
@@ -357,17 +258,9 @@
     }
   }
 
-  // --- FIX (Svelte reactivity gotcha): getPos/getSpan used to read
-  // previewCol, previewRow, interactionMode, activeWidgetId, and
-  // localPositions directly off the component's own scope. That's invisible
-  // to Svelte's compiler when the call is embedded in a template {@const} —
-  // the compiler only tracks identifiers it can see literally inside the
-  // template expression, not identifiers read inside a called function's
-  // body. Passing every reactive value in as an explicit argument puts those
-  // identifiers directly in the template expression, so Svelte correctly
-  // reruns {@const pos}/{@const span} (and therefore the grid-column/
-  // grid-row style binding) whenever any of them change during a drag or
-  // resize. ---
+  // Svelte reactivity gotcha: getPos/getSpan take every reactive value as an
+  // explicit argument instead of reading component scope directly, so the
+  // template's {@const} reruns correctly when they change mid-drag.
   function getPos(
     widget: BoardViewFixture['widgets'][number],
     mode: InteractionMode,
@@ -383,11 +276,7 @@
     return { col: widget.grid_col, row: widget.grid_row };
   }
 
-  /**
-   * Same idea as `getPos` but for width/height. A widget being actively
-   * resized reads its live preview span; otherwise it reads whatever was
-   * last locally committed, falling back to the widget's server-known span.
-   */
+  /** Same idea as `getPos` but for width/height. */
   function getSpan(
     widget: BoardViewFixture['widgets'][number],
     mode: InteractionMode,
@@ -406,13 +295,8 @@
     return { width: widget.grid_width, height: widget.grid_height };
   }
 
-  /**
-   * The full known placement for a widget right now — used as the "previous
-   * position" rollback target for BOTH drag and resize, and as each
-   * sibling's resting rectangle in the #187 overlap check. Falls back
-   * through localPositions to the widget's server-known values, so this
-   * always returns concrete numbers, never a partial guess.
-   */
+  /** Full known placement for a widget now - used as the rollback target and
+   *  as a sibling's resting rectangle in the #187 overlap check. */
   function currentPlacement(widget: BoardViewFixture['widgets'][number]): FullPlacement {
     const local = localPositions[widget.id];
     return {
@@ -485,17 +369,13 @@
       height: previousPosition.height,
     };
 
-    // Clear interaction state regardless of outcome — a rejected drop is
-    // still a finished gesture, not a stuck one.
+    // Clear interaction state regardless of outcome - a rejected drop is
+    // still a finished gesture.
     interactionMode = null;
     activeWidgetId = null;
 
-    // --- Task #187 (FR-3.3): reject-and-snap-back. Skipping the
-    // localPositions write below is what MAKES this a snap-back — getPos
-    // falls through to the widget's last-known-good rest position the
-    // instant interactionMode clears, since nothing here ever told it
-    // otherwise. There is no separate "undo" step because nothing was ever
-    // committed to undo. ---
+    // Task #187 (FR-3.3): reject-and-snap-back - skipping the localPositions
+    // write below is what makes this a snap-back.
     if (overlapsAnySibling(widget.id, candidate, board.widgets, localPositions)) {
       flashConflict(widget.id);
       return;
@@ -503,27 +383,19 @@
 
     const nextPosition: WidgetPlacement = { ...previousPosition, col: previewCol, row: previewRow };
 
-    // Optimistic local update — the widget stays at the dropped cell in the
-    // UI immediately, before the network round trip even starts.
+    // Optimistic local update, before the network round trip even starts.
     localPositions = { ...localPositions, [widget.id]: nextPosition };
 
     schedulePlacementPatch(widget.id, nextPosition, previousPosition, false);
   }
 
-  // Keyboard equivalent for the a11y linter / WCAG 2.1 AA (Feature Spec §6.5).
-  // NOTE: this only satisfies "focusable + activatable," it does NOT yet give
-  // keyboard users a way to actually reposition a widget — arrow-key movement
-  // is a real, separate feature and out of scope for Task #166's cursor-drag
-  // scope. Flagging here explicitly rather than letting it quietly not exist:
-  // a follow-up story is needed before US-W2 can be called done for keyboard
-  // users, not just mouse/touch users.
+  // Keyboard equivalent for the a11y linter (WCAG 2.1 AA, Feature Spec §6.5).
+  // Focusable + activatable only - arrow-key repositioning is a follow-up story.
   function onWidgetKeydown(_event: KeyboardEvent, _widget: BoardViewFixture['widgets'][number]) {
-    // Intentionally no-op for now — see note above.
+    // Intentionally no-op for now - see note above.
   }
 
-  // --- Task #177 established the handles themselves; Task #178 is the actual
-  // anchor math + clamping. Kept in the same file/section since the two Tasks
-  // share the RESIZE_HANDLES table and the ResizeHandlePosition type. ---
+  // Task #177 established the handles; Task #178 is the anchor math + clamping.
   type ResizeHandlePosition = 'n' | 'ne' | 'e' | 'se' | 's' | 'sw' | 'w' | 'nw';
 
   const RESIZE_HANDLES: { position: ResizeHandlePosition; cursor: string }[] = [
@@ -537,14 +409,8 @@
     { position: 'nw', cursor: 'nwse-resize' },
   ];
 
-  /**
-   * For each axis (col/row), does this handle keep the START edge fixed and
-   * grow the END edge ('fixed-start'), keep the END edge fixed and move the
-   * START edge ('fixed-end'), or leave that axis untouched entirely ('none').
-   * Encoding this as a table means the math below is written once and reused
-   * for all 8 handles, instead of 8 near-duplicate branches that drift apart
-   * over time.
-   */
+  /** For each axis, does this handle fix the start edge, fix the end edge, or
+   *  leave it untouched - a table so the math below is written once for all 8. */
   const HANDLE_AXES: Record<
     ResizeHandlePosition,
     { col: 'fixed-start' | 'fixed-end' | 'none'; row: 'fixed-start' | 'fixed-end' | 'none' }
@@ -564,9 +430,7 @@
     position: ResizeHandlePosition,
     widget: BoardViewFixture['widgets'][number],
   ) {
-    // Stops the parent widget's own pointerdown (startDrag) from also firing
-    // on the same bubbled event — a resize must never simultaneously start a
-    // whole-widget drag.
+    // Stops the parent widget's own pointerdown (startDrag) from also firing.
     event.stopPropagation();
 
     const pos = getPos(
@@ -609,9 +473,7 @@
     const gridRect = gridEl.getBoundingClientRect();
     const colWidth = (gridRect.width - GAP * (COLS - 1)) / COLS;
 
-    // The pointer's current cell — no drag-grab offset here, unlike drag:
-    // there's no "where within the widget did you grab it," the handle IS
-    // the edge being positioned.
+    // No drag-grab offset here, unlike drag - the handle IS the edge being positioned.
     const pointerCol = Math.round((event.clientX - gridRect.left) / (colWidth + GAP));
     const pointerRow = Math.round((event.clientY - gridRect.top) / (ROW_HEIGHT + GAP));
 
@@ -629,9 +491,7 @@
     }
     // 'none': col/width for this handle are untouched.
 
-    // --- Row axis --- (mirrors column axis; rows have no upper grid bound
-    // per FR-3.1 "rows grow as needed," so no room-to-edge cap here, only
-    // MIN_SPAN/MAX_SPAN and the non-negative floor.)
+    // Row axis mirrors column axis, but rows have no upper bound (FR-3.1).
     if (axes.row === 'fixed-start') {
       previewHeight = clampSpan(pointerRow - resizeOrigin.row + 1, Infinity);
       previewRow = resizeOrigin.row;
@@ -655,10 +515,7 @@
     activeWidgetId = null;
     activeHandle = null;
 
-    // --- Task #187 (FR-3.3): same reject-and-snap-back reasoning as drag,
-    // above — a resize that would overlap a sibling never gets committed, so
-    // getSpan/getPos fall back to the widget's last-known-good size the
-    // moment interactionMode clears. ---
+    // Task #187 (FR-3.3): same reject-and-snap-back as drag, above.
     if (overlapsAnySibling(widget.id, candidate, board.widgets, localPositions)) {
       flashConflict(widget.id);
       return;
@@ -773,14 +630,9 @@
             on:pointerup={(e) => onPointerUp(e, widget)}
             on:keydown={(e) => onWidgetKeydown(e, widget)}
           >
-            <!-- Story #223: the widget's content comes from the renderer registry. A type
-                 with no renderer yet gets the fallback, which draws the same type label
-                 this line used to. Renderers must leave pointer events alone (see
-                 FallbackRenderer) so a press on the content still starts a drag.
-
-                 Story #224/#246: mounted through WidgetFrame rather than directly, so a
-                 server-polled widget's loading/error state is decided in exactly one
-                 place instead of each renderer inventing its own. -->
+            <!-- Story #223: content comes from the renderer registry, with a fallback
+                 for unknown types. Story #224/#246: mounted through WidgetFrame so
+                 loading/error state is decided in one place. -->
             <WidgetFrame
               renderer={rendererFor(widget.widgetType)}
               widget={{
@@ -987,9 +839,8 @@
     z-index: 10;
   }
 
-  /* No cursor override here, unlike --dragging — the active resize handle's
-     own cursor is what should show during a resize, not a whole-widget
-     grabbing cursor. */
+  /* No cursor override here, unlike --dragging - the resize handle's own
+     cursor should show, not a grabbing cursor. */
   .board-view__widget--resizing {
     opacity: 0.85;
     outline: 2px solid light-dark(var(--color-primary-500), var(--color-primary-400));
@@ -997,22 +848,15 @@
     z-index: 10;
   }
 
-  /* --- Task #187 (FR-3.3): the rejected-overlap flash. A border-color pulse
-     using the same error token every other error state in the app uses
-     (matches .board-view__error below), not a bespoke red — consistent
-     status-color vocabulary rather than a one-off. Duration must match
-     CONFLICT_FLASH_MS in the script block; the JS timer, not the CSS
-     animation, is what actually clears the class, so a mismatch here would
-     just make the flash look slightly off, not break functionally. */
+  /* Task #187 (FR-3.3): the rejected-overlap flash, using the same error token
+     as other error states. Duration should match CONFLICT_FLASH_MS in script. */
   .board-view__widget--conflict {
     outline: 2px solid transparent;
     outline-offset: 1px;
     animation: board-view-conflict-flash 400ms ease;
   }
 
-  /* Outline rather than border-color, for the same reason as the two states
-     above - and it starts and ends fully transparent so the flash leaves no
-     ring behind on a cell that otherwise has no edge of its own. */
+  /* Starts and ends fully transparent so the flash leaves no ring behind. */
   @keyframes board-view-conflict-flash {
     0%,
     100% {
@@ -1023,10 +867,7 @@
     }
   }
 
-  /* --- Task #214 (US-W4): the per-widget menu. The button sits in the
-     top-right corner, hidden until the widget is hovered, focused, or its own
-     menu is open - the same reveal rule as the resize handles. It is a real
-     <button>, so Enter and Space work with no extra key handling. */
+  /* Task #214 (US-W4): the per-widget menu button, hidden until hover/focus/open. */
   .board-view__widget-menu {
     position: absolute;
     top: 4px;
@@ -1104,11 +945,7 @@
     background: light-dark(var(--color-surface-200), var(--color-surface-700));
   }
 
-  /* --- Task #177: resize handles ---
-     Hidden by default; shown on hover OR keyboard focus (`:focus-within`
-     covers the widget itself since it's the tabindex="0" element, not a
-     handle). Corner handles are small squares that straddle the border;
-     edge handles are thin strips centered on their side. */
+  /* Task #177: resize handles, hidden by default, shown on hover/focus-within. */
   .board-view__resize-handle {
     position: absolute;
     z-index: 5;
