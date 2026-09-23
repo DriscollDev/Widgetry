@@ -53,6 +53,7 @@ export const SLOT_PRIMITIVES = [
   'badge',
   'line',
   'uptime-strip',
+  'image',
 ] as const;
 export const SlotPrimitive = z.enum(SLOT_PRIMITIVES, {
   error: 'Choose how to display this value.',
@@ -71,9 +72,9 @@ export type SlotPrimitive = z.infer<typeof SlotPrimitive>;
  * orders the menu so the most suitable option is first.
  */
 export const PRIMITIVES_BY_CLASS: Record<SlotClass, readonly SlotPrimitive[]> = {
-  feature: ['ring', 'number', 'gauge'],
+  feature: ['ring', 'number', 'gauge', 'image'],
   compact: ['bar', 'number', 'badge'],
-  wide: ['line', 'bar', 'uptime-strip'],
+  wide: ['line', 'bar', 'uptime-strip', 'image'],
 };
 
 /** Every primitive, with the class's suggestions first. Drives the slot menu. */
@@ -90,6 +91,7 @@ export const PRIMITIVE_LABELS: Record<SlotPrimitive, string> = {
   badge: 'Status badge',
   line: 'Line chart',
   'uptime-strip': 'Uptime strip',
+  image: 'Image',
 };
 
 /**
@@ -105,7 +107,14 @@ export const PRIMITIVE_LABELS: Record<SlotPrimitive, string> = {
  * "Text" read back as "Number" the next time the widget was opened for editing,
  * with no way for the user to make the choice stick.
  */
-export const DATA_KINDS = ['number', 'string', 'series', 'status', 'status-series'] as const;
+export const DATA_KINDS = [
+  'number',
+  'string',
+  'series',
+  'status',
+  'status-series',
+  'image-url',
+] as const;
 export const DataKind = z.enum(DATA_KINDS, { error: 'Choose a field type.' });
 export type DataKind = z.infer<typeof DataKind>;
 
@@ -115,9 +124,19 @@ export const DATA_KIND_LABELS: Record<DataKind, string> = {
   series: 'List of numbers',
   status: 'Status',
   'status-series': 'List of statuses',
+  'image-url': 'Image URL',
 };
 
-/** Which data kinds each primitive can actually render. */
+/**
+ * Which data kinds each primitive can actually render.
+ *
+ * `image-url` is its own kind rather than plain `string` so that the failure is
+ * caught where it can be explained. A field holding a caption and a field
+ * holding a picture are both text; only the declaration tells them apart, and
+ * without it a mistyped path renders a broken-image icon with no reason
+ * attached. Declared, the worker can say "that field is not a URL" at the slot
+ * level and leave the widget's other slots showing data.
+ */
 export const PRIMITIVE_ACCEPTS: Record<SlotPrimitive, readonly DataKind[]> = {
   ring: ['number'],
   gauge: ['number'],
@@ -126,6 +145,7 @@ export const PRIMITIVE_ACCEPTS: Record<SlotPrimitive, readonly DataKind[]> = {
   badge: ['status', 'string'],
   line: ['series'],
   'uptime-strip': ['status-series'],
+  image: ['image-url'],
 };
 
 /**
@@ -148,15 +168,23 @@ export const SLOT_WIDTH_LABELS: Record<SlotWidth, string> = {
 };
 
 /**
+ * Primitives that default to `wide` when a slot does not state a width.
+ *
+ * Series primitives, because a chart of 48 readings in a narrow column is
+ * unreadable. And images, for the same reason in the other direction: a picture
+ * boxed into a narrow column is the one case where the automatic arrangement
+ * reliably produces something nobody would have chosen.
+ */
+const WIDE_BY_DEFAULT: readonly SlotPrimitive[] = ['line', 'uptime-strip', 'image'];
+
+/**
  * The width a slot asks for, or a sensible default for one that does not say.
  *
- * Series primitives default to `wide` because a chart of 48 readings in a
- * narrow column is unreadable, and everything else to `normal`. That makes the
- * default arrangement right without anyone configuring it, and leaves the
- * setting for when the default is not what you want.
+ * That makes the default arrangement right without anyone configuring it, and
+ * leaves the setting for when the default is not what you want.
  */
 export function slotWidthFor(slot: { primitive: SlotPrimitive; width?: SlotWidth }): SlotWidth {
-  return slot.width ?? (needsSeries(slot.primitive) ? 'wide' : 'normal');
+  return slot.width ?? (WIDE_BY_DEFAULT.includes(slot.primitive) ? 'wide' : 'normal');
 }
 
 /** The kind a slot declares, or the best guess for one saved before `kind` was

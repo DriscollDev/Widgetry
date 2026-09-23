@@ -5,13 +5,11 @@
 // field's data KIND narrows that menu further. Layouts are shipped code -
 // users pick one, they never compose a layout themselves.
 
-import type { CustomJsonConfig, DataKind, SlotWidth } from '@widgetry/shared';
+import type { CustomJsonConfig, DataKind, SlotPrimitive, SlotWidth } from '@widgetry/shared';
 import type { AccentColor } from '../accent';
 import type { WidgetStatus } from '../status';
 
 export type SlotClass = 'feature' | 'compact' | 'wide';
-
-export type SlotPrimitive = 'ring' | 'number' | 'gauge' | 'bar' | 'badge' | 'line' | 'uptime-strip';
 
 /** What a bound JSON field resolves to, and the primitive menu it allows.
  *
@@ -19,9 +17,16 @@ export type SlotPrimitive = 'ring' | 'number' | 'gauge' | 'bar' | 'badge' | 'lin
  * enum has to be the one the api validates against (`@widgetry/shared`). A
  * second copy here would be a schema duplicated across packages, which
  * CLAUDE.md forbids for exactly the reason it would drift.
+ *
+ * `SlotPrimitive` and `PRIMITIVE_LABELS` joined this list when the `image`
+ * primitive was added, having previously been hand-copied here. They were the
+ * drift that comment warns about: adding a primitive meant editing two lists,
+ * and nothing failed if you edited one. `PRIMITIVES_BY_CLASS` was a third copy
+ * with no readers at all, and is gone - the form calls `primitivesForClass`.
  */
 export {
   PRIMITIVE_ACCEPTS,
+  PRIMITIVE_LABELS,
   DATA_KIND_LABELS,
   DATA_KINDS,
   kindForSlot,
@@ -29,24 +34,7 @@ export {
   SLOT_WIDTH_LABELS,
   slotWidthFor,
 } from '@widgetry/shared';
-export type { DataKind, SlotWidth };
-
-/** The menu offered for each slot class, in display order. */
-export const PRIMITIVES_BY_CLASS: Record<SlotClass, SlotPrimitive[]> = {
-  feature: ['ring', 'number', 'gauge'],
-  compact: ['bar', 'number', 'badge'],
-  wide: ['line', 'bar', 'uptime-strip'],
-};
-
-export const PRIMITIVE_LABELS: Record<SlotPrimitive, string> = {
-  ring: 'Ring',
-  number: 'Big number',
-  gauge: 'Gauge',
-  bar: 'Bar',
-  badge: 'Status badge',
-  line: 'Line chart',
-  'uptime-strip': 'Uptime strip',
-};
+export type { DataKind, SlotWidth, SlotPrimitive };
 
 export type LayoutId = 'single' | 'split' | 'hero-strip' | 'trio';
 

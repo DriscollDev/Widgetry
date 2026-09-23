@@ -16,6 +16,7 @@
 import {
   CUSTOM_JSON_MAX_STRING_LENGTH,
   CustomJsonConfig,
+  isDisplayableImageUrl,
   parseJsonPath,
   resolveJsonPath,
   type CustomJsonSlotValue,
@@ -140,6 +141,22 @@ function resolveSlot(body: unknown, slot: SlotConfig): SlotOutcome {
       stored: { ok: false, reason: `The value at ${slot.jsonPath} is not a number.` },
       kind: 'invalid_response',
     };
+  }
+
+  // An image slot stores a URL the BROWSER will load, so the check belongs
+  // here, before the value reaches the database - a snapshot that never holds a
+  // `data:` or `javascript:` URL cannot render one later. See
+  // `isDisplayableImageUrl` for why those two specifically.
+  //
+  // Deliberately not run through storedScalar first: that truncates a long
+  // string to fit a snapshot, and a truncated URL is a broken URL, so it would
+  // turn "too long" into "mysteriously 404s".
+  if (slot.primitive === 'image' && !isDisplayableImageUrl(value)) {
+    const reason =
+      typeof value === 'string'
+        ? `The value at ${slot.jsonPath} is not an http(s) image URL.`
+        : `The value at ${slot.jsonPath} is not a URL. Point the path at an image address.`;
+    return { stored: { ok: false, reason }, kind: 'invalid_response' };
   }
 
   return { stored: { ok: true, value: storedScalar(value) }, kind: null };
