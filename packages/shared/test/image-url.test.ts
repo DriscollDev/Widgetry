@@ -35,9 +35,7 @@ describe('isDisplayableImageUrl - schemes it refuses', () => {
   it('refuses a data URI', () => {
     // The one that actually bites: a data: URI can carry an SVG, an SVG can
     // carry a script, and it renders same-origin.
-    expect(
-      isDisplayableImageUrl('data:image/svg+xml;base64,PHN2Zz48L3N2Zz4='),
-    ).toBe(false);
+    expect(isDisplayableImageUrl('data:image/svg+xml;base64,PHN2Zz48L3N2Zz4=')).toBe(false);
   });
 
   it.each([

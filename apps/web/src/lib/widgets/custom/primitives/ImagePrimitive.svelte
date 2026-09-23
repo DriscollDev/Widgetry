@@ -40,7 +40,13 @@
   <p class="text-xs text-surface-600-400">No image URL</p>
 {:else if broken}
   <div class="flex items-center gap-1.5 text-xs text-warning-500">
-    <svg viewBox="0 0 24 24" class="size-3.5 shrink-0" fill="none" stroke="currentColor" stroke-width="2">
+    <svg
+      viewBox="0 0 24 24"
+      class="size-3.5 shrink-0"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+    >
       <rect x="3" y="4" width="18" height="16" rx="2" />
       <path d="m4 17 5-5 4 4 3-3 4 4" stroke-linecap="round" stroke-linejoin="round" />
     </svg>
