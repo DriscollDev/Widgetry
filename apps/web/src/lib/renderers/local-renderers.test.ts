@@ -136,4 +136,44 @@ describe('Clock & Date renderer', () => {
     unmount();
     expect(vi.getTimerCount()).toBe(0);
   });
+
+  it('draws an analog face when configured, with hour/minute/second hands', () => {
+    const { container } = renderClock({ display: 'time', face: 'analog' });
+
+    expect(container.querySelector('svg.clock__analog')).toBeTruthy();
+    expect(container.querySelectorAll('.clock__hand')).toHaveLength(3);
+    expect(container.querySelector('.clock__time')).toBeFalsy();
+  });
+
+  it('drops the second hand when showSeconds is off', () => {
+    const { container } = renderClock({ display: 'time', face: 'analog', showSeconds: false });
+
+    expect(container.querySelectorAll('.clock__hand')).toHaveLength(2);
+    expect(container.querySelector('.clock__hand--second')).toBeFalsy();
+  });
+
+  it('still shows the date caption in analog mode', () => {
+    renderClock({ display: 'both', face: 'analog' });
+    expect(screen.getByText(AT.toLocaleDateString(undefined, { dateStyle: 'full' }))).toBeTruthy();
+  });
+
+  it('rotates the hands for the configured zone, not the browser default', () => {
+    const { container } = renderClock({ display: 'time', face: 'analog', timeZone: 'Asia/Tokyo' });
+
+    const byType = Object.fromEntries(
+      new Intl.DateTimeFormat('en-US', {
+        timeZone: 'Asia/Tokyo',
+        hour12: false,
+        hour: 'numeric',
+        minute: 'numeric',
+      })
+        .formatToParts(AT)
+        .map((part) => [part.type, part.value]),
+    );
+    const minutes = Number(byType.minute);
+    const expectedMinuteAngle = minutes * 6;
+
+    const minuteHand = container.querySelector('.clock__hand--minute');
+    expect(minuteHand?.getAttribute('transform')).toBe(`rotate(${expectedMinuteAngle} 50 50)`);
+  });
 });

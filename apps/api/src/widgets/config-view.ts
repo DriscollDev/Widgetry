@@ -27,7 +27,15 @@
  * by key anyway rather than passed through wholesale, so a field added later
  * still has to be considered. `datetime` is the retired id for the same type
  * and gets the same list. */
-const CLOCK_KEYS = ['display', 'timeZone', 'hour12', 'showSeconds', 'dateStyle', 'label'] as const;
+const CLOCK_KEYS = [
+  'display',
+  'face',
+  'timeZone',
+  'hour12',
+  'showSeconds',
+  'dateStyle',
+  'label',
+] as const;
 
 const CONFIG_ALLOWLIST: Readonly<Record<string, readonly string[]>> = {
   uptime: ['url', 'label', 'degradedAboveMs', 'showHistory'],

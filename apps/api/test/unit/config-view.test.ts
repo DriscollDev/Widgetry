@@ -58,6 +58,7 @@ describe('toConfigView (Task #235)', () => {
   it('sends the clock display settings, under both the live and retired ids', () => {
     const config = {
       display: 'both',
+      face: 'analog',
       timeZone: 'Asia/Tokyo',
       hour12: false,
       showSeconds: true,
