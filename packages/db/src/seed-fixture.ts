@@ -214,14 +214,19 @@ export const SEED_BOARDS: readonly SeedBoard[] = [
         gridWidth: 4,
         gridHeight: 2,
         config: { symbol: 'AAPL', label: 'Apple', currencySymbol: '$' },
+        // A REAL quote, pulled from Finnhub on 2026-09-23 and pasted here. The
+        // first numbers were invented from the API's documented example and
+        // were about eighty dollars off, which on a demo board is a price a
+        // viewer can recognise as wrong. The worker overwrites this on its
+        // first sweep; until then it should at least be plausible.
         snapshot: {
           symbol: 'AAPL',
-          price: 261.74,
-          previousClose: 262.23,
-          change: -0.49,
-          changePct: -0.19,
-          dayHigh: 263.31,
-          dayLow: 260.68,
+          price: 339.75,
+          previousClose: 338.98,
+          change: 0.77,
+          changePct: 0.2272,
+          dayHigh: 345.34,
+          dayLow: 338.75,
           quotedAt: '2026-09-22T20:00:00.000Z',
         },
       },
