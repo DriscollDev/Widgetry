@@ -82,10 +82,24 @@ describe('AppHeader - account menu', () => {
 
   it('uses the avatar image when Google supplied one (FR-1.3)', () => {
     mount({ image: 'https://lh3.example.com/a/ada' });
-    const img = document.querySelector('img');
-    expect(img).toHaveAttribute('src', 'https://lh3.example.com/a/ada');
+
+    // Selected by src, not "the first img on the page" - the brand mark is an
+    // <img> too now, and it comes first in the DOM.
+    const img = document.querySelector('img[src="https://lh3.example.com/a/ada"]');
+    expect(img).not.toBeNull();
     // Decorative: the name sits beside it, so alt text would be read twice.
     expect(img).toHaveAttribute('alt', '');
+  });
+
+  it('shows the brand mark beside the product name', () => {
+    mount();
+    const mark = document.querySelector('img[src="/logo-mark.svg"]');
+
+    expect(mark, 'the brand mark is not rendered').not.toBeNull();
+    // Decorative: "Widgetry" is live text right next to it, so announcing the
+    // logo as well would be a stutter for a screen-reader user.
+    expect(mark).toHaveAttribute('alt', '');
+    expect(mark).toHaveAttribute('aria-hidden', 'true');
   });
 
   it('opens to reveal account settings and sign out', async () => {

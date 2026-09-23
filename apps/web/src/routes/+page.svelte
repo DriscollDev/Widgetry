@@ -21,16 +21,16 @@
   actual shipped widget types (uptime, weather, stock, custom JSON) with
   representative numbers, not live data.
 -->
+<script lang="ts">
+  import BrandMark from '$lib/components/BrandMark.svelte';
+</script>
+
 <svelte:head><title>Widgetry - a board for the APIs you check by hand</title></svelte:head>
 
 <div class="min-h-screen bg-neutral-950 text-neutral-200">
   <header class="mx-auto flex max-w-6xl items-center justify-between px-6 py-6">
     <div class="flex items-center gap-2">
-      <div
-        class="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600 text-sm font-semibold text-white"
-      >
-        W
-      </div>
+      <BrandMark size={32} />
       <span class="text-sm font-medium text-neutral-200">Widgetry</span>
     </div>
     <nav class="flex items-center gap-6 text-sm">

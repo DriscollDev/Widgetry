@@ -22,6 +22,7 @@
       working; only the two screens are missing.
 -->
 <script lang="ts">
+  import BrandMark from '$lib/components/BrandMark.svelte';
   import { enhance } from '$app/forms';
   import type { ActionData, PageData } from './$types';
 
@@ -52,11 +53,7 @@
 <div class="flex min-h-screen items-center justify-center bg-neutral-950 px-4">
   <div class="w-full max-w-sm rounded-2xl border border-neutral-800 bg-neutral-900 p-8 shadow-xl">
     <div class="mb-6 flex items-center gap-2">
-      <div
-        class="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600 text-sm font-semibold text-white"
-      >
-        W
-      </div>
+      <BrandMark size={32} />
       <span class="text-sm font-medium text-neutral-200">Widgetry</span>
     </div>
 
