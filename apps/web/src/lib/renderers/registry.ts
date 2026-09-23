@@ -12,6 +12,7 @@ import ClockRenderer from './ClockRenderer.svelte';
 import CurrencyRenderer from './CurrencyRenderer.svelte';
 import CustomJsonRenderer from './CustomJsonRenderer.svelte';
 import UptimeRenderer from './UptimeRenderer.svelte';
+import WeatherRenderer from './WeatherRenderer.svelte';
 import FallbackRenderer from './FallbackRenderer.svelte';
 import type { RenderableWidget } from './types';
 
@@ -30,6 +31,7 @@ const RENDERERS = new Map<WidgetType, WidgetRenderer>([
   ['currency', CurrencyRenderer],
   ['custom_json', CustomJsonRenderer],
   ['uptime', UptimeRenderer],
+  ['weather', WeatherRenderer],
 ]);
 
 /** The renderer for a widget type, or the fallback when there is none yet. */

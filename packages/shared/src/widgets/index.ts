@@ -8,6 +8,7 @@ export * from './url.js';
 export * from './uptime.js';
 export * from './clock.js';
 export * from './currency.js';
+export * from './weather.js';
 export * from './json-path.js';
 export * from './custom-layout.js';
 export * from './custom-json.js';

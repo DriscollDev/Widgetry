@@ -26,6 +26,12 @@
 
 import { z } from 'zod';
 import { CurrencyCode, CurrencyRate } from '../widgets/currency.js';
+import {
+  TemperatureUnit,
+  WeatherLocation,
+  WeatherReading,
+  WindSpeedUnit,
+} from '../widgets/weather.js';
 
 /**
  * How long a proxied upstream response is served from Redis.
@@ -57,3 +63,26 @@ export type CurrencyDataQuery = z.infer<typeof CurrencyDataQuery>;
 
 export const CurrencyDataResponse = CurrencyRate;
 export type CurrencyDataResponse = z.infer<typeof CurrencyDataResponse>;
+
+/**
+ * A place name resolves to coordinates that do not change. Caching that lookup
+ * for the 60s widget-data window would re-ask Open-Meteo where Halifax is
+ * every minute, for an answer that has not moved since the last ice age.
+ */
+export const GEOCODE_CACHE_SECONDS = 24 * 60 * 60;
+
+/**
+ * Units ARE part of the question here, unlike currency's `amount`: Open-Meteo
+ * does the conversion, so celsius and fahrenheit are two different upstream
+ * responses rather than the same number formatted twice. They stay in the key.
+ */
+export const WeatherDataQuery = z.object({
+  location: WeatherLocation,
+  temperatureUnit: TemperatureUnit.default('celsius'),
+  windSpeedUnit: WindSpeedUnit.default('kmh'),
+});
+
+export type WeatherDataQuery = z.infer<typeof WeatherDataQuery>;
+
+export const WeatherDataResponse = WeatherReading;
+export type WeatherDataResponse = z.infer<typeof WeatherDataResponse>;

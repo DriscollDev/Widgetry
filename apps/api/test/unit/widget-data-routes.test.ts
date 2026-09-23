@@ -14,6 +14,8 @@ import type { FastifyInstance } from 'fastify';
 import {
   CurrencyDataQuery,
   CurrencyDataResponse,
+  GEOCODE_CACHE_SECONDS,
+  WeatherDataQuery,
   WIDGET_DATA_CACHE_SECONDS,
 } from '@widgetry/shared';
 import { widgetDataCacheKey } from '../../src/lib/widget-data-cache.js';
@@ -31,25 +33,71 @@ describe('widget-data route registration', () => {
     await app?.close();
   });
 
-  it('registers the currency proxy', () => {
+  it('registers both proxies', () => {
     expect(app.hasRoute({ method: 'GET', url: '/v1/widget-data/currency' })).toBe(true);
+    expect(app.hasRoute({ method: 'GET', url: '/v1/widget-data/weather' })).toBe(true);
   });
 
   it('gates it behind a session, so the upstream budget is not public', async () => {
     // Only /v1/auth/*, /v1/health and /v1/widgets/catalog are public (Eng §6.2)
     // - and this one spends someone else's rate limit on every miss.
-    const response = await app.inject({
-      method: 'GET',
-      url: '/v1/widget-data/currency?base=USD&quote=CAD',
-    });
-    expect(response.statusCode).toBe(401);
+    for (const url of [
+      '/v1/widget-data/currency?base=USD&quote=CAD',
+      '/v1/widget-data/weather?location=Halifax',
+    ]) {
+      const response = await app.inject({ method: 'GET', url });
+      expect(response.statusCode, url).toBe(401);
+    }
   });
 
   it('never reaches an upstream for an anonymous caller', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch');
     await app.inject({ method: 'GET', url: '/v1/widget-data/currency?base=USD&quote=CAD' });
+    await app.inject({ method: 'GET', url: '/v1/widget-data/weather?location=Halifax' });
     expect(fetchSpy).not.toHaveBeenCalled();
     fetchSpy.mockRestore();
+  });
+});
+
+describe('WeatherDataQuery', () => {
+  it('needs only a place, and defaults the units', () => {
+    expect(WeatherDataQuery.parse({ location: 'Halifax' })).toEqual({
+      location: 'Halifax',
+      temperatureUnit: 'celsius',
+      windSpeedUnit: 'kmh',
+    });
+  });
+
+  it.each([
+    ['a missing place', {}],
+    ['a blank place', { location: '  ' }],
+    ['an ampersand that would add an upstream parameter', { location: 'Halifax&count=99' }],
+    ['a newline', { location: 'Halifax\nX: 1' }],
+    ['a path traversal attempt', { location: '../../etc/passwd' }],
+    ['an unknown unit', { location: 'Halifax', temperatureUnit: 'kelvin' }],
+  ])('rejects %s', (_label, query) => {
+    // `location` is the one piece of free text in any widget config that
+    // reaches an upstream query string. It is a urlencoded VALUE and never
+    // part of the URL's structure - but it is bounded and pattern-checked
+    // anyway, which is also what keeps it out of the Redis key's grammar.
+    expect(WeatherDataQuery.safeParse(query).success).toBe(false);
+  });
+});
+
+describe('the geocode cache', () => {
+  it('is held far longer than a forecast', () => {
+    // Where Halifax is does not change; re-asking every 60s would spend a
+    // request a minute on an answer that has not moved since the last ice age.
+    expect(GEOCODE_CACHE_SECONDS).toBeGreaterThan(WIDGET_DATA_CACHE_SECONDS);
+    expect(GEOCODE_CACHE_SECONDS).toBe(86_400);
+  });
+
+  it('keys the forecast on coordinates, not on the typed name', () => {
+    // Which is what makes "Halifax" and "halifax, ns" - two different geocode
+    // lookups - collapse onto ONE forecast entry.
+    expect(widgetDataCacheKey('weather', ['44.64', '-63.58', 'celsius', 'kmh'])).toBe(
+      'widget-data:weather:44.64:-63.58:celsius:kmh',
+    );
   });
 });
 

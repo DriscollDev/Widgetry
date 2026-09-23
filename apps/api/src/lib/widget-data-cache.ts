@@ -45,11 +45,16 @@ export function widgetDataCacheKey(source: string, parts: readonly string[]): st
  * is an optimisation, and an unreachable Redis must degrade to slower, not to
  * broken. `load()`'s own failures are NOT swallowed - the caller turns those
  * into the error the user sees, and nothing is cached.
+ *
+ * `ttlSeconds` defaults to the 60s window Eng §7.2 specifies for widget data.
+ * A caller overrides it only for a lookup that is not widget data at all - a
+ * place name's coordinates, which do not change.
  */
 export async function withWidgetDataCache<T>(
   source: string,
   parts: readonly string[],
   load: () => Promise<T>,
+  ttlSeconds: number = WIDGET_DATA_CACHE_SECONDS,
 ): Promise<{ value: T; cached: boolean }> {
   const conn = redis();
   const key = widgetDataCacheKey(source, parts);
@@ -68,7 +73,7 @@ export async function withWidgetDataCache<T>(
 
   if (conn) {
     try {
-      await conn.set(key, JSON.stringify(value), 'EX', WIDGET_DATA_CACHE_SECONDS);
+      await conn.set(key, JSON.stringify(value), 'EX', ttlSeconds);
     } catch {
       // Serving the value the caller asked for matters more than storing it.
     }

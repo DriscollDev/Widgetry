@@ -33,6 +33,7 @@ import { WIDGET_TYPES } from '../api/widgets.js';
 import type { ServerPolledWidgetTypeDef, WidgetTypeDef } from './types.js';
 import { ClockConfig } from './clock.js';
 import { CurrencyConfig } from './currency.js';
+import { WeatherConfig } from './weather.js';
 import { CustomJsonConfig } from './custom-json.js';
 import { UptimeConfig } from './uptime.js';
 
@@ -62,14 +63,15 @@ export const WIDGET_TYPE_DEFS: Record<WidgetType, WidgetTypeDef> = {
     minRefreshSeconds: MIN_SERVER_POLL_SECONDS,
   },
 
-  // TODO(F5.3): Open-Meteo, no API key. Client-polled through
+  // F5.3. Open-Meteo, no API key, client-polled through
   // `/v1/widget-data/weather` so the upstream call and its Redis cache stay
-  // server-side (Eng §7.2). configSchema needs the location.
+  // server-side (Eng §7.2). The user types a PLACE and the api geocodes it -
+  // see ./weather.ts on why that beats two coordinate boxes.
   weather: {
     id: 'weather',
     displayName: 'Weather',
     category: 'informational',
-    configSchema: NOT_YET_CONFIGURABLE,
+    configSchema: WeatherConfig,
     renderer: 'value',
     polling: 'client',
     supportsHistory: false,

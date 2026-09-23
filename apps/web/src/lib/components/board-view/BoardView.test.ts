@@ -35,9 +35,11 @@ describe('BoardView', () => {
     // now shows its loading slot for both instead of either renderer improvising
     // its own "no data yet" state.
     expect(screen.getAllByText(WIDGET_FRAME_META.loading.label)).toHaveLength(2);
-    // weather has no renderer yet and is not server-polled, so it is never framed
-    // and still falls back to its type name.
-    expect(screen.getByText('weather')).toBeInTheDocument();
+    // weather has a real renderer now (F5.3). It is client-polled, so it is
+    // never framed by WidgetFrame and owns its own states - and this fixture
+    // carries placement only, with no config, so the one it can honestly show
+    // is "tell me where". It used to fall back to printing its type name.
+    expect(screen.getByText('Set a town or city in its settings.')).toBeInTheDocument();
     // Clock has a real renderer now (Task #228), so it draws the time, not its type
     // name. F5.1+F5.2 merged Clock and Date/Time into one type that defaults
     // to showing both, so the fixture's configless clock announces itself as

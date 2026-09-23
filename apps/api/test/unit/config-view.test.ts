@@ -46,10 +46,11 @@ describe('toConfigView (Task #235)', () => {
   });
 
   it('sends nothing for types without an allowlist entry', () => {
-    // clock USED to be in here: it had no config at all. F5.1+F5.2 merged it
-    // with Date/Time and gave it six display settings, every one of which the
+    // clock and weather USED to be in here: neither had a config at all. Both
+    // have real schemas now, and every key of them is a display choice the
     // browser has to read to draw the tile - see the CLOCK_KEYS note.
-    expect(toConfigView('weather', { city: 'Providence' })).toBeNull();
+    expect(toConfigView('stock', { ticker: 'IBM' })).toBeNull();
+    // Not a widget type at all - a prototype key must not resolve to one.
     expect(toConfigView('constructor', { url: 'x' })).toBeNull();
   });
 

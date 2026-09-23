@@ -5,7 +5,7 @@
 //
 // An ALLOWLIST, per widget type: a key is private until it is listed here, so a
 // config field added later cannot leak by default. A type with no entry sends
-// nothing - weather and stock have no schema yet.
+// nothing - stock has no schema yet.
 //
 // custom_json's entry carries the per-slot layout model (Feature Spec v1.3,
 // Eng §7.3): a renderer cannot draw the widget without `layoutId` and `slots`,
@@ -33,6 +33,7 @@ const CONFIG_ALLOWLIST: Readonly<Record<string, readonly string[]>> = {
   uptime: ['url', 'label', 'degradedAboveMs', 'showHistory'],
   clock: CLOCK_KEYS,
   datetime: CLOCK_KEYS,
+  weather: ['location', 'temperatureUnit', 'windSpeedUnit', 'showDetails', 'label'],
   currency: ['base', 'quote', 'amount', 'decimals', 'showInverse', 'label'],
   custom_json: ['title', 'layoutId', 'accent', 'slots', 'url'],
 };
