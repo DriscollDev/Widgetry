@@ -10,6 +10,7 @@ import {
   CustomJsonConfig,
   kindForSlot,
   parseWidgetConfig,
+  slotWidthFor,
 } from '@widgetry/shared';
 
 const SLOT = {
@@ -142,6 +143,37 @@ describe('CustomJsonConfig - the US-C4 revision', () => {
 
   it('rejects a field type that is not one of them', () => {
     expect(issuesFor({ ...VALID, slots: [{ ...SLOT, kind: 'blob' }] })).toContain('slots.0.kind');
+  });
+
+  it('round-trips a slot width, and defaults one that is not set', () => {
+    const parsed = CustomJsonConfig.parse({ ...VALID, slots: [{ ...SLOT, width: 'wide' }] });
+    expect(parsed.slots[0]!.width).toBe('wide');
+
+    // Absent is the normal shape - every config written before this existed
+    // has no width at all, and must keep arranging itself sensibly.
+    expect(CustomJsonConfig.safeParse(VALID).success).toBe(true);
+    expect(CustomJsonConfig.parse(VALID).slots[0]!.width).toBeUndefined();
+  });
+
+  it('rejects a width that is not one of the two', () => {
+    expect(issuesFor({ ...VALID, slots: [{ ...SLOT, width: 'enormous' }] })).toContain(
+      'slots.0.width',
+    );
+  });
+
+  it('defaults charts to wide and everything else to normal', () => {
+    // The arrangement used to guess from POSITION - slot 0 its natural width,
+    // slot 1 the rest - which squeezed a chart to a few pixels whenever it came
+    // first. Deriving from the primitive makes the default right without
+    // anyone configuring anything.
+    expect(slotWidthFor({ primitive: 'line' })).toBe('wide');
+    expect(slotWidthFor({ primitive: 'uptime-strip' })).toBe('wide');
+    expect(slotWidthFor({ primitive: 'number' })).toBe('normal');
+    expect(slotWidthFor({ primitive: 'ring' })).toBe('normal');
+
+    // An explicit setting always wins over the derived one.
+    expect(slotWidthFor({ primitive: 'line', width: 'normal' })).toBe('normal');
+    expect(slotWidthFor({ primitive: 'number', width: 'wide' })).toBe('wide');
   });
 
   it('backfills a slot saved before the field type was persisted', () => {

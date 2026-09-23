@@ -5,7 +5,7 @@
 // field's data KIND narrows that menu further. Layouts are shipped code -
 // users pick one, they never compose a layout themselves.
 
-import type { CustomJsonConfig, DataKind } from '@widgetry/shared';
+import type { CustomJsonConfig, DataKind, SlotWidth } from '@widgetry/shared';
 import type { AccentColor } from '../accent';
 import type { WidgetStatus } from '../status';
 
@@ -20,8 +20,16 @@ export type SlotPrimitive = 'ring' | 'number' | 'gauge' | 'bar' | 'badge' | 'lin
  * second copy here would be a schema duplicated across packages, which
  * CLAUDE.md forbids for exactly the reason it would drift.
  */
-export { PRIMITIVE_ACCEPTS, DATA_KIND_LABELS, DATA_KINDS, kindForSlot } from '@widgetry/shared';
-export type { DataKind };
+export {
+  PRIMITIVE_ACCEPTS,
+  DATA_KIND_LABELS,
+  DATA_KINDS,
+  kindForSlot,
+  SLOT_WIDTHS,
+  SLOT_WIDTH_LABELS,
+  slotWidthFor,
+} from '@widgetry/shared';
+export type { DataKind, SlotWidth };
 
 /** The menu offered for each slot class, in display order. */
 export const PRIMITIVES_BY_CLASS: Record<SlotClass, SlotPrimitive[]> = {
@@ -116,6 +124,9 @@ export type SlotConfig = {
   /** The bound field's shape. Absent on configs saved before it was
    * persisted - read it through `kindForSlot`, never bare. */
   kind?: DataKind;
+  /** How much room this slot asks for. Absent means "decide from the
+   * primitive" - read it through `slotWidthFor`, never bare. */
+  width?: SlotWidth;
   label: string;
   /** Dot-notation path into the widget's response (Eng §7.3 grammar). */
   jsonPath: string;
