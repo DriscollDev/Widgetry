@@ -5,8 +5,7 @@
 //
 // An ALLOWLIST, per widget type: a key is private until it is listed here, so a
 // config field added later cannot leak by default. A type with no entry sends
-// nothing - clock and datetime have no config, and weather, stock and currency
-// have no schema yet.
+// nothing - weather, stock and currency have no schema yet.
 //
 // custom_json's entry carries the per-slot layout model (Feature Spec v1.3,
 // Eng §7.3): a renderer cannot draw the widget without `layoutId` and `slots`,
@@ -14,6 +13,9 @@
 // it is the user's input, and the widget's error state reads better naming the
 // endpoint that failed. Set by the E6 code owners on 2026-09-21, superseding the
 // `path` + `displayFormat` pair, which no longer exists on the config.
+//
+// clock/datetime (Task #231): timezone and face/format are the whole config,
+// nothing to withhold - neither field is a secret.
 //
 // Never listed, on purpose:
 //   - custom_json `headers`: can hold secrets.
@@ -26,6 +28,8 @@
 const CONFIG_ALLOWLIST: Readonly<Record<string, readonly string[]>> = {
   uptime: ['url'],
   custom_json: ['title', 'layoutId', 'accent', 'slots', 'url'],
+  clock: ['timezone', 'face'],
+  datetime: ['timezone', 'format'],
 };
 
 /**

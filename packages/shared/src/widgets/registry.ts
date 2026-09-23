@@ -17,15 +17,15 @@
 // resolvable for all of them - it is what replaced the PROVISIONAL_POLLING_MODE
 // map that used to live in apps/api/src/routes/widgets.ts.
 //
-// The `configSchema` entries are NOT all real. Only `uptime` and `custom_json`
-// have one, because they are the only types with a fetcher so far. Every other type carries
-// `NOT_YET_CONFIGURABLE` - a strict empty object, which is an exact statement of
-// today's behaviour rather than a placeholder that lies: those widgets really do
-// take no configuration yet, and really are created with `config = {}`. Filling
-// one in is the first step of building that widget type; see the per-type TODOs.
-// Do not replace it with a permissive passthrough object - that would let
-// unvalidated user input into the jsonb column, which is the one thing the
-// registry exists to prevent.
+// The `configSchema` entries are NOT all real yet. `uptime`, `custom_json`,
+// `clock` and `datetime` have one; `weather`, `stock` and `currency` still
+// carry `NOT_YET_CONFIGURABLE` - a strict empty object, which is an exact
+// statement of today's behaviour rather than a placeholder that lies: those
+// widgets really do take no configuration yet, and really are created with
+// `config = {}`. Filling one in is the first step of building that widget
+// type; see the per-type TODOs. Do not replace it with a permissive
+// passthrough object - that would let unvalidated user input into the jsonb
+// column, which is the one thing the registry exists to prevent.
 
 import { z } from 'zod';
 import type { WidgetType } from '../api/widgets.js';
@@ -33,6 +33,8 @@ import { WIDGET_TYPES } from '../api/widgets.js';
 import type { ServerPolledWidgetTypeDef, WidgetTypeDef } from './types.js';
 import { CustomJsonConfig } from './custom-json.js';
 import { UptimeConfig } from './uptime.js';
+import { ClockConfig } from './clock.js';
+import { DateTimeConfig } from './date-time.js';
 
 /**
  * FR-4.2's floor, and the `widgets_refresh_interval_check` constraint's floor.
@@ -106,15 +108,14 @@ export const WIDGET_TYPE_DEFS: Record<WidgetType, WidgetTypeDef> = {
     minRefreshSeconds: null,
   },
 
-  // TODO(F5.2): purely local - renders from Date.now() and a configured
+  // F5.2 (Task #231): purely local - renders from Date.now() and a configured
   // timezone, no HTTP anywhere (Eng §7.2). Stored as polling 'client' because
   // the column has no third value, NOT because anything fetches for it.
-  // configSchema needs the timezone and format.
   datetime: {
     id: 'datetime',
     displayName: 'Date & Time',
     category: 'informational',
-    configSchema: NOT_YET_CONFIGURABLE,
+    configSchema: DateTimeConfig,
     renderer: 'value',
     polling: 'client',
     supportsHistory: false,
@@ -122,13 +123,12 @@ export const WIDGET_TYPE_DEFS: Record<WidgetType, WidgetTypeDef> = {
     minRefreshSeconds: null,
   },
 
-  // TODO(F5.1): purely local, same note as datetime. configSchema needs the
-  // timezone and the analog/digital face choice.
+  // F5.1 (Task #231): purely local, same note as datetime.
   clock: {
     id: 'clock',
     displayName: 'Clock',
     category: 'informational',
-    configSchema: NOT_YET_CONFIGURABLE,
+    configSchema: ClockConfig,
     renderer: 'value',
     polling: 'client',
     supportsHistory: false,

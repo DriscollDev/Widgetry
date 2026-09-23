@@ -1,7 +1,7 @@
 <!--
-  Date & Time (Story #223, Task #228, F5.2): the date and the time in the
-  browser's own locale and time zone. No format or timezone setting yet, so both
-  follow the browser.
+  Date & Time (Story #223, Task #228, F5.2): the date and the time. Task #231
+  adds config: an optional timezone (falls back to the browser's own) and a
+  12h/24h format (defaults to the locale's own convention).
 -->
 <script lang="ts">
   import { useNow } from './now.svelte';
@@ -11,17 +11,51 @@
 
   const now = useNow();
 
-  const date = $derived(
-    now.value.toLocaleDateString(undefined, {
-      weekday: 'long',
-      month: 'long',
-      day: 'numeric',
-      year: 'numeric',
-    }),
+  const timezone = $derived(widget.config?.timezone as string | undefined);
+  const hour12 = $derived(
+    widget.config?.format === '12h' ? true : widget.config?.format === '24h' ? false : undefined,
   );
-  const time = $derived(
-    now.value.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' }),
-  );
+
+  const date = $derived(formatDate(now.value, timezone));
+  const time = $derived(formatTime(now.value, timezone, hour12));
+
+  function formatDate(at: Date, tz: string | undefined): string {
+    try {
+      return at.toLocaleDateString(undefined, {
+        timeZone: tz,
+        weekday: 'long',
+        month: 'long',
+        day: 'numeric',
+        year: 'numeric',
+      });
+    } catch {
+      // An unrecognized stored timezone must not blank a widget that still
+      // has a value to show - fall back to the browser's own.
+      return at.toLocaleDateString(undefined, {
+        weekday: 'long',
+        month: 'long',
+        day: 'numeric',
+        year: 'numeric',
+      });
+    }
+  }
+
+  function formatTime(at: Date, tz: string | undefined, use12h: boolean | undefined): string {
+    try {
+      return at.toLocaleTimeString(undefined, {
+        timeZone: tz,
+        hour12: use12h,
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+    } catch {
+      return at.toLocaleTimeString(undefined, {
+        hour12: use12h,
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+    }
+  }
 </script>
 
 <div

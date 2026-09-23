@@ -46,9 +46,19 @@ describe('toConfigView (Task #235)', () => {
   });
 
   it('sends nothing for types without an allowlist entry', () => {
-    expect(toConfigView('clock', {})).toBeNull();
     expect(toConfigView('weather', { city: 'Providence' })).toBeNull();
     expect(toConfigView('constructor', { url: 'x' })).toBeNull();
+  });
+
+  it('sends timezone and face for clock, timezone and format for datetime (Task #231)', () => {
+    expect(toConfigView('clock', { timezone: 'America/New_York', face: 'analog' })).toEqual({
+      timezone: 'America/New_York',
+      face: 'analog',
+    });
+    expect(toConfigView('datetime', { timezone: 'America/New_York', format: '24h' })).toEqual({
+      timezone: 'America/New_York',
+      format: '24h',
+    });
   });
 
   it('returns null when the stored config is not a plain object', () => {
