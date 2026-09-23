@@ -142,7 +142,12 @@ export function isValidEndpoint(url: string): boolean {
 
 export type CustomWidgetConfig = {
   title: string;
-  layoutId: LayoutId;
+  /**
+   * Optional since the US-C4 revision: a widget without one is arranged from
+   * its slot count. Present on every config written before that change, where
+   * it still pins the arrangement.
+   */
+  layoutId?: LayoutId;
   accent: AccentColor;
   /** ONE source per widget. Every slot reads a path out of this response. */
   endpointUrl: string;

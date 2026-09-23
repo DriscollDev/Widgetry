@@ -59,12 +59,28 @@ export const SlotPrimitive = z.enum(SLOT_PRIMITIVES, {
 });
 export type SlotPrimitive = z.infer<typeof SlotPrimitive>;
 
-/** The menu offered for each slot class, in display order. */
+/**
+ * The primitives SUGGESTED for each slot class, in display order.
+ *
+ * A suggestion, not a rule, since the US-C4 revision. It used to be enforced,
+ * and the result was that four of the seven primitives were unreachable from
+ * the most common configurations - a single-slot widget could show a ring, a
+ * number or a gauge and nothing else, so a line chart or an uptime strip could
+ * not be built at all without first picking a two-slot layout for a reason the
+ * user had no way to guess. Every primitive now works in every slot; this only
+ * orders the menu so the most suitable option is first.
+ */
 export const PRIMITIVES_BY_CLASS: Record<SlotClass, readonly SlotPrimitive[]> = {
   feature: ['ring', 'number', 'gauge'],
   compact: ['bar', 'number', 'badge'],
   wide: ['line', 'bar', 'uptime-strip'],
 };
+
+/** Every primitive, with the class's suggestions first. Drives the slot menu. */
+export function primitivesForClass(slotClass: SlotClass): readonly SlotPrimitive[] {
+  const preferred = PRIMITIVES_BY_CLASS[slotClass];
+  return [...preferred, ...SLOT_PRIMITIVES.filter((p) => !preferred.includes(p))];
+}
 
 export const PRIMITIVE_LABELS: Record<SlotPrimitive, string> = {
   ring: 'Ring',
@@ -143,11 +159,36 @@ export function getLayout(id: LayoutId): LayoutDef {
   return LAYOUTS.find((layout) => layout.id === id) ?? LAYOUTS[0]!;
 }
 
+/**
+ * The slot classes for a widget with `count` slots and no chosen layout.
+ *
+ * US-C4 revision: a user adds slots and the arrangement follows, rather than
+ * picking an arrangement up front and being told how many slots they may have.
+ * The class is a SIZING hint only - it no longer restricts which primitive a
+ * slot may use (see PRIMITIVES_BY_CLASS's note).
+ *
+ * One slot is the feature; two sit side by side; three or more become a grid of
+ * compact cells, because past two there is no room for a hero.
+ */
+export function arrangementFor(count: number): readonly SlotClass[] {
+  const n = Math.max(1, Math.min(MAX_SLOTS, Math.floor(count) || 1));
+  if (n === 1) return ['feature'];
+  if (n === 2) return ['feature', 'wide'];
+  return Array.from({ length: n }, () => 'compact' as SlotClass);
+}
+
 /** The widest layout's arity. Bounds the slot array and the snapshot row. */
-export const MAX_SLOTS = LAYOUTS.reduce(
-  (max, layout) => Math.max(max, layout.slotClasses.length),
-  0,
-);
+/**
+ * How many slots one custom widget may carry.
+ *
+ * No longer the widest layout's arity: slots are added freely now rather than
+ * being dictated by a layout picked up front (US-C4 revision). Six is a
+ * legibility ceiling, not a technical one - a widget tile is at most 6x6 grid
+ * cells (FR-3.2), and past about six values in that space nothing is readable.
+ * One fetch and one snapshot row still cover all of them however many there
+ * are, so the cost of the cap is purely visual.
+ */
+export const MAX_SLOTS = 6;
 
 export const SLOT_LABEL_MAX_LENGTH = 40;
 export const SLOT_UNIT_MAX_LENGTH = 8;
@@ -194,17 +235,32 @@ export const SlotConfig = z.strictObject({
 export type SlotConfig = z.infer<typeof SlotConfig>;
 
 /**
- * Cross-field rules a single slot cannot check on its own: the slot COUNT must
- * match the chosen layout's arity, and each slot's primitive must be one its
- * layout position actually offers.
+ * The one cross-field rule left: a config that DOES name a layout must supply
+ * that layout's slot count.
+ *
+ * Two rules used to live here and both are gone:
+ *
+ *   - Slot count had to match a chosen layout's arity, which is what forced a
+ *     user to pick an arrangement before they knew how many values they wanted.
+ *     `layoutId` is optional now, and a config without one is arranged from its
+ *     slot count (arrangementFor). This check applies only when a layout IS
+ *     named, which is how every config written before the US-C4 revision keeps
+ *     validating unchanged.
+ *
+ *   - A slot's primitive had to be legal for its class. That made four of the
+ *     seven primitives unreachable from a single-slot widget, for a reason no
+ *     user could infer. Every primitive is allowed in every slot now; the class
+ *     only orders the menu.
  *
  * Exported as a refinement rather than inlined so `CustomJsonConfig` and any
  * future layout-bearing type apply exactly the same rules.
  */
 export function refineSlotsAgainstLayout(
-  value: { layoutId: LayoutId; slots: SlotConfig[] },
+  value: { layoutId?: LayoutId; slots: SlotConfig[] },
   ctx: z.RefinementCtx,
 ): void {
+  if (!value.layoutId) return;
+
   const layout = getLayout(value.layoutId);
   const arity = layout.slotClasses.length;
 
@@ -214,18 +270,6 @@ export function refineSlotsAgainstLayout(
       path: ['slots'],
       message: `The ${layout.name} layout takes ${arity} ${arity === 1 ? 'slot' : 'slots'}.`,
     });
-    return;
-  }
-
-  for (const [index, slot] of value.slots.entries()) {
-    const slotClass = layout.slotClasses[index]!;
-    const allowed = PRIMITIVES_BY_CLASS[slotClass];
-    if (!allowed.includes(slot.primitive)) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['slots', index, 'primitive'],
-        message: `A ${slotClass} slot cannot show a ${PRIMITIVE_LABELS[slot.primitive]}.`,
-      });
-    }
   }
 }
+

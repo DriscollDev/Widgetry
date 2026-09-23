@@ -48,16 +48,24 @@ function readConfig(raw: unknown): CustomWidgetConfig | null {
 
   const layoutId = raw.layoutId;
   const slots = raw.slots;
-  if (typeof layoutId !== 'string' || !Array.isArray(slots) || slots.length === 0) return null;
+  if (!Array.isArray(slots) || slots.length === 0) return null;
 
-  // getLayout falls back to 'single' for an unknown id, which would silently
-  // draw the wrong arrangement. An id we do not know is a config we cannot honour.
-  const layout = getLayout(layoutId as CustomWidgetConfig['layoutId']);
-  if (layout.id !== layoutId) return null;
+  // `layoutId` is optional since the US-C4 revision - a config without one is
+  // arranged from its slot count by CustomWidget. When one IS present it must
+  // be a layout we know: getLayout falls back to 'single' for an unknown id,
+  // which would silently draw the wrong arrangement, so an unrecognised id is
+  // a config we cannot honour rather than one we guess at.
+  let resolvedLayout: CustomWidgetConfig['layoutId'];
+  if (layoutId !== undefined) {
+    if (typeof layoutId !== 'string') return null;
+    const layout = getLayout(layoutId as NonNullable<CustomWidgetConfig['layoutId']>);
+    if (layout.id !== layoutId) return null;
+    resolvedLayout = layout.id;
+  }
 
   return {
     title: typeof raw.title === 'string' ? raw.title : '',
-    layoutId: layout.id,
+    layoutId: resolvedLayout,
     accent: (typeof raw.accent === 'string'
       ? raw.accent
       : 'primary') as CustomWidgetConfig['accent'],

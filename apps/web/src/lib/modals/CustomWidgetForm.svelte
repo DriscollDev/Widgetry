@@ -1,5 +1,5 @@
 <script lang="ts">
-  // The custom widget's three-step flow: pick a layout, bind each slot,
+  // The custom widget's two-step flow: bind each slot,
   // then style. This is the whole modal CONTENT (header/body/footer) minus
   // the Modal wrapper, so it can be dropped into the template picker as
   // its "Custom" branch without duplicating any of it.
@@ -8,23 +8,25 @@
   // once the modal can fetch the endpoint and show its JSON tree, the type
   // is read from the chosen field and this control disappears.
 
-  import { MIN_SERVER_POLL_SECONDS, type CustomJsonConfig } from '@widgetry/shared';
+  import {
+    arrangementFor,
+    MAX_SLOTS,
+    MIN_SERVER_POLL_SECONDS,
+    primitivesForClass,
+    type CustomJsonConfig,
+  } from '@widgetry/shared';
   import CustomWidget from '../widgets/custom/CustomWidget.svelte';
   import { previewDataFor } from './custom-widget-preview';
   import { ACCENT_COLORS, type AccentColor } from '../widgets/accent';
   import {
-    LAYOUTS,
-    PRIMITIVES_BY_CLASS,
     PRIMITIVE_ACCEPTS,
     PRIMITIVE_LABELS,
     AUTH_TYPES,
-    getLayout,
     isValidEndpoint,
     type WidgetAuthType,
     type CustomWidgetConfig,
     type CustomWidgetSubmission,
     type DataKind,
-    type LayoutId,
     type SlotConfig,
     type SlotPrimitive,
   } from '../widgets/custom/types';
@@ -105,14 +107,29 @@
     { value: 'status-series', label: 'List of statuses' },
   ];
 
-  // US-C6: step 1 (layout) is skipped when editing - the layout is already
-  // chosen, and "Back" from step 2 still reaches it if the user wants to
-  // change it. Every other field below seeds from `initial` the same way.
-  let step = $state<1 | 2 | 3>(isEditing ? 2 : 1);
-  let layoutId = $state<LayoutId | null>(initial?.config.layoutId ?? null);
+  /** A new widget's first slot, so the form opens on something editable. */
+  function blankSlot(): SlotConfig {
+    return { primitive: 'number', label: '', jsonPath: '', max: 100, unit: '' };
+  }
+
+  // Two steps now, not three. The layout picker that used to be step 1 is
+  // gone: a user adds slots and the arrangement follows from how many there
+  // are (US-C4 revision). It asked people to choose an arrangement before they
+  // knew how many values they wanted, and then - because each layout position
+  // restricted which primitives it accepted - left four of the seven
+  // visualisations unreachable from the arrangement most people picked first.
+  let step = $state<2 | 3>(2);
+  /**
+   * Only ever carried, never set here. A widget saved before the revision
+   * keeps its layout so it renders exactly as it did; a new one has none and
+   * is arranged by slot count.
+   */
+  const carriedLayoutId = initial?.config.layoutId;
   let title = $state(initial?.config.title ?? '');
   let accent = $state<AccentColor>(initial?.config.accent ?? 'primary');
-  let slots = $state<SlotConfig[]>(initial ? initial.config.slots.map((s) => ({ ...s })) : []);
+  let slots = $state<SlotConfig[]>(
+    initial ? initial.config.slots.map((s) => ({ ...s })) : [blankSlot()],
+  );
   /**
    * A slot's persisted shape has no "kind" - it is a UI-only concept that
    * narrows the primitive menu (see `allowedPrimitives`). Reconstructed as
@@ -123,7 +140,7 @@
    * rather than silently vanishing because a guessed kind excluded it.
    */
   let slotKinds = $state<DataKind[]>(
-    initial ? initial.config.slots.map((s) => PRIMITIVE_ACCEPTS[s.primitive][0]) : [],
+    initial ? initial.config.slots.map((s) => PRIMITIVE_ACCEPTS[s.primitive][0]) : ['number'],
   );
   let openSlot = $state(0);
 
@@ -157,50 +174,37 @@
   // sneak past a user who never touches the field.
   let refreshIntervalSeconds = $state(initial?.refreshIntervalSeconds ?? MIN_SERVER_POLL_SECONDS);
 
-  let layout = $derived(layoutId ? getLayout(layoutId) : null);
+  /** Sizing hints from the slot count - see arrangementFor. */
+  let slotClasses = $derived(arrangementFor(slots.length));
 
-  /** Carries existing bindings across a layout change, matched by slot
-   * index. Going back to step 1 and re-picking must not silently discard
-   * paths the user already typed - including when they re-pick the layout
-   * they were already on. Slots beyond the new layout's count are dropped,
-   * which is unavoidable when shrinking. The endpoint is widget-level, so
-   * it survives regardless. */
-  function pickLayout(id: LayoutId) {
-    const def = getLayout(id);
-    const carried = slots;
-    const carriedKinds = slotKinds;
-
-    layoutId = id;
-    slotKinds = def.slotClasses.map((_, i) => carriedKinds[i] ?? ('number' as DataKind));
-    slots = def.slotClasses.map((slotClass, i) => {
-      const prev = carried[i];
-      const menu = PRIMITIVES_BY_CLASS[slotClass];
-      const legal = menu.filter((p) => PRIMITIVE_ACCEPTS[p].includes(slotKinds[i]));
-      // Keep the previous primitive when the new slot class still offers
-      // it; otherwise fall back to that class's first legal option.
-      const primitive =
-        prev && legal.includes(prev.primitive) ? prev.primitive : (legal[0] ?? menu[0]);
-
-      return {
-        primitive,
-        label: prev?.label ?? '',
-        jsonPath: prev?.jsonPath ?? '',
-        max: prev?.max ?? 100,
-        unit: prev?.unit ?? '',
-        thresholdPct: prev?.thresholdPct,
-        thresholdColor: prev?.thresholdColor,
-      };
-    });
-    openSlot = 0;
-    step = 2;
+  function addSlot() {
+    if (slots.length >= MAX_SLOTS) return;
+    slots = [...slots, blankSlot()];
+    slotKinds = [...slotKinds, 'number'];
+    openSlot = slots.length - 1;
   }
 
-  /** A primitive is offered only if its slot class lists it AND it can
-   * render the bound field's type. */
+  /** Removing the last slot is refused - a widget with none has nothing to show. */
+  function removeSlot(index: number) {
+    if (slots.length <= 1) return;
+    slots = slots.filter((_, i) => i !== index);
+    slotKinds = slotKinds.filter((_, i) => i !== index);
+    openSlot = Math.min(openSlot, slots.length - 1);
+  }
+
+  /**
+   * Every primitive that can render the bound field's type, suggestions first.
+   *
+   * The slot's class no longer FILTERS this - it only orders it. That change is
+   * the point of the US-C4 revision: a single-slot widget used to offer ring,
+   * number and gauge only, so a line chart or an uptime strip could not be
+   * built at all without first picking a two-slot layout for a reason nothing
+   * in the UI explained. The one filter left is honest - a primitive that
+   * cannot draw the chosen data kind is genuinely not an option.
+   */
   function allowedPrimitives(index: number): SlotPrimitive[] {
-    if (!layout) return [];
-    const forClass = PRIMITIVES_BY_CLASS[layout.slotClasses[index]];
-    return forClass.filter((p) => PRIMITIVE_ACCEPTS[p].includes(slotKinds[index]));
+    const menu = primitivesForClass(slotClasses[index] ?? 'compact');
+    return menu.filter((p) => PRIMITIVE_ACCEPTS[p].includes(slotKinds[index]));
   }
 
   function setKind(index: number, kind: DataKind) {
@@ -219,7 +223,9 @@
 
   let previewConfig = $derived<CustomWidgetConfig>({
     title: title || 'Untitled widget',
-    layoutId: layoutId ?? 'single',
+    // Undefined for a new widget, so the preview arranges by slot count -
+    // exactly what the board will do with the saved config.
+    layoutId: carriedLayoutId,
     accent,
     endpointUrl,
     authType,
@@ -266,9 +272,21 @@
     return { in: authType, name: authParamName.trim() };
   }
 
+  /**
+   * Minimum tile size for the slot count, replacing the layout's fixed pair.
+   * One slot fits a 1x1; anything arranged side by side or in a grid needs
+   * two columns, and a grid of five or six needs the extra row.
+   */
+  function minSizeForSlots(count: number): { minWidth: number; minHeight: number } {
+    if (count <= 1) return { minWidth: 1, minHeight: 1 };
+    if (count <= 2) return { minWidth: 2, minHeight: 1 };
+    if (count <= 4) return { minWidth: 2, minHeight: 2 };
+    return { minWidth: 3, minHeight: 2 };
+  }
+
   function submit() {
-    if (!layoutId || !canSubmit) return;
-    const def = getLayout(layoutId);
+    if (!canSubmit) return;
+    const { minWidth, minHeight } = minSizeForSlots(slots.length);
     const apiKey = apiKeyPlacement();
 
     const config: CustomJsonConfig = {
@@ -278,7 +296,9 @@
         .map((h) => ({ name: h.name.trim(), value: h.value.trim() }))
         .filter((h) => h.name && h.value),
       title,
-      layoutId,
+      // Carried, never chosen: an edited pre-revision widget keeps the layout
+      // it was saved with; a new one has none and is arranged by slot count.
+      ...(carriedLayoutId ? { layoutId: carriedLayoutId } : {}),
       accent,
       slots: $state.snapshot(slots),
       ...(apiKey ? { apiKey } : {}),
@@ -290,8 +310,8 @@
     // already-dismissed modal. See `submitting`/`submitError` above.
     onSubmit?.({
       widgetType: 'custom_json',
-      minWidth: def.minWidth,
-      minHeight: def.minHeight,
+      minWidth,
+      minHeight,
       refreshIntervalSeconds,
       config,
       secret: authType === 'none' ? null : secret.trim() || null,
@@ -306,7 +326,7 @@
     </h2>
     <p class="text-xs text-surface-600-400">
       Step {step} of 3 ·
-      {step === 1 ? 'Choose a layout' : step === 2 ? 'Bind each slot' : 'Title and style'}
+      {step === 2 ? 'Build the widget' : 'Title and style'}
     </p>
   </div>
   <button
@@ -330,23 +350,7 @@
 
 <div class="grid max-h-[60vh] grid-cols-1 gap-5 overflow-y-auto p-5 md:grid-cols-[1fr_260px]">
   <div class="flex flex-col gap-4">
-    {#if step === 1}
-      <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        {#each LAYOUTS as def (def.id)}
-          <button
-            type="button"
-            onclick={() => pickLayout(def.id)}
-            class="flex flex-col items-start gap-1 rounded-lg border border-surface-200-800 bg-surface-100-900 p-3 text-left hover:border-primary-500"
-          >
-            <span class="text-sm font-medium text-surface-950-50">{def.name}</span>
-            <span class="text-xs text-surface-600-400">{def.description}</span>
-            <span class="font-mono text-xs text-surface-500">
-              {def.slotClasses.length} slot{def.slotClasses.length > 1 ? 's' : ''} · min {def.minWidth}×{def.minHeight}
-            </span>
-          </button>
-        {/each}
-      </div>
-    {:else if step === 2 && layout}
+    {#if step === 2}
       <!-- One source for the whole widget; slots below just pick fields
            out of its response. -->
       <div class="flex flex-col gap-3 rounded-lg border border-surface-200-800 p-3">
@@ -496,6 +500,13 @@
         </div>
       </div>
 
+      <div class="flex items-center justify-between">
+        <p class="text-xs tracking-wide text-surface-600-400 uppercase">
+          Values ({slots.length}/{MAX_SLOTS})
+        </p>
+        <span class="text-xs text-surface-500">Arranged automatically</span>
+      </div>
+
       {#each slots as slot, i (i)}
         <div class="rounded-lg border border-surface-200-800">
           <button
@@ -506,7 +517,7 @@
             <span class="text-sm text-surface-950-50">
               Slot {i + 1}
               <span class="text-xs text-surface-600-400">
-                · {layout.slotClasses[i]} · {PRIMITIVE_LABELS[slot.primitive]}
+                · {PRIMITIVE_LABELS[slot.primitive]}
               </span>
             </span>
             <span class="flex items-center gap-2">
@@ -516,6 +527,20 @@
               <span class="text-xs text-surface-600-400">{openSlot === i ? '−' : '+'}</span>
             </span>
           </button>
+
+          {#if slots.length > 1}
+            <!-- Outside the toggle button above: a button inside a button is
+                 invalid HTML and the inner one never receives the click. -->
+            <div class="flex justify-end px-3 pb-2">
+              <button
+                type="button"
+                onclick={() => removeSlot(i)}
+                class="text-xs text-surface-600-400 hover:text-error-500"
+              >
+                Remove value
+              </button>
+            </div>
+          {/if}
 
           {#if openSlot === i}
             <div class="flex flex-col gap-3 border-t border-surface-200-800 p-3">
@@ -566,8 +591,7 @@
                 <span class="mb-1 block text-xs text-surface-600-400">Display as</span>
                 {#if allowedPrimitives(i).length === 0}
                   <p class="text-xs text-error-500">
-                    No {layout.slotClasses[i]} display can render that field type. Pick another type or
-                    another layout.
+                    No visualisation can render that field type. Pick a different field type.
                   </p>
                 {:else}
                   <div class="flex flex-wrap gap-2">
@@ -632,6 +656,20 @@
           {/if}
         </div>
       {/each}
+
+      {#if slots.length < MAX_SLOTS}
+        <button
+          type="button"
+          onclick={addSlot}
+          class="rounded-lg border border-dashed border-surface-300-700 p-3 text-sm text-surface-600-400 hover:border-primary-500 hover:text-surface-950-50"
+        >
+          + Add a value
+        </button>
+      {:else}
+        <p class="text-xs text-surface-500">
+          {MAX_SLOTS} values is the most one widget can show legibly.
+        </p>
+      {/if}
     {:else}
       <div>
         <label for="widget-title" class="mb-1 block text-xs text-surface-600-400">Title</label>
@@ -691,7 +729,9 @@
     {/if}
   </div>
 
-  {#if step > 1 && layoutId}
+  <!-- Always shown now: there is no layout step to get past before there is
+       something to preview. -->
+  {#if slots.length > 0}
     <div class="flex flex-col gap-2">
       <p class="text-xs tracking-wide text-surface-600-400 uppercase">Live preview</p>
       <CustomWidget
@@ -708,10 +748,10 @@
 {/if}
 
 <div class="flex items-center justify-between border-t border-surface-200-800 p-5">
-  {#if step > 1}
+  {#if step === 3}
     <button
       type="button"
-      onclick={() => (step = step === 3 ? 2 : 1)}
+      onclick={() => (step = 2)}
       class="text-sm text-surface-600-400 hover:text-surface-950-50"
     >
       &larr; Back

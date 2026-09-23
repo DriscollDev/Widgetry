@@ -192,9 +192,20 @@ export const CustomJsonConfig = z
         `A title can be at most ${CUSTOM_JSON_TITLE_MAX_LENGTH} characters.`,
       )
       .default(''),
-    layoutId: LayoutId,
+    /**
+     * OPTIONAL since the US-C4 revision. A widget is built by adding slots,
+     * and the arrangement follows from how many there are (`arrangementFor`) -
+     * nobody picks a layout up front any more.
+     *
+     * The field stays for the configs written before that change, including
+     * the demo seed's: when it is present it still pins the arrangement, and
+     * `refineSlotsAgainstLayout` still holds those configs to that layout's
+     * slot count. Dropping it outright would have invalidated every stored
+     * custom widget until it was re-saved.
+     */
+    layoutId: LayoutId.optional(),
     accent: AccentColor.default('primary'),
-    /** One per layout position. `refineSlotsAgainstLayout` holds them to it. */
+    /** 1..MAX_SLOTS, arranged by count unless `layoutId` pins it. */
     slots: z
       .array(SlotConfig, { error: 'Add at least one slot.' })
       .min(1, 'Add at least one slot.')

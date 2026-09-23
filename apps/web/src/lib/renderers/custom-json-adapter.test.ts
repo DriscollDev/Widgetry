@@ -46,11 +46,27 @@ describe('toCustomJsonView - config', () => {
     expect(view.config.slots).toHaveLength(3);
   });
 
+  it('draws a config with NO layout, arranged by slot count (US-C4 revision)', () => {
+    // This used to be in the undrawable list below. Layouts are optional now -
+    // a widget built by adding slots carries none, and CustomWidget arranges it
+    // from how many there are.
+    const view = toCustomJsonView(
+      widget({
+        config: { title: 'Auto', accent: 'primary', url: 'https://x.test', slots: SLOTS },
+        latest: polled([{ ok: true, value: 1 }]),
+      }),
+    );
+
+    expect(view.ok).toBe(true);
+    if (!view.ok) return;
+    expect(view.config.layoutId).toBeUndefined();
+    expect(view.config.slots).toHaveLength(3);
+  });
+
   it.each([
     ['null', null],
     ['an array', []],
     ['a string', 'nope'],
-    ['no layout', { slots: SLOTS }],
     ['no slots', { layoutId: 'single' }],
     ['an empty slot list', { layoutId: 'single', slots: [] }],
   ])('refuses to draw when the config is %s', (_label, config) => {

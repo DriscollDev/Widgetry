@@ -95,6 +95,32 @@ describe('CustomJsonConfig - accepted', () => {
   });
 });
 
+describe('CustomJsonConfig - the US-C4 revision', () => {
+  it('accepts any primitive in any slot', () => {
+    // The slot class used to restrict this, which left four of the seven
+    // primitives unreachable from a single-slot widget. It only orders the
+    // menu now.
+    for (const primitive of ['ring', 'number', 'gauge', 'bar', 'badge', 'line', 'uptime-strip']) {
+      const result = CustomJsonConfig.safeParse({
+        ...VALID,
+        slots: [{ ...SLOT, primitive }],
+      });
+      expect(result.success, `${primitive} was rejected`).toBe(true);
+    }
+  });
+
+  it('accepts a config with no layout, arranged by slot count', () => {
+    const { layoutId: _layoutId, ...rest } = VALID;
+    expect(CustomJsonConfig.safeParse(rest).success).toBe(true);
+  });
+
+  it("still holds a config that NAMES a layout to that layout's slot count", () => {
+    // Pre-revision widgets carry a layoutId, and it still pins the arrangement.
+    const result = CustomJsonConfig.safeParse({ ...VALID, slots: [SLOT, SLOT] });
+    expect(result.success).toBe(false);
+  });
+});
+
 describe('CustomJsonConfig - rejected', () => {
   it.each([
     ['a missing URL', { ...VALID, url: undefined }, 'url'],
@@ -117,12 +143,6 @@ describe('CustomJsonConfig - rejected', () => {
     ['no slots at all', { ...VALID, slots: [] }, 'slots'],
     // A single-slot layout given two slots: arity is checked, not just shape.
     ['too many slots for the layout', { ...VALID, slots: [SLOT, SLOT] }, 'slots'],
-    // 'line' is a wide-slot primitive; 'single' offers a feature slot.
-    [
-      'a primitive the slot class does not offer',
-      { ...VALID, slots: [{ ...SLOT, primitive: 'line' }] },
-      'slots.0.primitive',
-    ],
     ['a slot with no label', { ...VALID, slots: [{ ...SLOT, label: '' }] }, 'slots.0.label'],
     ['an unknown key', { ...VALID, token: 'secret' }, ''],
     // The key itself never lives in config (FR-6.1) - only where it goes.

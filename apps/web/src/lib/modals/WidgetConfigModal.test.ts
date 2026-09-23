@@ -139,15 +139,18 @@ describe('WidgetConfigModal custom_json (#239, US-C1/US-C5)', () => {
     return { onCreated, onOpenChange };
   }
 
-  /** Layout, one bound slot, through to step 3 - the minimum a real submit
-   *  needs. Auth is deliberately not covered here: driving a `<select>` via a
+  /** One bound slot, through to step 3 - the minimum a real submit needs.
+   *
+   *  There is no layout click any more: the US-C4 revision removed the layout
+   *  step, so the form opens on one blank slot and goes straight to binding.
+   *
+   *  Auth is deliberately not covered here: driving a `<select>` via a
    *  synthetic DOM event does not reach Svelte 5's `bind:value` in happy-dom
    *  (verified directly - `option.selected` and both `input`/`change` all
    *  leave `authType` unchanged), so the apiKey/credential path is tested
    *  separately in WidgetConfigModal.credential.test.ts against a stubbed
    *  CustomWidgetForm instead of fighting that environment gap here. */
   async function fillMinimalForm() {
-    await fireEvent.click(screen.getByRole('button', { name: /^Single/ }));
     await fireEvent.input(screen.getByLabelText('Endpoint URL'), {
       target: { value: 'https://api.example.test/status' },
     });
@@ -184,8 +187,11 @@ describe('WidgetConfigModal custom_json (#239, US-C1/US-C5)', () => {
       url: 'https://api.example.test/status',
       method: 'GET',
       headers: [],
-      layoutId: 'single',
     });
+    // US-C4 revision: a widget built by adding slots carries no layout at all -
+    // the board arranges it from its slot count. Asserting the ABSENCE pins
+    // that, since a stale 'single' would still have parsed.
+    expect(body.config).not.toHaveProperty('layoutId');
     expect(body.config.slots).toEqual([
       expect.objectContaining({ label: 'CPU load', jsonPath: 'data.cpu' }),
     ]);
