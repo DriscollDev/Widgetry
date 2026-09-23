@@ -89,6 +89,11 @@
   let catalogOpen = $state(false);
   let configOpen = $state(false);
   let pickedType = $state<PickedWidgetType | null>(null);
+  /** US-C6: set instead of `pickedType` when the config modal is opened to
+   * edit an existing widget rather than create one - WidgetConfigModal reads
+   * this to switch its whole flow (fetch, PATCH instead of POST, no grid
+   * position) over to edit mode. */
+  let editWidgetId = $state<string | null>(null);
 
   // First free spot for a new widget. Since #204 the API answers 409 to a widget
   // that overlaps another, so a fixed position would fail on any board with a
@@ -113,10 +118,25 @@
 
   function onTypePicked(type: PickedWidgetType) {
     pickedType = type;
+    editWidgetId = null;
     configOpen = true;
   }
 
   async function onWidgetCreated() {
+    await invalidateAll();
+  }
+
+  // --- US-C6: edit an existing widget's configuration. Reuses the same
+  // WidgetConfigModal instance the create flow uses - it already branches its
+  // whole behavior on whether editWidgetId is set - rather than a second
+  // modal duplicating the custom_json/generic split. ---
+  function requestWidgetEdit(widgetId: string) {
+    pickedType = null;
+    editWidgetId = widgetId;
+    configOpen = true;
+  }
+
+  async function onWidgetUpdated() {
     await invalidateAll();
   }
 
@@ -149,6 +169,7 @@
   state={data.state}
   onOpenSettings={() => (settingsOpen = true)}
   onDeleteWidget={requestWidgetDelete}
+  onEditWidget={requestWidgetEdit}
   onAddWidget={requestAddWidget}
   onInteractionChange={(value) => (interacting = value)}
   onRetry={() => invalidateAll()}
@@ -190,7 +211,9 @@
   open={configOpen}
   boardId={data.board.id}
   widgetType={pickedType}
+  {editWidgetId}
   position={nextSlot}
   onOpenChange={(open) => (configOpen = open)}
   onCreated={onWidgetCreated}
+  onUpdated={onWidgetUpdated}
 />

@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, cleanup, fireEvent, waitFor } from '@testing-library/svelte';
+import { render, screen, cleanup, fireEvent, waitFor, within } from '@testing-library/svelte';
 import BoardView from './BoardView.svelte';
 import '@testing-library/jest-dom/vitest';
 import { WIDGET_FRAME_META } from '$lib/renderers/widget-frame-meta';
@@ -161,6 +161,51 @@ describe('BoardView widget menu (Task #214, US-W4)', () => {
     await fireEvent.pointerDown(button);
 
     expect(button.closest('.board-view__widget')).not.toHaveClass('board-view__widget--dragging');
+  });
+});
+
+describe('BoardView widget menu - edit entry (US-C6)', () => {
+  const widgets = populatedBoardFixture.widgets;
+  const menuButtons = () => screen.getAllByRole('button', { name: 'Widget menu' });
+
+  it('does not show Edit when only a delete handler is wired', async () => {
+    const onDeleteWidget = vi.fn();
+    render(BoardView, {
+      props: { board: populatedBoardFixture, state: 'populated', onDeleteWidget },
+    });
+    await fireEvent.click(menuButtons()[0]!);
+
+    expect(await screen.findByRole('menu')).toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: 'Edit' })).not.toBeInTheDocument();
+  });
+
+  it('shows Edit before Delete and moves focus onto it when both are wired', async () => {
+    const onDeleteWidget = vi.fn();
+    const onEditWidget = vi.fn();
+    render(BoardView, {
+      props: { board: populatedBoardFixture, state: 'populated', onDeleteWidget, onEditWidget },
+    });
+    await fireEvent.click(menuButtons()[0]!);
+
+    const menu = await screen.findByRole('menu');
+    const items = within(menu).getAllByRole('menuitem');
+    expect(items.map((item) => item.textContent)).toEqual(['Edit', 'Delete']);
+    await waitFor(() => expect(items[0]).toHaveFocus());
+  });
+
+  it('calls onEditWidget with that widget id and closes the menu', async () => {
+    const onDeleteWidget = vi.fn();
+    const onEditWidget = vi.fn();
+    render(BoardView, {
+      props: { board: populatedBoardFixture, state: 'populated', onDeleteWidget, onEditWidget },
+    });
+    await fireEvent.click(menuButtons()[1]!);
+    await fireEvent.click(await screen.findByRole('menuitem', { name: 'Edit' }));
+
+    expect(onEditWidget).toHaveBeenCalledTimes(1);
+    expect(onEditWidget).toHaveBeenCalledWith(widgets[1]!.id);
+    expect(onDeleteWidget).not.toHaveBeenCalled();
+    await waitFor(() => expect(screen.queryByRole('menu')).not.toBeInTheDocument());
   });
 });
 

@@ -131,11 +131,23 @@ describe('UpdateWidgetRequest - PATCH semantics', () => {
     });
   });
 
-  it('does not accept config yet', () => {
-    // Pending the registry-backed validation described on the schema (US-C6).
-    expect(UpdateWidgetRequest.safeParse({ config: { url: 'https://x.test/' } }).success).toBe(
-      false,
-    );
+  // US-C6. Same split as refreshIntervalSeconds below: this schema only knows
+  // config is `unknown` and may be present - whether ITS SHAPE is valid for
+  // the widget's actual (stored, not caller-supplied) type is the handler's
+  // job via parseWidgetConfig, same two-step split CreateWidgetRequest uses.
+  it('accepts a config field, unvalidated at this layer', () => {
+    const result = UpdateWidgetRequest.safeParse({ config: { url: 'https://x.test/' } });
+    expect(result.success).toBe(true);
+    expect(result.data).toEqual({ config: { url: 'https://x.test/' } });
+  });
+
+  it('accepts config alongside placement and retention', () => {
+    const result = UpdateWidgetRequest.safeParse({
+      config: { url: 'https://x.test/' },
+      retentionHours: 24,
+    });
+    expect(result.success).toBe(true);
+    expect(result.data).toEqual({ config: { url: 'https://x.test/' }, retentionHours: 24 });
   });
 
   // US-C5. Same split as CreateWidgetRequest's own refreshIntervalSeconds

@@ -87,6 +87,20 @@ export function ownedWidgetQuery(widgetId: string, userId: string) {
     .limit(1);
 }
 
+/**
+ * Every widget id `userId` owns, as a subquery - the ownership scope for a
+ * write or read against `widget_snapshots` or `api_credentials`, neither of
+ * which has a `user_id` of its own (see the file header). Shared by
+ * credentials.ts and widgets.ts rather than each defining its own copy.
+ */
+export function ownedWidgetIds(userId: string) {
+  return db
+    .select({ id: schema.widgets.id })
+    .from(schema.widgets)
+    .innerJoin(schema.boards, eq(schema.widgets.boardId, schema.boards.id))
+    .where(eq(schema.boards.userId, userId));
+}
+
 export async function findOwnedBoard(boardId: string, userId: string): Promise<Board | null> {
   if (!isUuid(boardId)) return null;
   const [row] = await ownedBoardQuery(boardId, userId);

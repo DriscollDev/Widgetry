@@ -428,3 +428,176 @@ describeIntegration('POST/PATCH /v1/widgets - refresh interval (US-C5, FR-4.2)',
     expect(row?.refreshIntervalSeconds).toBe(7200);
   });
 });
+
+describeIntegration('GET/PATCH /v1/widgets/:id - editing config (US-C6)', () => {
+  let app: FastifyInstance;
+  let db: ReturnType<typeof createDb>;
+  let cookie = '';
+  let boardId = '';
+
+  const email = `edit-widget-${runId}@widgetry.test`;
+
+  const createWidget = async (widgetType: string, body: Record<string, unknown> = {}) =>
+    app.inject({
+      method: 'POST',
+      url: `/v1/boards/${boardId}/widgets`,
+      remoteAddress: nextIp(),
+      headers: { cookie, 'content-type': 'application/json' },
+      payload: { widgetType, ...nextGridPosition(), gridWidth: 2, gridHeight: 2, ...body },
+    });
+
+  const patchWidget = (widgetId: string, payload: unknown) =>
+    app.inject({
+      method: 'PATCH',
+      url: `/v1/widgets/${widgetId}`,
+      remoteAddress: nextIp(),
+      headers: { cookie, 'content-type': 'application/json' },
+      payload: payload as Record<string, unknown>,
+    });
+
+  const getWidget = (widgetId: string) =>
+    app.inject({
+      method: 'GET',
+      url: `/v1/widgets/${widgetId}`,
+      remoteAddress: nextIp(),
+      headers: { cookie },
+    });
+
+  beforeAll(async () => {
+    const { buildServer } = await import('../../src/server.js');
+    app = await buildServer();
+    await app.ready();
+    db = createDb(process.env.DATABASE_URL!);
+
+    const signUp = await app.inject({
+      method: 'POST',
+      url: '/v1/auth/sign-up/email',
+      remoteAddress: nextIp(),
+      headers: { 'content-type': 'application/json' },
+      payload: { name: 'Edit Widget Test', email, password: VALID_PASSWORD },
+    });
+    expect(signUp.statusCode, `sign-up failed: ${signUp.body}`).toBe(200);
+    cookie = cookiesFrom(signUp);
+
+    const board = await app.inject({
+      method: 'POST',
+      url: '/v1/boards',
+      remoteAddress: nextIp(),
+      headers: { cookie, 'content-type': 'application/json' },
+      payload: { name: 'Edit widget board', refreshMode: 'manual' },
+    });
+    expect(board.statusCode, board.body).toBe(201);
+    boardId = BoardResponse.parse(board.json()).id;
+  });
+
+  afterAll(async () => {
+    await app?.close();
+    if (db) await db.delete(schema.user).where(eq(schema.user.email, email));
+  });
+
+  it('updates an existing widget config via PATCH', async () => {
+    const created = await createWidget('uptime', { config: { url: 'https://old.example.test/' } });
+    expect(created.statusCode, created.body).toBe(201);
+    const widgetId = created.json().id as string;
+
+    const response = await patchWidget(widgetId, { config: { url: 'https://new.example.test/' } });
+    expect(response.statusCode, response.body).toBe(200);
+
+    const [row] = await db
+      .select()
+      .from(schema.widgets)
+      .where(eq(schema.widgets.id, widgetId))
+      .limit(1);
+    expect(row?.config).toEqual({ url: 'https://new.example.test/' });
+  });
+
+  it('rejects a config PATCH that does not match the STORED type, config.-rooted', async () => {
+    const created = await createWidget('uptime', { config: { url: 'https://old.example.test/' } });
+    const widgetId = created.json().id as string;
+
+    const response = await patchWidget(widgetId, { config: { url: 'not a url' } });
+    expect(response.statusCode, response.body).toBe(400);
+    expect(response.json().error.code).toBe('validation_failed');
+    const issue = response.json().error.details.issues[0];
+    expect(issue.path).toBe('config.url');
+  });
+
+  it('seeds a real refresh interval when PATCH configures a previously-unconfigured widget', async () => {
+    // POST with no config at all - isConfigured===false, so the widget is
+    // created with a null interval (unschedulable) per the POST handler.
+    const created = await createWidget('uptime');
+    expect(created.statusCode, created.body).toBe(201);
+    const widgetId = created.json().id as string;
+
+    const [before] = await db
+      .select()
+      .from(schema.widgets)
+      .where(eq(schema.widgets.id, widgetId))
+      .limit(1);
+    expect(before?.refreshIntervalSeconds).toBeNull();
+
+    // Configuring it via PATCH, with no explicit interval, must not leave it
+    // permanently unschedulable now that it has a real config.
+    const response = await patchWidget(widgetId, {
+      config: { url: 'https://example.test/health' },
+    });
+    expect(response.statusCode, response.body).toBe(200);
+
+    const [after] = await db
+      .select()
+      .from(schema.widgets)
+      .where(eq(schema.widgets.id, widgetId))
+      .limit(1);
+    expect(after?.refreshIntervalSeconds).toBe(3600);
+  });
+
+  it("GET returns the full config, not the board payload's display allowlist", async () => {
+    const created = await createWidget('custom_json', {
+      config: {
+        url: 'https://api.example.test/status',
+        layoutId: 'single',
+        slots: [{ primitive: 'number', label: 'CPU', jsonPath: 'data.cpu' }],
+        headers: [{ name: 'X-Client', value: 'widgetry' }],
+        apiKey: { in: 'header', name: 'X-Api-Key' },
+      },
+    });
+    expect(created.statusCode, created.body).toBe(201);
+    const widgetId = created.json().id as string;
+
+    const response = await getWidget(widgetId);
+    expect(response.statusCode, response.body).toBe(200);
+    const body = response.json();
+    // Never sent on the board payload (apps/api/src/widgets/config-view.ts),
+    // because that endpoint renders for everyone who can see the board; this
+    // one is fetched by the owner alone, specifically to edit them.
+    expect(body.config.headers).toEqual([{ name: 'X-Client', value: 'widgetry' }]);
+    expect(body.config.apiKey).toEqual({ in: 'header', name: 'X-Api-Key' });
+    expect(body.hasCredential).toBe(false);
+  });
+
+  it('GET reports hasCredential without ever carrying the key itself', async () => {
+    const created = await createWidget('custom_json', {
+      config: {
+        url: 'https://api.example.test/status',
+        layoutId: 'single',
+        slots: [{ primitive: 'number', label: 'CPU', jsonPath: 'data.cpu' }],
+        apiKey: { in: 'header', name: 'X-Api-Key' },
+      },
+    });
+    const widgetId = created.json().id as string;
+
+    const put = await app.inject({
+      method: 'PUT',
+      url: `/v1/widgets/${widgetId}/credential`,
+      remoteAddress: nextIp(),
+      headers: { cookie, 'content-type': 'application/json' },
+      payload: { apiKey: 'sk_edit_widget_test' },
+    });
+    expect(put.statusCode, put.body).toBe(200);
+
+    const response = await getWidget(widgetId);
+    expect(response.statusCode, response.body).toBe(200);
+    expect(response.json().hasCredential).toBe(true);
+    expect(response.body).not.toContain('sk_edit_widget_test');
+  });
+});

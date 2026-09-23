@@ -100,7 +100,7 @@ describe('WidgetConfigModal custom_json credential sequencing (#239, US-C1/US-C5
 
     expect(
       await screen.findByText(
-        'The widget was created, but its API key could not be saved. Delete it and try again.',
+        'The widget was saved, but its API key could not be saved. Try entering it again.',
       ),
     ).toBeTruthy();
     expect(onCreated).toHaveBeenCalledWith({ id: 'w-custom' });

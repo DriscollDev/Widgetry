@@ -79,7 +79,10 @@ describe('board route registration (Eng §6.2)', () => {
     // author owes the isolation suite an entry (Eng §11.7) - the probe routes
     // that file registers would otherwise quietly shadow the real thing and the
     // suite would be testing itself.
-    for (const url of ['/v1/widgets/:id', '/v1/widgets/:id/refresh', '/v1/widgets/:id/snapshots']) {
+    //
+    // GET /v1/widgets/:id used to be in this list; it is a real route now
+    // (US-C6) and isolation.test.ts's endpointsFor table already covers it.
+    for (const url of ['/v1/widgets/:id/refresh', '/v1/widgets/:id/snapshots']) {
       expect(
         app.hasRoute({ method: 'GET', url }),
         `${url} exists now - update isolation.test.ts`,
