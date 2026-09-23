@@ -1,4 +1,4 @@
-// apps/worker/test/unit/safe-fetch-dns-rebinding.test.ts
+// packages/net/test/safe-fetch-dns-rebinding.test.ts
 //
 // EX-28/EX-30 (§11.3 steps 2-4): the one scenario safe-fetch.test.ts explicitly
 // documents as missing - "a case that resolves a real hostname to a private
@@ -13,7 +13,7 @@
 //   `resolveAndValidate` - the pre-request check safeFetch runs explicitly.
 //   `guardedLookup` - the `lookup` Node actually calls at connect time, which is
 //     what closes the TOCTOU window a rebinding attack depends on (see the
-//     header comment in ../../src/lib/safe-fetch.ts for why pinning has to work
+//     header comment in ../src/safe-fetch.ts for why pinning has to work
 //     this way). Untested anywhere else: every existing safeFetch case uses a
 //     literal address, which never reaches `guardedLookup` at all.
 
@@ -28,7 +28,7 @@ const resolve4 = vi.mocked(dnsPromises.resolve4);
 const resolve6 = vi.mocked(dnsPromises.resolve6);
 
 const { resolveAndValidate, guardedLookup, safeFetch, BlockedDestinationError } =
-  await import('../../src/lib/safe-fetch.js');
+  await import('../src/index.js');
 
 afterEach(() => {
   vi.resetAllMocks();

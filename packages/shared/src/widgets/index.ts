@@ -11,6 +11,7 @@ export * from './currency.js';
 export * from './weather.js';
 export * from './stock.js';
 export * from './json-path.js';
+export * from './json-preview.js';
 export * from './custom-layout.js';
 export * from './custom-json.js';
 export * from './registry.js';

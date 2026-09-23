@@ -1,4 +1,4 @@
-// apps/worker/test/unit/safe-fetch.test.ts
+// packages/net/test/safe-fetch.test.ts
 //
 // The SSRF gate's test suite. Eng §11.3 asks for exactly this ("a dedicated test
 // suite that attempts to fetch known-bad URLs and verifies rejection"), and it
@@ -25,7 +25,7 @@ import {
   describeLocation,
   headersForHop,
   safeFetch,
-} from '../../src/lib/safe-fetch.js';
+} from '../src/index.js';
 
 describe('checkAddressAllowed - Feature Spec §6.3 IPv4 ranges', () => {
   // One or more representatives per blocked range, including each range's
