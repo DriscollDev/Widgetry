@@ -152,7 +152,12 @@ describeIntegration('GET /v1/boards/:id - widget config and latest (#235)', () =
     expect(response.statusCode, response.body).toBe(200);
     const widget = widgetIn(response.json(), id);
 
-    expect(widget.config).toEqual({ url: UPTIME_URL });
+    // The api stores the PARSED config, so a widget created with a bare url
+    // carries UptimeConfig's defaults too - `label` and `showHistory` gained
+    // defaults when that type got real settings. Asserted in full rather than
+    // loosened to a subset, because this test's job is to pin exactly which
+    // keys reach the browser.
+    expect(widget.config).toEqual({ url: UPTIME_URL, label: '', showHistory: true });
     expect(widget.latest?.value).toEqual({ marker: 'value-row' });
     expect(widget.latest?.error).toBeNull();
     expect(widget.latest?.capturedAt).toBe('2026-09-21T12:00:00.000Z');
@@ -194,7 +199,7 @@ describeIntegration('GET /v1/boards/:id - widget config and latest (#235)', () =
 
     const widget = widgetIn((await getBoard(cookie)).json(), id);
     expect(widget.latest).toBeNull();
-    expect(widget.config).toEqual({ url: UPTIME_URL });
+    expect(widget.config).toEqual({ url: UPTIME_URL, label: '', showHistory: true });
   });
 
   it('never sends custom_json headers, the apiKey placement or the method', async () => {
