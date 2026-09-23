@@ -17,10 +17,17 @@ import {
   getWidgetTypeDef,
   parseWidgetConfig,
   CustomJsonSnapshotValue,
+  StockSnapshotValue,
   UptimeSnapshotValue,
   type WidgetType,
 } from '@widgetry/shared';
-import { SEED_BOARDS, SEED_WIDGET_COUNT, type SeedWidget } from '../src/seed-fixture.js';
+import {
+  HISTORY_POINTS,
+  SEED_BOARDS,
+  SEED_SNAPSHOT_COUNT,
+  SEED_WIDGET_COUNT,
+  type SeedWidget,
+} from '../src/seed-fixture.js';
 
 const allWidgets = SEED_BOARDS.flatMap((board) => board.widgets);
 
@@ -39,9 +46,9 @@ describe('the fixture matches what EX-52 specifies', () => {
     expect(SEED_BOARDS).toHaveLength(3);
   });
 
-  it('has eighteen widgets', () => {
-    expect(SEED_WIDGET_COUNT).toBe(18);
-    expect(allWidgets).toHaveLength(18);
+  it('has twenty-one widgets', () => {
+    expect(SEED_WIDGET_COUNT).toBe(21);
+    expect(allWidgets).toHaveLength(21);
   });
 
   it('gives every board a distinct name', () => {
@@ -139,57 +146,187 @@ describe('every widget config is one the api would accept', () => {
   });
 });
 
-describe('seeded snapshots match what the worker would write', () => {
-  // A snapshot the renderer cannot read is a board of error tiles. These parse
-  // each one with the same schema the worker writes against.
+describe('seeded history matches what the worker would write', () => {
+  // A stored reading the renderer cannot read is a board of error tiles. These
+  // parse EVERY reading with the same schema the worker writes against, not
+  // just the newest - the timeline charts read all of them.
   const serverPolled = allWidgets.filter(
     (w) => getWidgetTypeDef(w.widgetType).polling === 'server',
   );
 
-  it('gives every server-polled widget a snapshot', () => {
-    // Without one the board renders loading skeletons until the worker gets to
-    // it, which for uptime's 3600s minimum can be most of an hour.
+  /** The value rows of one widget's history. Error rows carry no value. */
+  const valuesOf = (widget: SeedWidget) =>
+    widget.history.filter((s) => s.error === null).map((s) => s.value);
+
+  it('gives every server-polled widget a history long enough to draw', () => {
+    // One reading was enough for the tile's current value and not enough for
+    // the timeline strip, the custom line and uptime-strip slots, or the stock
+    // sparkline - all of which need at least two points and look like nothing
+    // with fewer than a dozen. On a freshly seeded board, which is the board a
+    // demo is given, those charts were invisible.
     expect(serverPolled.length).toBeGreaterThan(0);
     for (const widget of serverPolled) {
-      expect(widget.snapshot, `${widget.widgetType} has no snapshot`).not.toBeNull();
+      expect(widget.history.length, `${widget.widgetType} has too little history`).toBe(
+        HISTORY_POINTS,
+      );
+    }
+    expect(SEED_SNAPSHOT_COUNT).toBe(serverPolled.length * HISTORY_POINTS);
+  });
+
+  it('orders every history oldest first, with the newest last', () => {
+    // The snapshots endpoint returns oldest-first and every series consumer
+    // assumes it; a reversed fixture would draw every chart backwards.
+    for (const widget of serverPolled) {
+      const ages = widget.history.map((s) => s.minutesAgo);
+      expect(ages).toEqual([...ages].sort((a, b) => b - a));
+      expect(ages.at(-1)).toBe(0);
     }
   });
 
-  it('gives local widgets no snapshot', () => {
+  it('keeps every reading inside the default retention window', () => {
+    // retention_hours defaults to 168, and anything older is purged by the
+    // maintenance job (Eng §8.3) - so seeding it would be writing rows that
+    // vanish on the first sweep.
+    for (const widget of serverPolled) {
+      expect(Math.max(...widget.history.map((s) => s.minutesAgo))).toBeLessThan(168 * 60);
+    }
+  });
+
+  it('sets exactly one of value and error on every reading (FR-5.1)', () => {
+    for (const widget of serverPolled) {
+      for (const snapshot of widget.history) {
+        expect(snapshot.value === null).not.toBe(snapshot.error === null);
+      }
+    }
+  });
+
+  it('gives local and client-polled widgets no history at all', () => {
     const local = allWidgets.filter((w) => getWidgetTypeDef(w.widgetType).polling === 'client');
     expect(local.length).toBeGreaterThan(0);
     for (const widget of local) {
-      expect(widget.snapshot).toBeNull();
+      expect(widget.history).toEqual([]);
     }
   });
 
-  it.each(
-    allWidgets.filter((w) => w.widgetType === 'uptime').map((w, i) => [i, w.snapshot] as const),
-  )('uptime snapshot %i is a valid UptimeSnapshotValue', (_i, snapshot) => {
-    const result = UptimeSnapshotValue.safeParse(snapshot);
-    expect(result.success, result.success ? '' : JSON.stringify(result.error.issues)).toBe(true);
-  });
-
-  it.each(allWidgets.filter((w) => w.widgetType === 'custom_json').map((w, i) => [i, w] as const))(
-    'custom_json snapshot %i is valid and matches its slot count',
+  it.each(allWidgets.filter((w) => w.widgetType === 'uptime').map((w, i) => [i, w] as const))(
+    'every uptime reading of widget %i is a valid UptimeSnapshotValue',
     (_i, widget) => {
-      const result = CustomJsonSnapshotValue.safeParse(widget.snapshot);
-      expect(result.success, result.success ? '' : JSON.stringify(result.error.issues)).toBe(true);
-      if (!result.success) return;
-
-      // A snapshot shorter than the config pads to loading slots in the renderer;
-      // correct behaviour, but in a fixture it just means a half-blank widget.
-      const configuredSlots = (widget.config.slots as unknown[]).length;
-      expect(result.data.slotCount).toBe(configuredSlots);
-      expect(result.data.slots).toHaveLength(configuredSlots);
+      for (const value of valuesOf(widget)) {
+        const result = UptimeSnapshotValue.safeParse(value);
+        expect(result.success, result.success ? '' : JSON.stringify(result.error?.issues)).toBe(
+          true,
+        );
+      }
     },
   );
 
-  it('includes at least one down uptime widget, so FR-4.4 is demonstrable', () => {
-    const statuses = allWidgets
+  it.each(allWidgets.filter((w) => w.widgetType === 'custom_json').map((w, i) => [i, w] as const))(
+    'every custom_json reading of widget %i is valid and matches its slot count',
+    (_i, widget) => {
+      const configuredSlots = (widget.config.slots as unknown[]).length;
+
+      for (const value of valuesOf(widget)) {
+        const result = CustomJsonSnapshotValue.safeParse(value);
+        expect(result.success, result.success ? '' : JSON.stringify(result.error?.issues)).toBe(
+          true,
+        );
+        if (!result.success) return;
+
+        // A reading shorter than the config pads to loading slots in the
+        // renderer - correct behaviour, but in a fixture it is a half-blank
+        // widget, and across a SERIES it is a chart full of holes.
+        expect(result.data.slotCount).toBe(configuredSlots);
+        expect(result.data.slots).toHaveLength(configuredSlots);
+      }
+    },
+  );
+
+  it.each(allWidgets.filter((w) => w.widgetType === 'stock').map((w, i) => [i, w] as const))(
+    'every stock reading of widget %i is a valid StockSnapshotValue',
+    (_i, widget) => {
+      for (const value of valuesOf(widget)) {
+        const result = StockSnapshotValue.safeParse(value);
+        expect(result.success, result.success ? '' : JSON.stringify(result.error?.issues)).toBe(
+          true,
+        );
+      }
+    },
+  );
+
+  it('includes a currently-down uptime widget, so FR-4.4 is demonstrable', () => {
+    const current = allWidgets
       .filter((w) => w.widgetType === 'uptime')
-      .map((w) => (w.snapshot as { status?: string } | null)?.status);
-    expect(statuses).toContain('down');
-    expect(statuses).toContain('up');
+      .map((w) => (w.history.at(-1)?.value as { status?: string } | null)?.status);
+    expect(current).toContain('down');
+    expect(current).toContain('up');
+  });
+
+  it('seeds error rows as well as down rows', () => {
+    // Two different things - "the target answered badly" and "we could not run
+    // the check at all" - that land in different columns and read differently
+    // to a user. A fixture with only one of them demos half the split.
+    const kinds = allWidgets.flatMap((w) =>
+      w.history.filter((s) => s.error !== null).map((s) => s.error?.kind),
+    );
+    expect(kinds.length).toBeGreaterThan(0);
+  });
+
+  it('gives the status-shaped slots WORDS, not numbers', () => {
+    // toWidgetStatus classifies a number as `degraded` on purpose, because a
+    // bound number could be an HTTP status or an error count and those
+    // disagree about which way is healthy. A strip seeded with numbers would
+    // be a wall of amber: technically correct, and a terrible demo.
+    const stripWidgets = allWidgets.filter(
+      (w) =>
+        w.widgetType === 'custom_json' &&
+        (w.config.slots as { primitive: string }[]).some((s) => s.primitive === 'uptime-strip'),
+    );
+    expect(stripWidgets.length).toBeGreaterThan(0);
+
+    for (const widget of stripWidgets) {
+      const slots = widget.config.slots as { primitive: string }[];
+      const index = slots.findIndex((s) => s.primitive === 'uptime-strip');
+
+      for (const value of valuesOf(widget)) {
+        const entry = (value as { slots: { value: unknown }[] }).slots[index];
+        expect(typeof entry?.value).toBe('string');
+      }
+    }
+  });
+});
+
+describe('the fixture shows off what the product can do', () => {
+  it('uses every custom primitive at least once', () => {
+    // Four of the seven were unreachable from the arrangement most people
+    // picked first before the US-C4 revision, and the old fixture used five of
+    // them. A demo board that never draws a line chart does not show that the
+    // product can.
+    const used = new Set(
+      allWidgets
+        .filter((w) => w.widgetType === 'custom_json')
+        .flatMap((w) => (w.config.slots as { primitive: string }[]).map((s) => s.primitive)),
+    );
+    expect(used).toEqual(
+      new Set(['ring', 'number', 'gauge', 'bar', 'badge', 'line', 'uptime-strip']),
+    );
+  });
+
+  it('includes a widget carrying the full six-slot maximum', () => {
+    const widest = Math.max(
+      ...allWidgets
+        .filter((w) => w.widgetType === 'custom_json')
+        .map((w) => (w.config.slots as unknown[]).length),
+    );
+    expect(widest).toBe(6);
+  });
+
+  it('keeps one pre-revision config that still names a layout', () => {
+    // Every custom widget saved before the US-C4 revision carries a layoutId
+    // and they must keep rendering. Seeding one proves that on the demo board
+    // rather than only in a unit test.
+    const withLayout = allWidgets.filter(
+      (w) => w.widgetType === 'custom_json' && w.config.layoutId !== undefined,
+    );
+    expect(withLayout).toHaveLength(1);
   });
 });
