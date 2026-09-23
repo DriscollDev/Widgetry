@@ -37,7 +37,7 @@ export const ACCENT_COLORS = [
   'warning',
   'error',
 ] as const;
-export const AccentColor = z.enum(ACCENT_COLORS);
+export const AccentColor = z.enum(ACCENT_COLORS, { error: 'Choose an accent color.' });
 export type AccentColor = z.infer<typeof AccentColor>;
 
 /** The three sizes a layout can ask a slot to be. */
@@ -54,7 +54,9 @@ export const SLOT_PRIMITIVES = [
   'line',
   'uptime-strip',
 ] as const;
-export const SlotPrimitive = z.enum(SLOT_PRIMITIVES);
+export const SlotPrimitive = z.enum(SLOT_PRIMITIVES, {
+  error: 'Choose how to display this value.',
+});
 export type SlotPrimitive = z.infer<typeof SlotPrimitive>;
 
 /** The menu offered for each slot class, in display order. */
@@ -87,7 +89,7 @@ export function needsSeries(primitive: SlotPrimitive): boolean {
 }
 
 export const LAYOUT_IDS = ['single', 'split', 'hero-strip', 'trio'] as const;
-export const LayoutId = z.enum(LAYOUT_IDS);
+export const LayoutId = z.enum(LAYOUT_IDS, { error: 'Choose a layout.' });
 export type LayoutId = z.infer<typeof LayoutId>;
 
 export type LayoutDef = {
@@ -159,15 +161,33 @@ export const SLOT_UNIT_MAX_LENGTH = 8;
  */
 export const SlotConfig = z.strictObject({
   primitive: SlotPrimitive,
-  label: z.string().trim().min(1, 'Give the slot a label.').max(SLOT_LABEL_MAX_LENGTH),
-  jsonPath: z.string().superRefine((path, ctx) => {
-    const parsed = parseJsonPath(path);
-    if (!parsed.ok) ctx.addIssue({ code: 'custom', message: parsed.message });
-  }),
+  label: z
+    .string({ error: 'Give the slot a label.' })
+    .trim()
+    .min(1, 'Give the slot a label.')
+    .max(SLOT_LABEL_MAX_LENGTH, `A label can be at most ${SLOT_LABEL_MAX_LENGTH} characters.`),
+  jsonPath: z
+    .string({ error: 'Enter a path, e.g. data.items[0].price.' })
+    .superRefine((path, ctx) => {
+      const parsed = parseJsonPath(path);
+      if (!parsed.ok) ctx.addIssue({ code: 'custom', message: parsed.message });
+    }),
   /** Scale for ring/gauge/bar. Ignored by the others. */
-  max: z.number().finite().positive().optional(),
-  unit: z.string().trim().max(SLOT_UNIT_MAX_LENGTH).optional(),
-  thresholdPct: z.number().min(0).max(100).optional(),
+  max: z
+    .number({ error: 'Enter a number.' })
+    .finite('Enter a number.')
+    .positive('Must be greater than zero.')
+    .optional(),
+  unit: z
+    .string()
+    .trim()
+    .max(SLOT_UNIT_MAX_LENGTH, `A unit can be at most ${SLOT_UNIT_MAX_LENGTH} characters.`)
+    .optional(),
+  thresholdPct: z
+    .number({ error: 'Enter a number.' })
+    .min(0, 'Must be between 0 and 100.')
+    .max(100, 'Must be between 0 and 100.')
+    .optional(),
   thresholdColor: AccentColor.optional(),
 });
 

@@ -26,16 +26,13 @@ import {
   type SlotConfig,
 } from '@widgetry/shared';
 import type { CustomWidgetConfig, SlotData } from '$lib/widgets/custom/types';
+import { agoLabel, isRecord, readLatest } from './snapshot-read';
 import type { RenderableWidget } from './types';
 
 /** What the renderer needs, or a reason it cannot draw at all. */
 export type CustomJsonView =
   | { ok: true; config: CustomWidgetConfig; slotData: SlotData[] }
   | { ok: false; reason: string };
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
 
 /**
  * Narrow the allowlisted config into the shape CustomWidget takes.
@@ -71,48 +68,12 @@ function readConfig(raw: unknown): CustomWidgetConfig | null {
   };
 }
 
-/**
- * Narrow the widget's `latest` into a snapshot.
- *
- * Takes `unknown` on purpose: `RenderableWidget.latest` is typed loosely while
- * Task #236 lands the board payload, and this has to read a jsonb-derived value
- * either way. Anything that is not a snapshot reads as "no snapshot", which is
- * the same as never polled - the safe direction.
- */
-function readLatest(raw: unknown): LatestSnapshot | null {
-  if (!isRecord(raw)) return null;
-  if (typeof raw.capturedAt !== 'string') return null;
-
-  const error = raw.error;
-  return {
-    capturedAt: raw.capturedAt,
-    value: 'value' in raw ? raw.value : null,
-    error:
-      isRecord(error) && typeof error.message === 'string'
-        ? (error as LatestSnapshot['error'])
-        : null,
-  };
-}
-
 /** The snapshot's per-slot results, or null when the value is not one. */
 function readSlotValues(latest: LatestSnapshot | null | undefined): CustomJsonSnapshotValue | null {
   if (!latest || latest.error || !isRecord(latest.value)) return null;
   const slots = latest.value.slots;
   if (!Array.isArray(slots)) return null;
   return latest.value as unknown as CustomJsonSnapshotValue;
-}
-
-/** "2 minutes ago", for the stale state's last-updated line. */
-function agoLabel(capturedAt: string): string | undefined {
-  const at = Date.parse(capturedAt);
-  if (Number.isNaN(at)) return undefined;
-
-  const minutes = Math.floor((Date.now() - at) / 60_000);
-  if (minutes < 1) return 'just now';
-  if (minutes < 60) return `${minutes} min ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours} hr ago`;
-  return `${Math.floor(hours / 24)} d ago`;
 }
 
 /**

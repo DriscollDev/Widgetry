@@ -34,6 +34,11 @@
 //     widget with no upstream to poll.
 //   DONE(EX-19): `refreshIntervalSeconds` is seeded from the type's
 //     `defaultRefreshSeconds` (null for client-polled types).
+//   DONE(US-C5): `refreshIntervalSeconds` is also caller-settable on create,
+//     validated against the chosen type's `minRefreshSeconds` and refused
+//     entirely for a client-polled type (Eng §7.2 - there is no poll loop
+//     that would ever read it). Omitted, the old seeded-default behavior is
+//     unchanged.
 //   DONE(F8.2): `retentionHours` is user-configurable in 12..720 through
 //     PATCH /v1/widgets/:id (US-H2); rows still default to 168.
 //   DONE(#234): the board payload carries `config` (an allowlisted, display-only
@@ -118,6 +123,17 @@ export const CreateWidgetRequest = WidgetPlacement.extend({
    * unconfigured state.
    */
   config: z.unknown().optional(),
+  /**
+   * US-C5: the caller's requested per-widget poll interval, in seconds.
+   * Optional, same reasoning as `config` above and validated the same
+   * two-step way: this schema only knows it must be a positive integer; the
+   * handler checks it against the chosen type's `minRefreshSeconds` from the
+   * registry (`../widgets/registry.js`), which cannot be imported here
+   * without closing an import cycle (registry.ts imports WIDGET_TYPES from
+   * this module). Omitted, the type's `defaultRefreshSeconds` is used, same
+   * as before this field existed.
+   */
+  refreshIntervalSeconds: z.number().int().positive().optional(),
 }).superRefine((value, ctx) => {
   // FR-3.1: the widget must fit inside the 12 columns. This is a rule about the
   // SUM of two fields, which is why it is here and not a column CHECK in the
@@ -189,6 +205,13 @@ export const BoardWidgetPlacement = WidgetPlacement.extend({
    * driven by the registry's `supportsHistory`, not by this field.
    */
   retentionHours: z.number().int(),
+  /**
+   * US-C5/FR-4.2. Null for a client-polled widget (Eng §7.2 - there is no
+   * poll loop that would ever read it), and for an unconfigured server-polled
+   * one (which is not schedulable yet either - see the POST handler's
+   * comment on this exact point).
+   */
+  refreshIntervalSeconds: z.number().int().nullable(),
   /** Allowlisted display config. Null or absent when there is none to show. */
   config: WidgetConfigView.nullish(),
   /** The latest snapshot. Null or absent for local and never-polled widgets. */
@@ -251,8 +274,6 @@ export const WidgetRetentionHours = z
  *
  *   TODO(F4.2/US-C6): `config`. Needs `parseWidgetConfig` against the stored
  *     widget's type, the same two-step split `CreateWidgetRequest` uses.
- *   TODO(US-C5): `refreshIntervalSeconds`, validated against the type's
- *     `minRefreshSeconds` from the registry.
  */
 export const UpdateWidgetRequest = WidgetPlacement.partial()
   .extend({
@@ -263,6 +284,14 @@ export const UpdateWidgetRequest = WidgetPlacement.partial()
      * decide whether to render the control at all.
      */
     retentionHours: WidgetRetentionHours.optional(),
+    /**
+     * US-C5. Unlike `retentionHours` above, a client-polled type does NOT
+     * silently accept this inert - there is no poll loop that would ever
+     * read it, so the handler refuses it outright for that type rather than
+     * storing a value that would misleadingly suggest one exists. Same
+     * two-step validation split as `CreateWidgetRequest.refreshIntervalSeconds`.
+     */
+    refreshIntervalSeconds: z.number().int().positive().optional(),
   })
   .refine((value) => Object.keys(value).length > 0, {
     // Same rule as UpdateBoardRequest: a PATCH that changes nothing is a client

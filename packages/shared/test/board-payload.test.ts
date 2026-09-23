@@ -13,6 +13,7 @@ const placement = {
   gridWidth: 2,
   gridHeight: 2,
   retentionHours: 168,
+  refreshIntervalSeconds: 3600,
   createdAt: at,
   updatedAt: at,
 };

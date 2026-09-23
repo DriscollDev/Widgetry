@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/svelte';
 import { WIDGET_TYPE_DEFS } from '@widgetry/shared';
 import FallbackRenderer from './FallbackRenderer.svelte';
+import UptimeRenderer from './UptimeRenderer.svelte';
 import { registeredWidgetTypes, rendererFor } from './registry';
 
 afterEach(() => {
@@ -24,6 +25,12 @@ describe('renderer registry (Story #223, FR-3.6, EX-22/EX-23)', () => {
     for (const type of catalogTypes) {
       expect(typeof rendererFor(type), type).toBe('function');
     }
+  });
+
+  it('resolves uptime to its own renderer, not the fallback (US-W-Uptime)', () => {
+    // The first server-polled type to render live data end to end; pinned so a
+    // registry edit cannot quietly drop it back to the fallback.
+    expect(rendererFor('uptime')).toBe(UptimeRenderer);
   });
 
   it('falls back for a type with no renderer', () => {
