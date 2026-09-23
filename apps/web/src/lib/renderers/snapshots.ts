@@ -17,11 +17,20 @@
 import { LatestSnapshot, type SnapshotsResponse } from '@widgetry/shared';
 import type { UptimePoint } from '$lib/widgets/uptime-timeline';
 
+/** The raw history, as the endpoint returns it: oldest first. */
+export type HistoryResult =
+  | { ok: true; snapshots: LatestSnapshot[]; truncated: boolean }
+  | { ok: false; reason: string };
+
+/** The uptime widget's narrowed view of the same history. */
 export type SnapshotsResult =
   | { ok: true; points: UptimePoint[]; truncated: boolean }
   | { ok: false; reason: string };
 
-const cache = new Map<string, SnapshotsResult>();
+// Keyed by widget, holding the RAW history - so an uptime widget and a custom
+// widget asking for the same thing share one request, and so a caller that
+// needs a different narrowing of it does not pay for a second fetch.
+const cache = new Map<string, HistoryResult>();
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -57,12 +66,12 @@ export function toUptimePoint(snapshot: unknown): UptimePoint | null {
   };
 }
 
-/** Fetch a widget's history, or report why it could not be read. */
-export async function fetchUptimeHistory(widgetId: string): Promise<SnapshotsResult> {
+/** Fetch a widget's raw snapshot history, or report why it could not be read. */
+export async function fetchHistory(widgetId: string): Promise<HistoryResult> {
   const cached = cache.get(widgetId);
   if (cached) return cached;
 
-  let result: SnapshotsResult;
+  let result: HistoryResult;
 
   try {
     const response = await fetch(`/v1/widgets/${encodeURIComponent(widgetId)}/snapshots`);
@@ -73,14 +82,15 @@ export async function fetchUptimeHistory(widgetId: string): Promise<SnapshotsRes
       // simply "no history to draw".
       result =
         response.status === 404
-          ? { ok: true, points: [], truncated: false }
+          ? { ok: true, snapshots: [], truncated: false }
           : { ok: false, reason: 'History could not be loaded.' };
     } else {
       const body = (await response.json()) as SnapshotsResponse;
-      const points = (body.points ?? [])
-        .map((point) => toUptimePoint(point))
-        .filter((point): point is UptimePoint => point !== null);
-      result = { ok: true, points, truncated: Boolean(body.truncated) };
+      const snapshots = (body.points ?? [])
+        .map((point) => LatestSnapshot.safeParse(point))
+        .filter((parsed) => parsed.success)
+        .map((parsed) => parsed.data);
+      result = { ok: true, snapshots, truncated: Boolean(body.truncated) };
     }
   } catch {
     result = { ok: false, reason: 'History could not be loaded.' };
@@ -88,6 +98,18 @@ export async function fetchUptimeHistory(widgetId: string): Promise<SnapshotsRes
 
   cache.set(widgetId, result);
   return result;
+}
+
+/** The uptime widget's view: the same history, narrowed to readings. */
+export async function fetchUptimeHistory(widgetId: string): Promise<SnapshotsResult> {
+  const history = await fetchHistory(widgetId);
+  if (!history.ok) return history;
+
+  const points = history.snapshots
+    .map((snapshot) => toUptimePoint(snapshot))
+    .filter((point): point is UptimePoint => point !== null);
+
+  return { ok: true, points, truncated: history.truncated };
 }
 
 /** Drop the cache. Exported for tests, which must not share state. */

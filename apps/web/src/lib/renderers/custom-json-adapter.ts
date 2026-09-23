@@ -26,6 +26,7 @@ import {
   type SlotConfig,
 } from '@widgetry/shared';
 import type { CustomWidgetConfig, SlotData } from '$lib/widgets/custom/types';
+import { lineSeries, statusSeries } from './custom-series';
 import { agoLabel, isRecord, readLatest } from './snapshot-read';
 import type { RenderableWidget } from './types';
 
@@ -87,6 +88,8 @@ function toSlotData(
   slot: SlotConfig,
   stored: CustomJsonSnapshotValue['slots'][number] | undefined,
   capturedAt: string,
+  slotIndex: number,
+  history: LatestSnapshot[],
 ): SlotData {
   if (!stored) {
     // The config gained a slot since this row was written (US-C6).
@@ -105,11 +108,28 @@ function toSlotData(
   const scalar = typeof value === 'boolean' ? String(value) : value;
 
   if (needsSeries(slot.primitive)) {
-    return {
-      state: 'stale',
-      value: scalar,
-      updatedAtLabel: agoLabel(capturedAt) ?? 'History is not available yet',
-    };
+    // US-C4 + EX-Snapshots-Endpoint. Until the snapshots endpoint existed these
+    // drew their latest value with a "no history" note; they draw the real
+    // series now, and fall back to that note when a widget genuinely has no
+    // history yet (just created, or history purged by retention).
+    if (slot.primitive === 'uptime-strip') {
+      const statuses = statusSeries(history, slotIndex);
+      return statuses.length > 0
+        ? { state: 'value', value: scalar, statusSeries: statuses }
+        : { state: 'stale', value: scalar, updatedAtLabel: 'History is not available yet' };
+    }
+
+    const series = lineSeries(history, slotIndex);
+    // One point is not a line. Two is the minimum that draws a segment, and
+    // buildSparklinePath returns an empty path below that anyway - so a single
+    // reading stays the stale-with-value state rather than an empty chart.
+    return series.length >= 2
+      ? { state: 'value', value: scalar, series }
+      : {
+          state: 'stale',
+          value: scalar,
+          updatedAtLabel: agoLabel(capturedAt) ?? 'History is not available yet',
+        };
   }
 
   return { state: 'value', value: scalar, updatedAtLabel: agoLabel(capturedAt) };
@@ -122,7 +142,10 @@ function toSlotData(
  * that is shorter (config gained a slot) or longer (config lost one) renders the
  * current layout rather than the old one.
  */
-export function toCustomJsonView(widget: RenderableWidget): CustomJsonView {
+export function toCustomJsonView(
+  widget: RenderableWidget,
+  history: LatestSnapshot[] = [],
+): CustomJsonView {
   const config = readConfig(widget.config);
   if (!config) {
     return { ok: false, reason: 'This widget’s configuration could not be read.' };
@@ -141,7 +164,7 @@ export function toCustomJsonView(widget: RenderableWidget): CustomJsonView {
   }
 
   const slotData = config.slots.map((slot, index) =>
-    toSlotData(slot, snapshot.slots[index], latest.capturedAt),
+    toSlotData(slot, snapshot.slots[index], latest.capturedAt, index, history),
   );
 
   return { ok: true, config, slotData };
