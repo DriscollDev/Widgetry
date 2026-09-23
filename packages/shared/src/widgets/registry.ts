@@ -186,3 +186,34 @@ export const SERVER_POLLED_WIDGET_TYPES: readonly WidgetType[] = WIDGET_TYPES.fi
 export function parseWidgetConfig(type: WidgetType, config: unknown) {
   return WIDGET_TYPE_DEFS[type].configSchema.safeParse(config);
 }
+
+/**
+ * A `last_polled_at` value for a newly created widget (Eng §5.2, EX-36).
+ *
+ * NOT `now()`. The scheduler sweep (§8.1) enqueues every server-polled widget
+ * whose `last_polled_at` is older than its interval, so a cohort of widgets
+ * created in the same moment would all fall due in the same 60s sweep forever
+ * after - a thundering herd on the worker, and visibly synchronised refreshes
+ * on the board. Seeding each one to a random point inside its own refresh
+ * window spreads that cohort across the whole window instead.
+ *
+ * The column is NOT NULL even for client-polled and purely local types, which
+ * the sweep simply ignores - reporting a value for them is cheaper than making
+ * the column nullable and teaching every reader about a third state.
+ *
+ * Lives here, beside the registry it reads, because it has two writers: the
+ * widget-create path in the api and the demo seed in packages/db (SCP-035).
+ * A second copy is how the two drift.
+ *
+ * @param def the widget type's registry entry
+ * @param now injectable for tests; defaults to the current time
+ * @param random injectable for tests; defaults to Math.random
+ */
+export function jitteredLastPolledAt(
+  def: WidgetTypeDef,
+  now: number = Date.now(),
+  random: () => number = Math.random,
+): Date {
+  const windowMs = (def.defaultRefreshSeconds ?? MIN_SERVER_POLL_SECONDS) * 1000;
+  return new Date(now - Math.floor(random() * windowMs));
+}
