@@ -5,6 +5,7 @@
 // field's data KIND narrows that menu further. Layouts are shipped code -
 // users pick one, they never compose a layout themselves.
 
+import type { CustomJsonConfig } from '@widgetry/shared';
 import type { AccentColor } from '../accent';
 import type { WidgetStatus } from '../status';
 
@@ -153,11 +154,18 @@ export type CustomWidgetConfig = {
 
 /** What the modal hands back on save.
  *
- * `config` is safe to persist verbatim into `widgets.config`.
- * `secret` is NOT - it is plaintext and must go straight to the
- * api_credentials envelope encryption (Eng §10.2, FR-6.2). The two are
- * separate fields precisely so a credential cannot end up in the JSONB
- * column by accident. One secret per widget, matching the UNIQUE
+ * `config` is the REAL wire shape (`CustomJsonConfig` from `@widgetry/shared`,
+ * the same schema `packages/shared/src/widgets/custom-json.ts` and the api
+ * validate against) - safe to send to `POST /v1/boards/:id/widgets` verbatim.
+ * This is deliberately NOT `CustomWidgetConfig` above, which is a display-only
+ * shape the live preview and the renderer's adapter use and was never meant to
+ * round-trip (see #239).
+ *
+ * `secret` is NOT part of `config` - it is plaintext and must go straight to
+ * the api_credentials envelope encryption (Eng §10.2, FR-6.2) via
+ * `PUT /v1/widgets/:id/credential`, a second call after the widget exists.
+ * The two are separate fields precisely so a credential cannot end up in the
+ * JSONB column by accident. One secret per widget, matching the UNIQUE
  * `api_credentials.widget_id` constraint. */
 export type CustomWidgetSubmission = {
   /** Matches WIDGET_TYPES in packages/shared/src/api/widgets.ts. */
@@ -166,7 +174,9 @@ export type CustomWidgetSubmission = {
    * places the widget (Eng §9.3 owns col/row). */
   minWidth: number;
   minHeight: number;
-  config: CustomWidgetConfig;
+  config: CustomJsonConfig;
+  /** US-C5. Always set: the form floors it at the type's minimum itself. */
+  refreshIntervalSeconds: number;
   secret: string | null;
 };
 

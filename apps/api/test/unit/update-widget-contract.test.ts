@@ -131,12 +131,30 @@ describe('UpdateWidgetRequest - PATCH semantics', () => {
     });
   });
 
-  it('does not accept config or refreshIntervalSeconds yet', () => {
-    // Both are pending the registry-backed validation described on the schema.
+  it('does not accept config yet', () => {
+    // Pending the registry-backed validation described on the schema (US-C6).
     expect(UpdateWidgetRequest.safeParse({ config: { url: 'https://x.test/' } }).success).toBe(
       false,
     );
-    expect(UpdateWidgetRequest.safeParse({ refreshIntervalSeconds: 3600 }).success).toBe(false);
+  });
+
+  // US-C5. Same split as CreateWidgetRequest's own refreshIntervalSeconds
+  // tests (boards-contract.test.ts): this schema only knows the shape:
+  // whether the value is allowed for the widget's actual type is the
+  // handler's job, checked against the registry.
+  it('accepts a positive integer refreshIntervalSeconds', () => {
+    const result = UpdateWidgetRequest.safeParse({ refreshIntervalSeconds: 3600 });
+    expect(result.success).toBe(true);
+    expect(result.data).toEqual({ refreshIntervalSeconds: 3600 });
+  });
+
+  it('rejects a non-positive or non-integer refreshIntervalSeconds', () => {
+    for (const bad of [0, -1, 3600.5]) {
+      expect(
+        UpdateWidgetRequest.safeParse({ refreshIntervalSeconds: bad }).success,
+        `${bad} should be rejected`,
+      ).toBe(false);
+    }
   });
 
   it('ignores unknown fields alongside a valid one rather than failing', () => {
