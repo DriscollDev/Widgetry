@@ -33,7 +33,6 @@ import {
   GRID_COLUMNS,
   MAX_WIDGETS_PER_BOARD,
   jitteredLastPolledAt,
-  MIN_SERVER_POLL_SECONDS,
   parseWidgetConfig,
   UpdateWidgetRequest,
   type WidgetType,
