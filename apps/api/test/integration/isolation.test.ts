@@ -7,10 +7,10 @@
 //
 // The board-scoped endpoints below are real routes from routes/boards.ts and
 // routes/widgets.ts - the probes they replaced are gone. PATCH /v1/widgets/:id
-// (Task #170 placement, US-H2 retention) and PUT/DELETE
-// /v1/widgets/:id/credential (US-S1..S4) are real too. What remains a probe is
-// GET /v1/widgets/:id; refresh and snapshots have no handlers yet.
-// DELETE /v1/widgets/:id (US-W4, Task #210) is real too.
+// (Task #170 placement, US-H2 retention, US-C6 config), GET /v1/widgets/:id
+// (US-C6), PUT/DELETE /v1/widgets/:id/credential (US-S1..S4), and DELETE
+// /v1/widgets/:id (US-W4, Task #210) are all real now. Nothing here is a probe
+// any more; refresh and snapshots have no handlers yet.
 //
 // NOTE FOR WHOEVER ADDS THE NEXT REAL WIDGET ROUTE: as each of
 // POST /v1/widgets/:id/refresh and
@@ -32,7 +32,6 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { createDb, schema } from '@widgetry/db';
 import type { FastifyInstance } from 'fastify';
-import { requireWidgetOwnership } from '../../src/lib/ownership.js';
 
 function ciTestDatabaseName(): string | null {
   const url = process.env.DATABASE_URL;
@@ -108,25 +107,14 @@ describeIntegration('multi-tenant isolation (EX-17, Eng §11.7)', () => {
     const { buildServer } = await import('../../src/server.js');
     app = await buildServer();
 
-    // Probe routes for the widget-scoped family that still has no real handler
-    // - see the note at the top of this file. They exist to put the real
-    // pre-handler on a real request path. Each returns the row the gate
-    // resolved, so a passing 200 also proves the gate hands the handler the
-    // right record rather than merely letting it through. The board-scoped
-    // endpoints are real routes registered by buildServer(); nothing here
-    // shadows them.
-    //
-    // PATCH /v1/widgets/:id has NO probe: it is a real route now (placement per
-    // Task #170/#158, retention per US-H2), registered by buildServer() via
-    // routes/widgets.ts. A second handler on the same method+path here would
-    // throw FST_ERR_DUPLICATE_ROUTE - which is the good kind of failure, since
-    // a probe silently shadowing a real route would mean this suite proving the
-    // gate on a stub while the shipped handler went untested. Delete each probe
-    // below as its endpoint lands, for the same reason. Only GET remains.
-    app.get('/v1/widgets/:id', { preHandler: requireWidgetOwnership }, async (request) => ({
-      id: request.widget?.id,
-    }));
-
+    // No probes left in this family - GET, PATCH, DELETE and the credential
+    // verbs on /v1/widgets/:id are all real routes registered by buildServer()
+    // via routes/widgets.ts and routes/credentials.ts. A probe here on any of
+    // their method+paths would throw FST_ERR_DUPLICATE_ROUTE - which would be
+    // the good kind of failure, since a probe silently shadowing a real route
+    // would mean this suite proving the gate on a stub while the shipped
+    // handler went untested. Add a probe back only for a genuinely unbuilt
+    // endpoint (refresh, snapshots), and delete it the moment that lands.
     await app.ready();
     db = createDb(process.env.DATABASE_URL!);
 

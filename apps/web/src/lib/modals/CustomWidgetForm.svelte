@@ -33,6 +33,19 @@
    * section below - this is arbitrary caller headers, not the credential. */
   type HeaderRow = { name: string; value: string };
 
+  /**
+   * US-C6: what the caller already knows about the widget being edited. Not
+   * the widget's full API shape - just the two things this form cannot derive
+   * on its own: the stored config to seed every field from, and whether a
+   * credential already exists (the secret itself is NEVER here - FR-6.2, and
+   * this form never receives it from anywhere).
+   */
+  type EditInitial = {
+    config: CustomJsonConfig;
+    refreshIntervalSeconds: number;
+    hasCredential: boolean;
+  };
+
   type Props = {
     onClose: () => void;
     onSubmit?: (submission: CustomWidgetSubmission) => void;
@@ -46,9 +59,43 @@
     /** Surfaced from the caller's own POST/PUT, e.g. a rejected overlap or a
      * credential save failure after the widget itself was created. */
     submitError?: string | null;
+    /** US-C6: present when editing an existing widget rather than creating
+     * one. Every field seeds from it, step 1 (layout) is skipped since the
+     * layout is already chosen, and the submit button reads "Save changes". */
+    initial?: EditInitial;
   };
 
-  let { onClose, onSubmit, onBack, submitting = false, submitError = null }: Props = $props();
+  let {
+    onClose,
+    onSubmit,
+    onBack,
+    submitting = false,
+    submitError = null,
+    initial,
+  }: Props = $props();
+
+  const isEditing = initial !== undefined;
+  const hasCredential = initial?.hasCredential ?? false;
+
+  /**
+   * The real `CustomJsonApiKeyPlacement` reversed back into this form's
+   * auth-section fields. 'bearer' is UI sugar with no schema counterpart
+   * (see `apiKeyPlacement` below) - a header placement literally named
+   * `Authorization` reads back as 'bearer' rather than as a custom header,
+   * matching the only way this form itself ever produces that placement.
+   */
+  function authFieldsFor(apiKey: CustomJsonConfig['apiKey']): {
+    authType: WidgetAuthType;
+    authParamName: string;
+  } {
+    if (!apiKey) return { authType: 'none', authParamName: '' };
+    if (apiKey.in === 'header' && apiKey.name === 'Authorization') {
+      return { authType: 'bearer', authParamName: '' };
+    }
+    return { authType: apiKey.in, authParamName: apiKey.name };
+  }
+
+  const seededAuth = authFieldsFor(initial?.config.apiKey);
 
   const DATA_KINDS: { value: DataKind; label: string }[] = [
     { value: 'number', label: 'Number' },
@@ -58,28 +105,44 @@
     { value: 'status-series', label: 'List of statuses' },
   ];
 
-  let step = $state<1 | 2 | 3>(1);
-  let layoutId = $state<LayoutId | null>(null);
-  let title = $state('');
-  let accent = $state<AccentColor>('primary');
-  let slots = $state<SlotConfig[]>([]);
-  let slotKinds = $state<DataKind[]>([]);
+  // US-C6: step 1 (layout) is skipped when editing - the layout is already
+  // chosen, and "Back" from step 2 still reaches it if the user wants to
+  // change it. Every other field below seeds from `initial` the same way.
+  let step = $state<1 | 2 | 3>(isEditing ? 2 : 1);
+  let layoutId = $state<LayoutId | null>(initial?.config.layoutId ?? null);
+  let title = $state(initial?.config.title ?? '');
+  let accent = $state<AccentColor>(initial?.config.accent ?? 'primary');
+  let slots = $state<SlotConfig[]>(initial ? initial.config.slots.map((s) => ({ ...s })) : []);
+  /**
+   * A slot's persisted shape has no "kind" - it is a UI-only concept that
+   * narrows the primitive menu (see `allowedPrimitives`). Reconstructed as
+   * the FIRST kind that primitive itself accepts, which is always a legal
+   * combination by construction (`PRIMITIVE_ACCEPTS[primitive]` is exactly
+   * the set `allowedPrimitives` checks against) - so the slot's real,
+   * already-saved primitive is guaranteed to appear as a selectable option
+   * rather than silently vanishing because a guessed kind excluded it.
+   */
+  let slotKinds = $state<DataKind[]>(
+    initial ? initial.config.slots.map((s) => PRIMITIVE_ACCEPTS[s.primitive][0]) : [],
+  );
   let openSlot = $state(0);
 
   // One source for the whole widget - every slot reads a path out of the
   // same response. See the note on SlotConfig for why.
-  let endpointUrl = $state('');
-  let authType = $state<WidgetAuthType>('none');
-  let authParamName = $state('');
-  // Deliberately NOT part of `config`: keeping the credential in separate
-  // state means it cannot be serialised into widgets.config by accident.
+  let endpointUrl = $state(initial?.config.url ?? '');
+  let authType = $state<WidgetAuthType>(seededAuth.authType);
+  let authParamName = $state(seededAuth.authParamName);
+  // Deliberately NOT part of `config`, and NEVER seeded from `initial` even
+  // when editing - the plaintext key is not retrievable after saving
+  // (FR-6.2), so there is nothing to seed it WITH. Leaving it blank on edit
+  // means "keep the existing one"; see `authIncomplete` and `submit` below.
   let secret = $state('');
 
   // US-C1: arbitrary caller headers, independent of the auth section above -
   // this widget's api key (if any) is a placement into ONE of these, never a
   // value stored here itself (the server refuses a header name that looks
   // credential-shaped for exactly that reason - see isCredentialHeaderName).
-  let headers = $state<HeaderRow[]>([]);
+  let headers = $state<HeaderRow[]>(initial ? initial.config.headers.map((h) => ({ ...h })) : []);
 
   function addHeader() {
     headers.push({ name: '', value: '' });
@@ -92,7 +155,7 @@
   // US-C5: floored at the type's minimum by construction, not just by the
   // input's min= attribute, so a value carried in from a bad paste can't
   // sneak past a user who never touches the field.
-  let refreshIntervalSeconds = $state(MIN_SERVER_POLL_SECONDS);
+  let refreshIntervalSeconds = $state(initial?.refreshIntervalSeconds ?? MIN_SERVER_POLL_SECONDS);
 
   let layout = $derived(layoutId ? getLayout(layoutId) : null);
 
@@ -174,9 +237,16 @@
    * fail with "needs an API key" (see apps/worker/src/fetchers/custom-json.ts).
    * 'bearer' has no name field of its own (see the template); it always
    * resolves to the fixed Authorization header name below, so only the
-   * secret matters for it. */
+   * secret matters for it.
+   *
+   * US-C6: a blank secret is fine when EDITING a widget that already has one
+   * saved - blank means "keep the current key," not "there is no key." The
+   * credential is keyed by widget id alone, never by placement, so it stays
+   * valid even if the placement (header vs query, or the name) changes
+   * underneath it without a new secret being entered. */
   let authIncomplete = $derived(
-    authType !== 'none' && (!secret.trim() || (authType !== 'bearer' && !authParamName.trim())),
+    authType !== 'none' &&
+      ((!secret.trim() && !hasCredential) || (authType !== 'bearer' && !authParamName.trim())),
   );
   let canSubmit = $derived(
     slots.length > 0 &&
@@ -231,7 +301,9 @@
 
 <div class="flex items-center justify-between border-b border-surface-200-800 p-5">
   <div>
-    <h2 class="text-lg font-semibold text-surface-950-50">Custom widget</h2>
+    <h2 class="text-lg font-semibold text-surface-950-50">
+      {isEditing ? 'Edit custom widget' : 'Custom widget'}
+    </h2>
     <p class="text-xs text-surface-600-400">
       Step {step} of 3 ·
       {step === 1 ? 'Choose a layout' : step === 2 ? 'Bind each slot' : 'Title and style'}
@@ -337,7 +409,12 @@
               class="w-full rounded-lg border border-surface-200-800 bg-surface-100-900 px-3 py-2 font-mono text-sm text-surface-950-50"
             />
             <p class="mt-1 text-xs text-surface-500">
-              Stored encrypted and sent only from the server. Never shown again after saving.
+              {#if hasCredential}
+                An API key is already saved for this widget. Enter a new one to replace it, or leave
+                this blank to keep the current one.
+              {:else}
+                Stored encrypted and sent only from the server. Never shown again after saving.
+              {/if}
             </p>
           </div>
         {/if}
@@ -673,7 +750,7 @@
         disabled={!canSubmit || submitting}
         class="preset-filled-primary-500 rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50"
       >
-        {submitting ? 'Saving…' : 'Add widget'}
+        {submitting ? 'Saving…' : isEditing ? 'Save changes' : 'Add widget'}
       </button>
     {/if}
   </div>

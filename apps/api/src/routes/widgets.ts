@@ -3,7 +3,7 @@
 // GET   /v1/widgets/catalog      EX-24 - public catalog listing
 // POST  /v1/boards/:id/widgets   US-W1, SCR-MOD-04/05 - add widget
 // PATCH /v1/widgets/:id          US-W2 drag (#170), US-W3 resize (#158), US-H2 retention (F8.2),
-//                                US-C5 refresh interval
+//                                US-C5 refresh interval, US-C6 edit config
 // DELETE /v1/widgets/:id         US-W4 delete widget (Task #210)
 //
 // POST checks board ownership + the FR-3.5 cap + FR-3.3 overlap (Task #198),
@@ -11,9 +11,12 @@
 // against the type's minRefreshSeconds (both via a registry lookup, since
 // neither schema can reach the registry without an import cycle), and
 // inserts with scheduler columns derived from the registry (EX-19). PATCH
-// checks widget ownership, then updates placement/retention/refresh interval
-// under a board-row lock with the same FR-3.3 overlap check (Task #188).
-// Both patterns are intentionally identical - see rectanglesOverlap below.
+// checks widget ownership, then updates placement/retention/refresh
+// interval/config under a board-row lock with the same FR-3.3 overlap check
+// (Task #188). Config on PATCH validates against the STORED widget's type
+// (there is no widgetType field to change it), the same
+// parseWidgetConfig/underConfig pair POST uses. Both patterns are
+// intentionally identical - see rectanglesOverlap below.
 //
 // DELETE checks widget ownership, then removes the row under the same
 // board-row lock; its snapshots and stored credential go with it via FK
@@ -35,6 +38,7 @@ import {
   MIN_SERVER_POLL_SECONDS,
   parseWidgetConfig,
   UpdateWidgetRequest,
+  type WidgetDetail,
   type WidgetType,
   type WidgetTypeDef,
   WIDGET_TYPE_DEFS,
@@ -190,7 +194,9 @@ export async function widgetRoutes(fastify: FastifyInstance): Promise<void> {
       // Unconfigured server-polled widgets get a null interval, which the
       // §8.1 sweep treats as "not schedulable" - otherwise an unconfigured
       // uptime widget would poll hourly and write config_invalid snapshots.
-      // TODO(US-C6): PATCH must set this too once it accepts config.
+      // PATCH mirrors this for the same reason when IT is what configures a
+      // previously-unconfigured widget for the first time (US-C6, see its
+      // handler's `wasUnconfigured` check below).
       //
       // US-C5: a caller-supplied interval overrides the seeded default, but
       // only for a configured widget - an unconfigured one stays
@@ -299,14 +305,61 @@ export async function widgetRoutes(fastify: FastifyInstance): Promise<void> {
     },
   );
 
-  /** PATCH /v1/widgets/:id - placement and retention. US-W2 drag (#170),
-   * US-W3 resize (#158), US-H2 retention (F8.2). 200 on success.
+  /**
+   * GET /v1/widgets/:id - US-C6. The one widget, full and unfiltered, for its
+   * owner's own edit form - see `WidgetDetail`'s doc comment in
+   * packages/shared for why this is a different shape from the board
+   * payload's allowlisted `config`.
+   */
+  fastify.get(
+    '/v1/widgets/:id',
+    { preHandler: requireWidgetOwnership },
+    async (request): Promise<WidgetDetail> => {
+      const { user } = requireSession(request);
+      const widget = request.widget!;
+
+      // EX-18: api_credentials has no user_id of its own, so this is scoped
+      // through the same widgets -> boards chain requireWidgetOwnership itself
+      // relies on, joined explicitly rather than via ownedWidgetIds' subquery
+      // - the ownership ESLint rule only recognizes a literal .innerJoin
+      // immediately after .from(), not a subquery inside .where().
+      const [credentialRow] = await db
+        .select({ id: schema.apiCredentials.id })
+        .from(schema.apiCredentials)
+        .innerJoin(schema.widgets, eq(schema.apiCredentials.widgetId, schema.widgets.id))
+        .innerJoin(schema.boards, eq(schema.widgets.boardId, schema.boards.id))
+        .where(
+          and(eq(schema.apiCredentials.widgetId, widget.id), eq(schema.boards.userId, user.id)),
+        )
+        .limit(1);
+
+      return {
+        id: widget.id,
+        boardId: widget.boardId,
+        widgetType: widget.widgetType as WidgetType,
+        gridCol: widget.gridCol,
+        gridRow: widget.gridRow,
+        gridWidth: widget.gridWidth,
+        gridHeight: widget.gridHeight,
+        retentionHours: widget.retentionHours,
+        refreshIntervalSeconds: widget.refreshIntervalSeconds,
+        config: widget.config as Record<string, unknown>,
+        hasCredential: credentialRow !== undefined,
+        createdAt: widget.createdAt.toISOString(),
+        updatedAt: widget.updatedAt.toISOString(),
+      };
+    },
+  );
+
+  /** PATCH /v1/widgets/:id - placement, retention, refresh interval, and
+   * config. US-W2 drag (#170), US-W3 resize (#158), US-H2 retention (F8.2),
+   * US-C6 edit an existing widget's configuration. 200 on success.
    * Widget-scoped (not board-scoped) since the row already exists.
    * Ownership re-check, FR-3.3 overlap, and the write all run inside one
    * transaction with the board row locked - same pattern as POST above.
-   * A retention-only PATCH skips the grid checks entirely, since re-running
-   * overlap against an unmoved rectangle would surface pre-existing overlaps
-   * unrelated to this request. */
+   * A retention/config-only PATCH skips the grid checks entirely, since
+   * re-running overlap against an unmoved rectangle would surface
+   * pre-existing overlaps unrelated to this request. */
   fastify.patch(
     '/v1/widgets/:id',
     { preHandler: requireWidgetOwnership },
@@ -319,11 +372,19 @@ export async function widgetRoutes(fastify: FastifyInstance): Promise<void> {
         throw validationFailed(parsed.error, 'The widget could not be updated as described.');
       }
 
-      const { gridCol, gridRow, gridWidth, gridHeight, retentionHours, refreshIntervalSeconds } =
-        parsed.data;
+      const {
+        gridCol,
+        gridRow,
+        gridWidth,
+        gridHeight,
+        retentionHours,
+        refreshIntervalSeconds,
+        config: suppliedConfig,
+      } = parsed.data;
+
+      const def = getWidgetTypeDef(widget.widgetType as WidgetType);
 
       if (refreshIntervalSeconds !== undefined) {
-        const def = getWidgetTypeDef(widget.widgetType as WidgetType);
         const intervalError = validateRefreshInterval(def, refreshIntervalSeconds);
         if (intervalError) {
           throw validationFailed(
@@ -332,6 +393,37 @@ export async function widgetRoutes(fastify: FastifyInstance): Promise<void> {
           );
         }
       }
+
+      // US-C6: validated against the STORED type (`def`, above), never a
+      // caller-supplied one - PATCH has no widgetType field, so there is no
+      // way for a caller to ask this to validate against a different type's
+      // schema than the row already has.
+      let config: Record<string, unknown> | undefined;
+      if (suppliedConfig !== undefined) {
+        const configResult = parseWidgetConfig(widget.widgetType as WidgetType, suppliedConfig);
+        if (!configResult.success) {
+          throw validationFailed(
+            underConfig(configResult.error),
+            `That configuration is not valid for a ${def.displayName} widget.`,
+          );
+        }
+        config = configResult.data as Record<string, unknown>;
+      }
+
+      // A widget created unconfigured (POST's isConfigured===false path) is
+      // seeded with a null interval, since an unschedulable widget has no
+      // business polling (see the POST handler's comment on this). If THIS
+      // PATCH is what configures it for the first time and the caller did not
+      // also send an explicit interval, seed it the same way POST would have -
+      // otherwise the widget would end up configured but still permanently
+      // unschedulable, which no one asked for and nothing would ever surface.
+      const wasUnconfigured =
+        config !== undefined &&
+        refreshIntervalSeconds === undefined &&
+        Object.keys(widget.config as object).length === 0;
+      const nextRefreshIntervalSeconds = wasUnconfigured
+        ? def.defaultRefreshSeconds
+        : refreshIntervalSeconds;
 
       const movesOrResizes =
         gridCol !== undefined ||
@@ -422,7 +514,10 @@ export async function widgetRoutes(fastify: FastifyInstance): Promise<void> {
             gridWidth: nextWidth,
             gridHeight: nextHeight,
             ...(retentionHours !== undefined ? { retentionHours } : {}),
-            ...(refreshIntervalSeconds !== undefined ? { refreshIntervalSeconds } : {}),
+            ...(nextRefreshIntervalSeconds !== undefined
+              ? { refreshIntervalSeconds: nextRefreshIntervalSeconds }
+              : {}),
+            ...(config !== undefined ? { config } : {}),
             // DB clock, not app clock - Railway's Postgres can run ahead of
             // a local dev machine, which broke updatedAt < createdAt ordering.
             updatedAt: sql`now()`,
@@ -441,9 +536,10 @@ export async function widgetRoutes(fastify: FastifyInstance): Promise<void> {
           gridWidth: nextWidth,
           gridHeight: nextHeight,
           retentionHours,
-          refreshIntervalSeconds,
+          refreshIntervalSeconds: nextRefreshIntervalSeconds,
+          reconfigured: config !== undefined,
         },
-        'widget updated (US-W2/US-W3 placement, US-H2 retention, US-C5 refresh interval)',
+        'widget updated (US-W2/US-W3 placement, US-H2 retention, US-C5 refresh interval, US-C6 config)',
       );
 
       return toPlacement(updated);

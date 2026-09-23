@@ -5,6 +5,12 @@
 //   PUT    /v1/widgets/:id/credential   set or replace   US-S1, US-S4, FR-6.1
 //   DELETE /v1/widgets/:id/credential   remove           US-S3
 //
+// Deliberately no GET (Eng §6.2, tested in credential-routes.test.ts): a
+// "does a credential exist" read is a real use case (US-C6's edit form wants
+// to say so), but it belongs on the board/widget payload as a `hasCredential`
+// flag (see BoardWidgetPlacement in packages/shared), not as a read verb on
+// this write-only sub-resource - keeping this route group write-only-only is
+// the whole point of it being a separate resource from the widget itself.
 // Write-only (FR-6.2, US-S2). The plaintext key exists in this process only
 // between parsing the request body and `encryptCredential` returning; it is
 // never logged (the request body is not part of the request log line), never
@@ -25,7 +31,7 @@ import type { FastifyInstance } from 'fastify';
 import { ZodError } from 'zod';
 import { env } from '../env.js';
 import { ApiError, validationFailed } from '../lib/errors.js';
-import { findOwnedWidget, requireWidgetOwnership } from '../lib/ownership.js';
+import { findOwnedWidget, ownedWidgetIds, requireWidgetOwnership } from '../lib/ownership.js';
 import { requireSession } from '../lib/session.js';
 
 /**
@@ -34,15 +40,6 @@ import { requireSession } from '../lib/session.js';
  * believe it was.
  */
 const CREDENTIAL_WIDGET_TYPES: readonly string[] = ['custom_json'];
-
-/** The caller's widget ids, as a subquery - the ownership scope for a write. */
-function ownedWidgetIds(userId: string) {
-  return db
-    .select({ id: schema.widgets.id })
-    .from(schema.widgets)
-    .innerJoin(schema.boards, eq(schema.widgets.boardId, schema.boards.id))
-    .where(eq(schema.boards.userId, userId));
-}
 
 export async function credentialRoutes(fastify: FastifyInstance): Promise<void> {
   /**

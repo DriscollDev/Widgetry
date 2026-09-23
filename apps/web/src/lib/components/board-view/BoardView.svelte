@@ -25,6 +25,14 @@
    */
   export let onDeleteWidget: ((widgetId: string) => void) | undefined = undefined;
   /**
+   * US-C6: called with a widget's id when the user picks Edit from that
+   * widget's menu. What happens next belongs to the route - fetching the
+   * widget's full config and opening WidgetConfigModal in edit mode. Shown
+   * alongside Delete in the same menu, so it follows the same
+   * omit-to-hide rule Task #214 established for that entry point.
+   */
+  export let onEditWidget: ((widgetId: string) => void) | undefined = undefined;
+  /**
    * Task #222: fires whenever a drag or resize starts or ends, so the route's
    * auto-refresh scheduler can skip a tick mid-gesture rather than reloading
    * the board out from under the user's cursor.
@@ -312,6 +320,11 @@
   function chooseDelete(widgetId: string) {
     closeMenu(false);
     onDeleteWidget?.(widgetId);
+  }
+
+  function chooseEdit(widgetId: string) {
+    closeMenu(false);
+    onEditWidget?.(widgetId);
   }
 
   // Capture phase (see <svelte:window> below), so this runs BEFORE the
@@ -769,12 +782,14 @@
               }}
             />
 
-            <!-- Task #214 (US-W4): per-widget menu. Rendered only when the route
-                 wired an onDeleteWidget handler, so a page that has not adopted
-                 deletion yet looks exactly as before. The pointerdown
-                 stopPropagation calls are load-bearing: without them the press
-                 bubbles to the widget's startDrag, which captures the pointer and
-                 steals the click from the button. -->
+            <!-- Task #214 (US-W4) / US-C6: per-widget menu. The menu itself is
+                 gated on onDeleteWidget, same as Task #214 originally wired
+                 it - a page that has not adopted deletion looks exactly as
+                 before. Edit is a second, independently-gated entry inside
+                 it, shown only when the route also wired onEditWidget. The
+                 pointerdown stopPropagation calls are load-bearing: without
+                 them the press bubbles to the widget's startDrag, which
+                 captures the pointer and steals the click from the button. -->
             {#if onDeleteWidget}
               <div
                 class="board-view__widget-menu"
@@ -807,6 +822,18 @@
 
                 {#if openMenuWidgetId === widget.id}
                   <div class="board-view__widget-menu-list" role="menu" aria-label="Widget actions">
+                    {#if onEditWidget}
+                      <button
+                        type="button"
+                        role="menuitem"
+                        class="board-view__widget-menu-item"
+                        data-widget-menu-item
+                        on:pointerdown={(e) => e.stopPropagation()}
+                        on:click={() => chooseEdit(widget.id)}
+                      >
+                        Edit
+                      </button>
+                    {/if}
                     <button
                       type="button"
                       role="menuitem"
