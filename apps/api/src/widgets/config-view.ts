@@ -30,7 +30,7 @@
 const CLOCK_KEYS = ['display', 'timeZone', 'hour12', 'showSeconds', 'dateStyle', 'label'] as const;
 
 const CONFIG_ALLOWLIST: Readonly<Record<string, readonly string[]>> = {
-  uptime: ['url'],
+  uptime: ['url', 'label', 'degradedAboveMs', 'showHistory'],
   clock: CLOCK_KEYS,
   datetime: CLOCK_KEYS,
   custom_json: ['title', 'layoutId', 'accent', 'slots', 'url'],
