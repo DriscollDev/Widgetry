@@ -10,11 +10,11 @@
 // (Task #170 placement, US-H2 retention, US-C6 config), GET /v1/widgets/:id
 // (US-C6), PUT/DELETE /v1/widgets/:id/credential (US-S1..S4), and DELETE
 // /v1/widgets/:id (US-W4, Task #210) are all real now. Nothing here is a probe
-// any more; refresh and snapshots have no handlers yet.
+// any more. GET /v1/widgets/:id/snapshots is real as of
+// EX-Snapshots-Endpoint; only refresh has no handler yet.
 //
-// NOTE FOR WHOEVER ADDS THE NEXT REAL WIDGET ROUTE: as each of
-// POST /v1/widgets/:id/refresh and
-// GET /v1/widgets/:id/snapshots lands,
+// NOTE FOR WHOEVER ADDS THE NEXT REAL WIDGET ROUTE: when
+// POST /v1/widgets/:id/refresh lands,
 // add it to `endpointsFor` below and delete the matching probe. §11.7 requires
 // EVERY scoped endpoint to appear here, and this suite runs on every PR.
 //
@@ -114,7 +114,7 @@ describeIntegration('multi-tenant isolation (EX-17, Eng §11.7)', () => {
     // the good kind of failure, since a probe silently shadowing a real route
     // would mean this suite proving the gate on a stub while the shipped
     // handler went untested. Add a probe back only for a genuinely unbuilt
-    // endpoint (refresh, snapshots), and delete it the moment that lands.
+    // endpoint (refresh), and delete it the moment that lands.
     await app.ready();
     db = createDb(process.env.DATABASE_URL!);
 
@@ -210,6 +210,16 @@ describeIntegration('multi-tenant isolation (EX-17, Eng §11.7)', () => {
       name: 'GET /v1/widgets/:id',
       method: 'GET' as const,
       url: `/v1/widgets/${widgetId}`,
+      payload: undefined,
+      ownerStatus: 200,
+    },
+    {
+      // EX-Snapshots-Endpoint. Real route as of this commit - the probe that
+      // stood here is gone. A widget with no snapshots still answers 200 with
+      // an empty list, so no fixture rows are needed for the isolation check.
+      name: 'GET /v1/widgets/:id/snapshots',
+      method: 'GET' as const,
+      url: `/v1/widgets/${widgetId}/snapshots`,
       payload: undefined,
       ownerStatus: 200,
     },

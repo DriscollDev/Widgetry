@@ -4,6 +4,7 @@
 // POST  /v1/boards/:id/widgets   US-W1, SCR-MOD-04/05 - add widget
 // PATCH /v1/widgets/:id          US-W2 drag (#170), US-W3 resize (#158), US-H2 retention (F8.2),
 //                                US-C5 refresh interval, US-C6 edit config
+// GET   /v1/widgets/:id/snapshots  EX-Snapshots-Endpoint - timeline data (FR-5.4)
 // DELETE /v1/widgets/:id         US-W4 delete widget (Task #210)
 //
 // POST checks board ownership + the FR-3.5 cap + FR-3.3 overlap (Task #198),
@@ -22,10 +23,9 @@
 // board-row lock; its snapshots and stored credential go with it via FK
 // cascade (Eng §5.2).
 //
-// Snapshots are not implemented yet, and the credential verbs live in
-// ./credentials.ts.
+// The credential verbs live in ./credentials.ts.
 
-import { and, count, eq, inArray, ne, sql } from 'drizzle-orm';
+import { and, count, desc, eq, gte, inArray, lte, ne, sql } from 'drizzle-orm';
 import { ZodError } from 'zod';
 import { db, schema } from '@widgetry/db';
 import {
@@ -35,8 +35,11 @@ import {
   getWidgetTypeDef,
   GRID_COLUMNS,
   MAX_WIDGETS_PER_BOARD,
-  jitteredLastPolledAt,
+  dueNowLastPolledAt,
+  MAX_SNAPSHOT_POINTS,
   parseWidgetConfig,
+  SnapshotQuery,
+  type SnapshotsResponse,
   UpdateWidgetRequest,
   type WidgetDetail,
   type WidgetType,
@@ -53,6 +56,7 @@ import {
   type Widget,
 } from '../lib/ownership.js';
 import { requireSession } from '../lib/session.js';
+import { toLatestSnapshot } from '../widgets/latest-snapshot.js';
 
 /** Wire shape for a widget row. Not mapped: config (this endpoint's caller
  * already has whatever it just sent; the board payload's own allowlisted
@@ -274,7 +278,13 @@ export async function widgetRoutes(fastify: FastifyInstance): Promise<void> {
             refreshIntervalSeconds,
             // retentionHours: column default (168h / 7d, FR-5.2).
             // TODO(F8.2/US-H2): accept 12-720 on create.
-            lastPolledAt: jitteredLastPolledAt(def),
+            //
+            // Due immediately, not jittered: the person who just clicked "Add
+            // widget" is looking at the tile, and spreading buys nothing for a
+            // single widget. The demo seed still jitters, because there a
+            // cohort is written with nobody watching. Remaining wait is the
+            // 60s sweep (Eng §8.1).
+            lastPolledAt: dueNowLastPolledAt(def),
           })
           .returning();
 
@@ -340,6 +350,74 @@ export async function widgetRoutes(fastify: FastifyInstance): Promise<void> {
         createdAt: widget.createdAt.toISOString(),
         updatedAt: widget.updatedAt.toISOString(),
       };
+    },
+  );
+
+  /**
+   * GET /v1/widgets/:id/snapshots - timeline data for charting
+   * (EX-Snapshots-Endpoint, Eng §6.2, FR-5.4).
+   *
+   * Widget-scoped, so `requireWidgetOwnership` gates it and a mismatch is a
+   * 404 (Eng §11.7). The query below is additionally joined through `boards`
+   * and filtered on `boards.user_id`: `widget_snapshots` has no user column of
+   * its own, and the ownership rule is about the query, not about the gate
+   * that ran before it.
+   *
+   * ORDERING. Rows are selected NEWEST first so the cap drops the oldest
+   * points rather than the newest - a truncated timeline that is missing
+   * today is useless - then reversed, because a chart plots oldest to newest.
+   *
+   * Error rows come back alongside value rows rather than being filtered out.
+   * A failed poll is a real event on the timeline (FR-4.4), and hiding it
+   * would draw a continuous line across an outage.
+   */
+  fastify.get(
+    '/v1/widgets/:id/snapshots',
+    { preHandler: requireWidgetOwnership },
+    async (request): Promise<SnapshotsResponse> => {
+      const { user } = requireSession(request);
+      const widget = request.widget!;
+
+      const parsed = SnapshotQuery.safeParse(request.query);
+      if (!parsed.success) {
+        throw validationFailed(parsed.error, 'That time range could not be read.');
+      }
+      const { from, to } = parsed.data;
+
+      const bounds = [
+        eq(schema.widgets.id, widget.id),
+        eq(schema.boards.userId, user.id),
+        ...(from ? [gte(schema.widgetSnapshots.capturedAt, new Date(from))] : []),
+        ...(to ? [lte(schema.widgetSnapshots.capturedAt, new Date(to))] : []),
+      ];
+
+      // One extra row is requested purely to answer "was there more?" without
+      // a second COUNT query over the same range.
+      const rows = await db
+        .select({
+          capturedAt: schema.widgetSnapshots.capturedAt,
+          value: schema.widgetSnapshots.value,
+          error: schema.widgetSnapshots.error,
+        })
+        .from(schema.widgetSnapshots)
+        .innerJoin(schema.widgets, eq(schema.widgetSnapshots.widgetId, schema.widgets.id))
+        .innerJoin(schema.boards, eq(schema.widgets.boardId, schema.boards.id))
+        .where(and(...bounds))
+        .orderBy(desc(schema.widgetSnapshots.capturedAt), desc(schema.widgetSnapshots.id))
+        .limit(MAX_SNAPSHOT_POINTS + 1);
+
+      const truncated = rows.length > MAX_SNAPSHOT_POINTS;
+      const kept = truncated ? rows.slice(0, MAX_SNAPSHOT_POINTS) : rows;
+
+      // toLatestSnapshot returns null for a row with neither half set, which
+      // the worker never writes; dropping those keeps the chart honest rather
+      // than plotting a hole as a zero.
+      const points = kept
+        .reverse()
+        .map((row) => toLatestSnapshot(row))
+        .filter((point): point is NonNullable<typeof point> => point !== null);
+
+      return { widgetId: widget.id, points, truncated };
     },
   );
 

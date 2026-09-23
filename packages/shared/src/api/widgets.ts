@@ -345,3 +345,62 @@ export const UpdateWidgetRequest = WidgetPlacement.partial()
   });
 
 export type UpdateWidgetRequest = z.infer<typeof UpdateWidgetRequest>;
+
+/**
+ * The maximum number of points `GET /v1/widgets/:id/snapshots` will return.
+ *
+ * FR-5.4 states the chart renders "up to 720 data points (the maximum for
+ * hourly polling over 30 days)". The cap lives on the API rather than only in
+ * the chart because the retention ceiling is 720 HOURS (FR-5.2) and nothing
+ * stops a widget polling faster than hourly within that window, so the row
+ * count is not otherwise bounded by anything the client controls.
+ */
+export const MAX_SNAPSHOT_POINTS = 720;
+
+/**
+ * Query string for `GET /v1/widgets/:id/snapshots` (EX-Snapshots-Endpoint,
+ * Eng §6.2).
+ *
+ * Both bounds are optional: the common case is "give me this widget's recent
+ * history" with no window at all, and the handler answers that with the most
+ * recent `MAX_SNAPSHOT_POINTS`. A window narrows it; it never widens it past
+ * the cap.
+ */
+export const SnapshotQuery = z
+  .object({
+    /** Inclusive lower bound on `captured_at`. */
+    from: z.iso.datetime().optional(),
+    /** Inclusive upper bound on `captured_at`. */
+    to: z.iso.datetime().optional(),
+  })
+  .refine((q) => !(q.from && q.to) || Date.parse(q.from) <= Date.parse(q.to), {
+    path: ['from'],
+    message: 'The start of the range must not be after its end.',
+  });
+
+export type SnapshotQuery = z.infer<typeof SnapshotQuery>;
+
+/**
+ * Timeline data for one widget.
+ *
+ * `points` reuses `LatestSnapshot` rather than defining a second shape: a point
+ * on the timeline IS a snapshot, with the same exactly-one-of-value-and-error
+ * rule, and a chart has to render the error rows as gaps rather than pretend
+ * they are absent.
+ *
+ * Ordered OLDEST FIRST, which is the order a chart plots. The handler selects
+ * newest-first to apply the cap - a truncated history should lose the oldest
+ * points, not the newest - and reverses before returning.
+ */
+export const SnapshotsResponse = z.object({
+  widgetId: z.uuid(),
+  points: z.array(LatestSnapshot),
+  /**
+   * True when the cap dropped older points that the requested window contained.
+   * Lets the chart say "showing the most recent 720" instead of silently
+   * implying the widget has no history before that.
+   */
+  truncated: z.boolean(),
+});
+
+export type SnapshotsResponse = z.infer<typeof SnapshotsResponse>;

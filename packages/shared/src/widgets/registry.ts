@@ -258,3 +258,25 @@ export function jitteredLastPolledAt(
   // due = lastPolledAt + interval = now + [0, spread)
   return new Date(now - intervalMs + Math.floor(random() * spreadMs));
 }
+
+/**
+ * A `last_polled_at` that makes a widget due **right now**, so the next
+ * scheduler sweep claims it.
+ *
+ * This is what the widget-create path uses, and it is a different question
+ * from the one `jitteredLastPolledAt` answers. There, a cohort is being
+ * written with nobody watching (the demo seed), and spreading them is free.
+ * Here a person has just clicked "Add widget" and is looking at the tile: any
+ * delay at all is the product appearing not to work, and spreading buys
+ * nothing because one widget is not a cohort.
+ *
+ * The remaining wait is the scheduler tick itself - at most 60 seconds, and on
+ * average thirty (Eng §8.1, locked decision 1: the sweep is the only thing that
+ * enqueues from schedule state). Driving it to actually-instant means enqueuing
+ * a one-off `poll-widget` job at creation, which is the same mechanism Eng §8.4
+ * specifies for manual refresh.
+ */
+export function dueNowLastPolledAt(def: WidgetTypeDef, now: number = Date.now()): Date {
+  const intervalMs = (def.defaultRefreshSeconds ?? MIN_SERVER_POLL_SECONDS) * 1000;
+  return new Date(now - intervalMs);
+}

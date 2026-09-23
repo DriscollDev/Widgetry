@@ -81,12 +81,26 @@ describe('board route registration (Eng §6.2)', () => {
     // suite would be testing itself.
     //
     // GET /v1/widgets/:id used to be in this list; it is a real route now
-    // (US-C6) and isolation.test.ts's endpointsFor table already covers it.
-    for (const url of ['/v1/widgets/:id/refresh', '/v1/widgets/:id/snapshots']) {
+    // (US-C6). GET /v1/widgets/:id/snapshots left it too
+    // (EX-Snapshots-Endpoint). Both are covered by isolation.test.ts's
+    // endpointsFor table.
+    for (const url of ['/v1/widgets/:id/refresh']) {
       expect(
-        app.hasRoute({ method: 'GET', url }),
+        app.hasRoute({ method: 'POST', url }),
         `${url} exists now - update isolation.test.ts`,
       ).toBe(false);
     }
+  });
+
+  it('registers the snapshots route behind a session (EX-Snapshots-Endpoint)', async () => {
+    const url = '/v1/widgets/:id/snapshots';
+    expect(app.hasRoute({ method: 'GET', url }), `${url} is not registered`).toBe(true);
+
+    const response = await app.inject({
+      method: 'GET',
+      url: url.replace(':id', SAMPLE_ID),
+    });
+    expect(response.statusCode, `${url} must 401 when anonymous`).toBe(401);
+    expect(response.json().error.code).toBe('unauthenticated');
   });
 });

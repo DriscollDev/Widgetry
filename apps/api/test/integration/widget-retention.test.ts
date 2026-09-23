@@ -18,7 +18,11 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { createDb, schema } from '@widgetry/db';
-import { BoardResponse, DEFAULT_WIDGET_RETENTION_HOURS } from '@widgetry/shared';
+import {
+  BoardResponse,
+  DEFAULT_WIDGET_RETENTION_HOURS,
+  MAX_SNAPSHOT_POINTS,
+} from '@widgetry/shared';
 import type { FastifyInstance } from 'fastify';
 
 function ciTestDatabaseName(): string | null {
@@ -463,6 +467,29 @@ describeIntegration('GET/PATCH /v1/widgets/:id - editing config (US-C6)', () => 
       headers: { cookie },
     });
 
+  const getSnapshots = (widgetId: string, query = '') =>
+    app.inject({
+      method: 'GET',
+      url: `/v1/widgets/${widgetId}/snapshots${query}`,
+      remoteAddress: nextIp(),
+      headers: { cookie },
+    });
+
+  /** Write snapshot rows straight to the table - the worker is not running. */
+  const seedSnapshots = async (
+    widgetId: string,
+    points: { minutesAgo: number; value?: unknown; error?: unknown }[],
+  ) => {
+    await db.insert(schema.widgetSnapshots).values(
+      points.map((p) => ({
+        widgetId,
+        capturedAt: new Date(Date.now() - p.minutesAgo * 60_000),
+        value: p.value ?? null,
+        error: (p.error ?? null) as never,
+      })),
+    );
+  };
+
   beforeAll(async () => {
     const { buildServer } = await import('../../src/server.js');
     app = await buildServer();
@@ -674,6 +701,115 @@ describeIntegration('GET/PATCH /v1/widgets/:id - editing config (US-C6)', () => 
     expect(patched.statusCode, patched.body).toBe(200);
 
     expect((await getWidget(widgetId)).json().hasCredential).toBe(true);
+  });
+
+  it('returns timeline points oldest-first (EX-Snapshots-Endpoint)', async () => {
+    const created = await createWidget('uptime', {
+      config: { url: 'https://api.example.test/health' },
+    });
+    const widgetId = created.json().id as string;
+
+    await seedSnapshots(widgetId, [
+      { minutesAgo: 30, value: { status: 'up', httpStatus: 200, responseTimeMs: 10 } },
+      { minutesAgo: 10, value: { status: 'up', httpStatus: 200, responseTimeMs: 30 } },
+      { minutesAgo: 20, value: { status: 'down', httpStatus: null, responseTimeMs: 20 } },
+    ]);
+
+    const response = await getSnapshots(widgetId);
+    expect(response.statusCode, response.body).toBe(200);
+    const body = response.json();
+
+    expect(body.widgetId).toBe(widgetId);
+    expect(body.truncated).toBe(false);
+    expect(body.points).toHaveLength(3);
+
+    // A chart plots left to right, so the API hands them over in that order.
+    const times = body.points.map((p: { capturedAt: string }) => Date.parse(p.capturedAt));
+    expect(times).toEqual([...times].sort((a, b) => a - b));
+    expect(body.points[2].value.responseTimeMs).toBe(30);
+  });
+
+  it('includes error rows, because a failed poll is a real point on the timeline', async () => {
+    // FR-4.4. Filtering these out would draw a continuous line across an outage.
+    const created = await createWidget('uptime', {
+      config: { url: 'https://api.example.test/health' },
+    });
+    const widgetId = created.json().id as string;
+
+    await seedSnapshots(widgetId, [
+      { minutesAgo: 5, error: { kind: 'timeout', message: 'The request timed out.' } },
+    ]);
+
+    const body = (await getSnapshots(widgetId)).json();
+    expect(body.points).toHaveLength(1);
+    expect(body.points[0].value).toBeNull();
+    expect(body.points[0].error.kind).toBe('timeout');
+  });
+
+  it('answers 200 with an empty list for a widget that has never been polled', async () => {
+    const created = await createWidget('uptime', {
+      config: { url: 'https://api.example.test/health' },
+    });
+    const response = await getSnapshots(created.json().id as string);
+
+    expect(response.statusCode, response.body).toBe(200);
+    expect(response.json().points).toEqual([]);
+    expect(response.json().truncated).toBe(false);
+  });
+
+  it('honours a from/to window', async () => {
+    const created = await createWidget('uptime', {
+      config: { url: 'https://api.example.test/health' },
+    });
+    const widgetId = created.json().id as string;
+
+    await seedSnapshots(widgetId, [
+      { minutesAgo: 120, value: { status: 'up', httpStatus: 200, responseTimeMs: 1 } },
+      { minutesAgo: 60, value: { status: 'up', httpStatus: 200, responseTimeMs: 2 } },
+      { minutesAgo: 5, value: { status: 'up', httpStatus: 200, responseTimeMs: 3 } },
+    ]);
+
+    const from = new Date(Date.now() - 90 * 60_000).toISOString();
+    const to = new Date(Date.now() - 30 * 60_000).toISOString();
+    const body = (await getSnapshots(widgetId, `?from=${from}&to=${to}`)).json();
+
+    expect(body.points).toHaveLength(1);
+    expect(body.points[0].value.responseTimeMs).toBe(2);
+  });
+
+  it('rejects a range whose start is after its end', async () => {
+    const created = await createWidget('uptime', {
+      config: { url: 'https://api.example.test/health' },
+    });
+    const from = new Date().toISOString();
+    const to = new Date(Date.now() - 60_000).toISOString();
+
+    const response = await getSnapshots(created.json().id as string, `?from=${from}&to=${to}`);
+    expect(response.statusCode, response.body).toBe(400);
+  });
+
+  it('caps at MAX_SNAPSHOT_POINTS and keeps the NEWEST, flagging truncation', async () => {
+    // FR-5.4. The cap has to drop the oldest points - a timeline missing today
+    // is useless - so this asserts which end survived, not just the length.
+    const created = await createWidget('uptime', {
+      config: { url: 'https://api.example.test/health' },
+    });
+    const widgetId = created.json().id as string;
+
+    const over = MAX_SNAPSHOT_POINTS + 5;
+    await seedSnapshots(
+      widgetId,
+      Array.from({ length: over }, (_, i) => ({
+        minutesAgo: over - i,
+        value: { status: 'up', httpStatus: 200, responseTimeMs: i },
+      })),
+    );
+
+    const body = (await getSnapshots(widgetId)).json();
+    expect(body.points).toHaveLength(MAX_SNAPSHOT_POINTS);
+    expect(body.truncated).toBe(true);
+    // The very newest row (largest i) must be the last point returned.
+    expect(body.points[MAX_SNAPSHOT_POINTS - 1].value.responseTimeMs).toBe(over - 1);
   });
 
   it('a placement-only PATCH leaves the credential alone', async () => {
