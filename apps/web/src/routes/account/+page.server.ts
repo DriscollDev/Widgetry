@@ -5,12 +5,18 @@
 // actions is what protects the POST from CSRF.
 //
 // Sections per §5.2: profile, security (change password), danger zone.
-// The danger zone (delete account, SCR-MOD-08 / FR-1.6) is deliberately NOT
-// here - it needs its own confirmation modal and DELETE /v1/me, and a button
-// that looks destructive but does nothing is worse than no button.
+//
+// The danger zone (SCR-MOD-08 / FR-1.6) confirms by typed EMAIL rather than by
+// password, because that is what the api requires: DELETE /v1/me takes a
+// `confirmEmail` and rejects anything else. Matching the api's own friction
+// step means there is exactly one rule, enforced in one place, rather than a
+// client-side ritual the api would happily skip.
 
-import { fail } from '@sveltejs/kit';
+import { fail, redirect } from '@sveltejs/kit';
 import { flattenError } from 'zod';
+import { DeleteAccountRequest } from '@widgetry/shared';
+import { apiFetch } from '$lib/server/api.js';
+import { readApiError } from '$lib/server/board-actions.js';
 import { ChangePasswordForm } from '$lib/auth-forms.js';
 import { authErrorMessage } from '$lib/auth-messages.js';
 import { changePassword, isRateLimited } from '$lib/server/auth.js';
@@ -24,6 +30,47 @@ export const load: PageServerLoad = ({ locals }) => {
 };
 
 export const actions: Actions = {
+  /**
+   * US-A5 / FR-1.6 / SCR-MOD-08. Irreversible, and cascades: boards, widgets,
+   * snapshots and stored credentials all go with the user row.
+   *
+   * The api is the one that enforces the confirmation - it compares
+   * `confirmEmail` against the session's own address, case-insensitively - so
+   * this action forwards rather than pre-judges. The modal's typed-email gate
+   * is UX; this is the control.
+   */
+  deleteAccount: async (event) => {
+    const form = await event.request.formData();
+    const confirmEmail = String(form.get('confirmEmail') ?? '').trim();
+
+    const parsed = DeleteAccountRequest.safeParse({ confirmEmail });
+    if (!parsed.success) {
+      return fail(400, {
+        deleteMessage: 'Enter the email address on this account to confirm.',
+      });
+    }
+
+    const response = await apiFetch(event, '/v1/me', {
+      method: 'DELETE',
+      body: parsed.data,
+    });
+
+    // The account is gone and so is the session. Straight to the marketing
+    // root rather than /sign-in: there is nothing left to sign in to, and
+    // bouncing a just-deleted user at a sign-in form reads as a failure.
+    if (response.ok) redirect(303, '/?deleted=1');
+
+    // Already gone - a double submit, or the row went in another tab. The
+    // outcome the user asked for either way.
+    if (response.status === 401 || response.status === 404) redirect(303, '/?deleted=1');
+
+    const apiError = await readApiError(response);
+    return fail(response.status === 429 ? 429 : 400, {
+      deleteMessage:
+        apiError?.message ?? 'Could not delete your account. Try again in a moment.',
+    });
+  },
+
   changePassword: async (event) => {
     const form = await event.request.formData();
 

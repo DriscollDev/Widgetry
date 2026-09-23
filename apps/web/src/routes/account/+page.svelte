@@ -1,7 +1,8 @@
 <!--
   Route: /account - SCR-APP-03 (Screen Inventory §5.2).
 
-  Sections: profile (read-only for now), security (change password).
+  Sections: profile (read-only for now), security (change password), danger
+  zone (delete account).
 
   Not here yet, deliberately:
     - Editing name/email. §5.2 lists `editing-profile` / `saving` states, but
@@ -10,16 +11,17 @@
       it needs POST /v1/auth/send-verification-email, which is wired on the
       verify-notice branch. Fold the button in when that lands rather than
       adding a second copy of the call here.
-    - Danger zone (delete account) - SCR-MOD-08 / FR-1.6, its own screen.
 -->
 <script lang="ts">
   import { enhance } from '$app/forms';
+  import DeleteAccountModal from '$lib/modals/DeleteAccountModal.svelte';
   import { currentTheme, setTheme, THEMES, type ThemeId } from '$lib/theme';
   import type { ActionData, PageData } from './$types';
 
   let { data, form }: { data: PageData; form: ActionData } = $props();
 
   let submitting = $state(false);
+  let deleteOpen = $state(false);
 
   /** Reads the DOM once at init, which app.html's blocking script has
    *  already set correctly by the time this component mounts. Writable:
@@ -247,8 +249,35 @@
       </form>
     </section>
 
+    <!-- Danger zone (SCR-MOD-08 / FR-1.6). Last on the page and visually
+         separated, so it is never the thing a user hits by accident while
+         looking for something else. The confirmation lives in the modal. -->
+    <section class="rounded-xl border border-error-500/40 bg-surface-50-950 p-5">
+      <h2 class="text-base font-semibold text-error-600-400">Danger zone</h2>
+      <p class="mt-2 text-sm text-surface-600-400">
+        Deleting your account removes every board, widget, collected reading and saved API key.
+        It can’t be undone.
+      </p>
+      <button
+        type="button"
+        onclick={() => (deleteOpen = true)}
+        class="mt-4 rounded-lg border border-error-500/60 px-4 py-2 text-sm font-medium text-error-600-400 hover:bg-error-500/10"
+      >
+        Delete account…
+      </button>
+    </section>
+
     <p class="text-sm text-surface-600-400">
       New to Widgetry? <a href="/faq" class="text-primary-500 hover:underline">Read the FAQ</a>.
     </p>
+
+    {#if data.user}
+      <DeleteAccountModal
+        open={deleteOpen}
+        onOpenChange={(value) => (deleteOpen = value)}
+        email={data.user.email}
+        message={form?.deleteMessage ?? null}
+      />
+    {/if}
   {/if}
 </div>
