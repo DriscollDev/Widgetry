@@ -15,10 +15,8 @@ import { z } from 'zod';
  * hostname that resolves publicly today can resolve to 127.0.0.1 tomorrow, and
  * no amount of write-time validation can see that coming.
  *
- * #221: a blank/missing field and a too-short one are different Zod issue
- * codes (invalid_type vs too_small) and each needs its own message - setting
- * only `.min()`'s message still leaves the raw "expected string, received
- * undefined" text for a field the form never touched at all.
+ * #221: blank and missing both need their own message, or Zod's raw text
+ * leaks through for whichever case `.min()` doesn't cover.
  */
 export const PollableUrl = z
   .string({ error: 'Enter a URL to check.' })

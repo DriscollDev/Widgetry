@@ -46,15 +46,8 @@ export const ApiErrorCode = {
    * "New board"; SCR-MOD-04 disables selection). Carries HTTP 409.
    */
   LIMIT_EXCEEDED: 'limit_exceeded',
-  /**
-   * FR-3.3: the requested placement or resize would overlap another widget
-   * on the same board. Distinct from LIMIT_EXCEEDED even though both carry
-   * 409 — this one clears the instant the caller picks a non-overlapping
-   * rectangle, not by deleting anything. The client-side check (#187) tries
-   * to prevent this from ever reaching the server; this code is what the
-   * server sends back the times that check was bypassed, raced, or simply
-   * never ran (a caller hitting the API directly).
-   */
+  /** FR-3.3: placement/resize would overlap another widget. Distinct from
+   *  LIMIT_EXCEEDED - clears by picking a non-overlapping rect, not deleting. */
   OVERLAP_REJECTED: 'overlap_rejected',
   /** Unhandled server-side failure. */
   INTERNAL: 'internal',

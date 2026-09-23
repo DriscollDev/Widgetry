@@ -1,12 +1,5 @@
-// #221: the config form now shows API field errors verbatim (#219), but a
-// field left blank or entirely omitted used to surface Zod's raw text
-// ("Invalid input: expected string, received undefined") instead of a
-// plain-language message. Two different Zod issue codes cover "blank" -
-// invalid_type (the key is missing/wrong-type) and too_small (the key is
-// present but empty) - and each needs its own message; setting only one
-// still leaves the other raw. These tests pin the friendly text for both,
-// across every widget config schema in packages/shared/src/widgets that can
-// reach either case.
+// #221: pins the friendly blank/missing-field messages (not Zod's raw text)
+// across every widget config schema in packages/shared/src/widgets.
 
 import { describe, expect, it } from 'vitest';
 import {
