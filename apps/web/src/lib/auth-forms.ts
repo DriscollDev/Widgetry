@@ -25,6 +25,70 @@ export function fullName(firstName: string, lastName: string): string {
 }
 
 /**
+ * SCR-APP-03 security section.
+ *
+ * `currentPassword` is checked for presence only, for the same reason sign-in
+ * is: applying `PasswordField` to it would lock out an account created before
+ * a policy change, and the api is the thing that decides whether it is right.
+ * `newPassword` gets the full rule, so the form rejects exactly what the api
+ * would.
+ *
+ * The confirmation field is a form-only concern - the api never sees it - so
+ * the match check lives here rather than in @widgetry/shared.
+ */
+export const ChangePasswordForm = z
+  .object({
+    currentPassword: z.string().min(1, 'Enter your current password.'),
+    newPassword: PasswordField,
+    confirmPassword: z.string().min(1, 'Confirm your new password.'),
+  })
+  .refine((value) => value.newPassword === value.confirmPassword, {
+    message: 'Passwords do not match.',
+    path: ['confirmPassword'],
+  })
+  .refine((value) => value.newPassword !== value.currentPassword, {
+    message: 'New password must be different from your current one.',
+    path: ['newPassword'],
+  });
+
+export type ChangePasswordForm = z.infer<typeof ChangePasswordForm>;
+
+/**
+ * SCR-AUTH-03. One field, and the whole screen.
+ *
+ * Deliberately just the email rule: this form has no other state and no
+ * success/failure branch to model, because the api answers identically for
+ * every well-formed address (see requestPasswordReset).
+ */
+export const ForgotPasswordForm = z.object({
+  email: EmailField,
+});
+export type ForgotPasswordForm = z.infer<typeof ForgotPasswordForm>;
+
+/**
+ * SCR-AUTH-04. The token is not in here on purpose.
+ *
+ * It arrives on the query string, is carried through as a hidden field, and is
+ * validated by the api - which is the only party that can say whether it is
+ * still good. Putting it in this schema would invite the screen to pre-judge a
+ * token it cannot verify.
+ *
+ * Same confirmation-field reasoning as ChangePasswordForm: the api never sees
+ * it, so the match check belongs here.
+ */
+export const ResetPasswordForm = z
+  .object({
+    newPassword: PasswordField,
+    confirmPassword: z.string().min(1, 'Confirm your new password.'),
+  })
+  .refine((value) => value.newPassword === value.confirmPassword, {
+    message: 'Passwords do not match.',
+    path: ['confirmPassword'],
+  });
+
+export type ResetPasswordForm = z.infer<typeof ResetPasswordForm>;
+
+/**
  * First validation message for one field, or '' when it passes. Used for
  * on-blur feedback so a field reports the same rule the action will apply.
  */

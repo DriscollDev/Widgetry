@@ -2,13 +2,14 @@
   "name": "widgetry",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "description": "Widgetry - customizable widget-based API monitoring dashboards.",
   "engines": {
     "node": ">=20.0.0"
   },
   "packageManager": "pnpm@9.12.0",
   "scripts": {
-    "dev": "pnpm -r --parallel dev",
+    "dev": "pnpm build:packages && pnpm -r --parallel dev",
     "dev:web": "pnpm --filter @widgetry/web dev",
     "dev:api": "pnpm --filter @widgetry/api dev",
     "dev:worker": "pnpm --filter @widgetry/worker dev",
@@ -30,6 +31,7 @@
     "format": "prettier --write .",
     "test": "pnpm -r test",
     "test:unit": "pnpm -r test:unit",
+    "test:coverage": "pnpm -r test:coverage",
     "test:integration": "pnpm -r test:integration"
   },
   "devDependencies": {

@@ -13,6 +13,8 @@ import { config } from 'dotenv';
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { z } from 'zod';
+import { parseMasterKey } from '@widgetry/db';
+import { DEFAULT_MAX_BOARDS_PER_USER } from '@widgetry/shared';
 
 /**
  * Load the workspace-root `.env` (Widgetry/.env) into process.env. pnpm runs
@@ -40,6 +42,15 @@ function loadRootEnv(): void {
  * as `''` rather than omitting it - so `''` has to mean "not configured", not
  * "configured as the empty string".
  */
+function isMasterKey(value: string): boolean {
+  try {
+    parseMasterKey(value);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 const optionalString = z.preprocess(
   (v) => (v === '' ? undefined : v),
   z.string().min(1).optional(),
@@ -62,11 +73,31 @@ const EnvSchema = z
 
     DATABASE_URL: z.string().min(1),
     // Optional: rate limiting falls back to per-process memory when absent
-    // (dev convenience only - see plugins/rate-limit.ts).
+    // (dev convenience only - see plugins/rate-limit.ts), and the manual-refresh
+    // endpoint answers 503 rather than pretending it enqueued (Eng §8.4).
     REDIS_URL: optionalString,
+
+    /**
+     * Eng §16.2. MUST match the worker's, or a refresh job is enqueued into a
+     * namespace nothing is listening on and the widget never refreshes while
+     * both processes report themselves healthy. Blank in production so both
+     * sides use BullMQ's `bull` default; set per-developer locally, where the
+     * whole team shares one remote Redis.
+     */
+    QUEUE_PREFIX: optionalString,
 
     // Session signing key. 32+ bytes of randomness; Railway secret in prod.
     BETTER_AUTH_SECRET: z.string().min(32, 'BETTER_AUTH_SECRET must be >= 32 characters'),
+
+    /**
+     * Eng §10.2 / §16.2. Parsed to the 32-byte key here, so a missing or
+     * malformed value stops the process at boot rather than at the first
+     * credential. Validation messages never include the value.
+     */
+    MASTER_ENCRYPTION_KEY: z
+      .string({ error: 'MASTER_ENCRYPTION_KEY is required (see .env.example)' })
+      .refine(isMasterKey, { message: 'MASTER_ENCRYPTION_KEY must be 32 bytes, base64-encoded' })
+      .transform((value) => parseMasterKey(value)),
 
     // p1 (FR-1.3). Google sign-in registers only when both are present.
     GOOGLE_OAUTH_CLIENT_ID: optionalString,
@@ -93,6 +124,22 @@ const EnvSchema = z
           message: 'EMAIL_FROM must be an email address or "Display Name <address@example.com>"',
         },
       ),
+
+    // FR-2.1's soft limit, stated as "configurable server-side". Capped at the
+    // schema level rather than only at the call site so a typo'd env var cannot
+    // quietly hand one user a thousand boards - the cap exists to bound the
+    // §6.1 scale targets, not just to shape the UI.
+    //
+    // The empty-string preprocess is load-bearing, for the same reason
+    // `optionalString` above has one: `.env.example` ships this key blank and
+    // both dotenv and Railway surface an unset variable as `''`. Without it,
+    // `z.coerce.number()` turns `''` into 0, `.min(1)` rejects 0, and the api
+    // refuses to boot for every developer who copied the example file - the
+    // `.default()` never gets a chance to apply, because the key IS present.
+    MAX_BOARDS_PER_USER: z.preprocess(
+      (v) => (v === '' ? undefined : v),
+      z.coerce.number().int().min(1).max(100).default(DEFAULT_MAX_BOARDS_PER_USER),
+    ),
 
     // Escape hatch for the FR-1.5 breached-password check, which calls
     // api.pwnedpasswords.com and fails closed. Set to 'false' only to keep

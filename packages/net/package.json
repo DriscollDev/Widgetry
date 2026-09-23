@@ -1,0 +1,26 @@
+{
+  "name": "@widgetry/net",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "The SSRF gate (Eng 11.3), shared by the worker's fetchers and the api's config preview.",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:unit": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "test:integration": "echo '[net] no integration tests' && exit 0"
+  },
+  "dependencies": {
+    "@widgetry/shared": "workspace:*",
+    "ipaddr.js": "^2.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "@vitest/coverage-v8": "^3",
+    "vitest": "^3"
+  }
+}

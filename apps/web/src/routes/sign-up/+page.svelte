@@ -23,6 +23,7 @@
       submitted. Both need a scope decision before they can be wired.
 -->
 <script lang="ts">
+  import BrandMark from '$lib/components/BrandMark.svelte';
   import { enhance } from '$app/forms';
   import { EmailField, MIN_PASSWORD_LENGTH, NameField, PasswordField } from '@widgetry/shared';
   import { fieldError } from '$lib/auth-forms.js';
@@ -69,16 +70,10 @@
   }
 </script>
 
-<a href="/dev" style="color: aqua;">Dev</a>
-<!-- DEV LINK TODO: REMOVE LATER-->
 <div class="flex min-h-screen items-center justify-center bg-neutral-950 px-4">
   <div class="w-full max-w-md rounded-2xl border border-neutral-800 bg-neutral-900 p-8 shadow-xl">
     <div class="mb-6 flex items-center gap-2">
-      <div
-        class="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600 text-sm font-semibold text-white"
-      >
-        W
-      </div>
+      <BrandMark size={32} />
       <span class="text-sm font-medium text-neutral-200">Widgetry</span>
     </div>
 

@@ -1,14 +1,21 @@
 # CI for Widgetry.
 # Source of truth: Engineering Doc §14.1.
-# Runs on every PR and push to main.
+# Runs on every PR, and on every push to the integration and deploy branches.
 # E2E (Playwright) is a separate nightly workflow - not yet added.
+#
+# The push trigger named `main` until 2026-09-21. `main` was deleted at some
+# point before that, so the trigger matched nothing and NOTHING ran CI on `dev`:
+# only pull requests were ever checked, and a direct push to the integration
+# branch went in unverified. Two breakages reached `dev` that way and were found
+# by merging branches by hand. `dev` is where work integrates and `PROD` is what
+# Railway deploys, so both are listed.
 
 name: CI
 
 on:
   pull_request:
   push:
-    branches: [main]
+    branches: [dev, PROD]
 
 # Cancel superseded runs on the same ref to save Actions minutes.
 concurrency:
@@ -85,7 +92,8 @@ jobs:
       REDIS_URL: ${{ secrets.TEST_REDIS_URL }}
       NODE_ENV: test
       # Throwaway test keys - never reuse outside CI.
-      MASTER_ENCRYPTION_KEY: dGVzdC1tYXN0ZXIta2V5LTMyYnl0ZXMtZG8tbm90LXVzZQ==
+      # Exactly 32 bytes, as the api and worker now require at boot (Eng §10.2).
+      MASTER_ENCRYPTION_KEY: Y2ktdGVzdC1tYXN0ZXIta2V5LWRvLW5vdC11c2UtMzI=
       BETTER_AUTH_SECRET: ci-test-secret-do-not-use-in-prod
 
     steps:

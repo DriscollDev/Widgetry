@@ -1,0 +1,842 @@
+// apps/api/src/routes/widgets.ts
+//
+// GET   /v1/widgets/catalog      EX-24 - public catalog listing
+// POST  /v1/boards/:id/widgets   US-W1, SCR-MOD-04/05 - add widget
+// PATCH /v1/widgets/:id          US-W2 drag (#170), US-W3 resize (#158), US-H2 retention (F8.2),
+//                                US-C5 refresh interval, US-C6 edit config
+// GET   /v1/widgets/:id/snapshots  EX-Snapshots-Endpoint - timeline data (FR-5.4)
+// POST  /v1/widgets/:id/refresh    US-B6, FR-4.3, EX-41/EX-43 - refresh now
+// DELETE /v1/widgets/:id         US-W4 delete widget (Task #210)
+//
+// POST checks board ownership + the FR-3.5 cap + FR-3.3 overlap (Task #198),
+// validates config against the registry schema and refreshIntervalSeconds
+// against the type's minRefreshSeconds (both via a registry lookup, since
+// neither schema can reach the registry without an import cycle), and
+// inserts with scheduler columns derived from the registry (EX-19). PATCH
+// checks widget ownership, then updates placement/retention/refresh
+// interval/config under a board-row lock with the same FR-3.3 overlap check
+// (Task #188). Config on PATCH validates against the STORED widget's type
+// (there is no widgetType field to change it), the same
+// parseWidgetConfig/underConfig pair POST uses. Both patterns are
+// intentionally identical - see rectanglesOverlap below.
+//
+// DELETE checks widget ownership, then removes the row under the same
+// board-row lock; its snapshots and stored credential go with it via FK
+// cascade (Eng §5.2).
+//
+// The credential verbs live in ./credentials.ts.
+
+import { and, count, desc, eq, gte, inArray, lte, ne, sql } from 'drizzle-orm';
+import { ZodError } from 'zod';
+import { db, schema } from '@widgetry/db';
+import {
+  ApiErrorCode,
+  type BoardWidgetPlacement,
+  CreateWidgetRequest,
+  getWidgetTypeDef,
+  GRID_COLUMNS,
+  MAX_WIDGETS_PER_BOARD,
+  dueNowLastPolledAt,
+  MAX_SNAPSHOT_POINTS,
+  parseWidgetConfig,
+  type RefreshResponse,
+  SnapshotQuery,
+  type SnapshotsResponse,
+  UpdateWidgetRequest,
+  type WidgetDetail,
+  type WidgetType,
+  type WidgetTypeDef,
+  WIDGET_TYPE_DEFS,
+} from '@widgetry/shared';
+import type { FastifyInstance } from 'fastify';
+import { ApiError, limitExceeded, overlapRejected, validationFailed } from '../lib/errors.js';
+import {
+  findOwnedWidget,
+  ownedWidgetIds,
+  requireBoardOwnership,
+  requireWidgetOwnership,
+  type Widget,
+} from '../lib/ownership.js';
+import { enqueuePoll } from '../lib/poll-queue.js';
+import { claimRefreshLock } from '../lib/refresh-lock.js';
+import { requireSession } from '../lib/session.js';
+import { toLatestSnapshot } from '../widgets/latest-snapshot.js';
+
+/** Wire shape for a widget row. Not mapped: config (this endpoint's caller
+ * already has whatever it just sent; the board payload's own allowlisted
+ * config view is a separate concern, #233), lastPolledAt (internal only). */
+export function toPlacement(widget: Widget): BoardWidgetPlacement {
+  return {
+    id: widget.id,
+    boardId: widget.boardId,
+    widgetType: widget.widgetType as WidgetType,
+    pollingMode: widget.pollingMode as BoardWidgetPlacement['pollingMode'],
+    gridCol: widget.gridCol,
+    gridRow: widget.gridRow,
+    gridWidth: widget.gridWidth,
+    gridHeight: widget.gridHeight,
+    retentionHours: widget.retentionHours,
+    refreshIntervalSeconds: widget.refreshIntervalSeconds,
+    createdAt: widget.createdAt.toISOString(),
+    updatedAt: widget.updatedAt.toISOString(),
+  };
+}
+
+/** Re-roots config validation issues under `config.<field>` so the form can
+ * key errors by dotted path without colliding with placement fields. */
+function underConfig(error: ZodError): ZodError {
+  return new ZodError(error.issues.map((issue) => ({ ...issue, path: ['config', ...issue.path] })));
+}
+
+/**
+ * US-C5: the second validation step `refreshIntervalSeconds` needs -
+ * `CreateWidgetRequest`/`UpdateWidgetRequest` only know it must be a
+ * positive integer; whether it is ALLOWED at all, and what floor it must
+ * clear, both depend on the chosen type's registry entry.
+ *
+ * A client-polled type (`minRefreshSeconds === null`) refuses the field
+ * outright rather than accepting-and-ignoring it (contrast `retentionHours`,
+ * which every type accepts inertly) - there is no poll loop for that type
+ * that would ever read it, so storing a value would misleadingly suggest
+ * one exists.
+ */
+function validateRefreshInterval(def: WidgetTypeDef, seconds: number): ZodError | null {
+  if (def.minRefreshSeconds === null) {
+    return new ZodError([
+      {
+        code: 'custom',
+        path: ['refreshIntervalSeconds'],
+        message: `${def.displayName} widgets are not polled on a schedule, so they have no refresh interval to set.`,
+      },
+    ]);
+  }
+  if (seconds < def.minRefreshSeconds) {
+    return new ZodError([
+      {
+        code: 'custom',
+        path: ['refreshIntervalSeconds'],
+        message: `A ${def.displayName} widget's refresh interval must be at least ${def.minRefreshSeconds} seconds.`,
+      },
+    ]);
+  }
+  return null;
+}
+
+/** Axis-aligned rectangle overlap - same algorithm as the client-side check
+ * (BoardView.svelte, #187) and both server-side checks (#188 PATCH, #198
+ * POST). Kept local rather than in @widgetry/shared; promote if a third
+ * caller needs it. */
+function rectanglesOverlap(
+  a: { col: number; row: number; width: number; height: number },
+  b: { col: number; row: number; width: number; height: number },
+): boolean {
+  return (
+    a.col < b.col + b.width &&
+    a.col + a.width > b.col &&
+    a.row < b.row + b.height &&
+    a.row + a.height > b.row
+  );
+}
+
+export async function widgetRoutes(fastify: FastifyInstance): Promise<void> {
+  /** GET /v1/widgets/catalog - EX-24. Public (Eng §6.2). Omits
+   * configSchema - not JSON-serializable, and the catalog modal (#191)
+   * doesn't need it; the config modal (#192) reads the registry directly. */
+  fastify.get('/v1/widgets/catalog', async (_request, reply) => {
+    const widgetTypes = Object.values(WIDGET_TYPE_DEFS)
+      // A retired type still validates and still renders, so its existing rows
+      // keep working - it is only unofferable. See WidgetTypeDef.
+      .filter((def) => !def.hiddenFromCatalog)
+      .map((def) => ({
+        id: def.id,
+        displayName: def.displayName,
+        category: def.category,
+        supportsHistory: def.supportsHistory,
+      }));
+
+    return reply.status(200).send({ widgetTypes });
+  });
+
+  /** POST /v1/boards/:id/widgets - US-W1. 201 on success.
+   * Board-scoped (not widget-scoped) since the row doesn't exist yet.
+   * FR-3.5 cap and FR-3.3 overlap are both checked inside the transaction
+   * with the board row locked, so two concurrent creates can't both slip
+   * past either check. */
+  fastify.post(
+    '/v1/boards/:id/widgets',
+    { preHandler: requireBoardOwnership },
+    async (request, reply): Promise<BoardWidgetPlacement> => {
+      const { user } = requireSession(request);
+      const board = request.board!;
+
+      const parsed = CreateWidgetRequest.safeParse(request.body);
+      if (!parsed.success) {
+        throw validationFailed(parsed.error, 'The widget could not be created as described.');
+      }
+
+      const { widgetType, gridCol, gridRow, gridWidth, gridHeight } = parsed.data;
+      const def = getWidgetTypeDef(widgetType);
+
+      // A widget may be created UNCONFIGURED (SCR-MOD-04 adds it, SCR-MOD-05
+      // configures it after). Rule is about presence, not validity: omit
+      // config for an empty placeholder; send one and it must validate.
+      const suppliedConfig = parsed.data.config;
+      const isConfigured = suppliedConfig !== undefined;
+
+      let config: Record<string, unknown> = {};
+      if (isConfigured) {
+        const configResult = parseWidgetConfig(widgetType, suppliedConfig);
+        if (!configResult.success) {
+          throw validationFailed(
+            underConfig(configResult.error),
+            `That configuration is not valid for a ${def.displayName} widget.`,
+          );
+        }
+        config = configResult.data as Record<string, unknown>;
+      }
+
+      // Unconfigured server-polled widgets get a null interval, which the
+      // §8.1 sweep treats as "not schedulable" - otherwise an unconfigured
+      // uptime widget would poll hourly and write config_invalid snapshots.
+      // PATCH mirrors this for the same reason when IT is what configures a
+      // previously-unconfigured widget for the first time (US-C6, see its
+      // handler's `wasUnconfigured` check below).
+      //
+      // US-C5: a caller-supplied interval overrides the seeded default, but
+      // only for a configured widget - an unconfigured one stays
+      // unschedulable regardless of what interval was requested, for the
+      // same config_invalid-snapshot reason as the null-interval case above.
+      const suppliedInterval = parsed.data.refreshIntervalSeconds;
+      if (suppliedInterval !== undefined) {
+        const intervalError = validateRefreshInterval(def, suppliedInterval);
+        if (intervalError) {
+          throw validationFailed(
+            intervalError,
+            `That refresh interval is not valid for a ${def.displayName} widget.`,
+          );
+        }
+      }
+      const refreshIntervalSeconds = !isConfigured
+        ? null
+        : (suppliedInterval ?? def.defaultRefreshSeconds);
+
+      const widget = await db.transaction(async (tx) => {
+        await tx
+          .select({ id: schema.boards.id })
+          .from(schema.boards)
+          .where(and(eq(schema.boards.id, board.id), eq(schema.boards.userId, user.id)))
+          .for('update');
+
+        const [existing] = await tx
+          .select({ value: count() })
+          .from(schema.widgets)
+          .innerJoin(schema.boards, eq(schema.widgets.boardId, schema.boards.id))
+          .where(and(eq(schema.boards.id, board.id), eq(schema.boards.userId, user.id)));
+
+        const owned = existing?.value ?? 0;
+        if (owned >= MAX_WIDGETS_PER_BOARD) {
+          throw limitExceeded(`A board can hold up to ${MAX_WIDGETS_PER_BOARD} widgets (FR-3.5).`, {
+            limit: MAX_WIDGETS_PER_BOARD,
+            current: owned,
+          });
+        }
+
+        // Task #198: FR-3.3 overlap, ported from PATCH's #188. Board row is
+        // already locked above, so this read is race-safe against concurrent
+        // POST/PATCH on this board.
+        const siblings = await tx
+          .select({
+            gridCol: schema.widgets.gridCol,
+            gridRow: schema.widgets.gridRow,
+            gridWidth: schema.widgets.gridWidth,
+            gridHeight: schema.widgets.gridHeight,
+          })
+          .from(schema.widgets)
+          .innerJoin(schema.boards, eq(schema.widgets.boardId, schema.boards.id))
+          .where(and(eq(schema.boards.id, board.id), eq(schema.boards.userId, user.id)));
+
+        const candidate = { col: gridCol, row: gridRow, width: gridWidth, height: gridHeight };
+        const overlapsSibling = siblings.some((sibling) =>
+          rectanglesOverlap(candidate, {
+            col: sibling.gridCol,
+            row: sibling.gridRow,
+            width: sibling.gridWidth,
+            height: sibling.gridHeight,
+          }),
+        );
+
+        if (overlapsSibling) {
+          throw overlapRejected(
+            'That position overlaps an existing widget on this board (FR-3.3).',
+          );
+        }
+
+        const [created] = await tx
+          .insert(schema.widgets)
+          .values({
+            boardId: board.id,
+            widgetType,
+            // Registry-derived, never client-supplied.
+            pollingMode: def.polling,
+            gridCol,
+            gridRow,
+            gridWidth,
+            gridHeight,
+            config,
+            refreshIntervalSeconds,
+            // retentionHours: column default (168h / 7d, FR-5.2).
+            // TODO(F8.2/US-H2): accept 12-720 on create.
+            //
+            // Due immediately, not jittered: the person who just clicked "Add
+            // widget" is looking at the tile, and spreading buys nothing for a
+            // single widget. The demo seed still jitters, because there a
+            // cohort is written with nobody watching. Remaining wait is the
+            // 60s sweep (Eng §8.1).
+            lastPolledAt: dueNowLastPolledAt(def),
+          })
+          .returning();
+
+        return created!;
+      });
+
+      request.log.info(
+        {
+          boardId: board.id,
+          widgetId: widget.id,
+          widgetType,
+          pollingMode: def.polling,
+          refreshIntervalSeconds,
+          configured: isConfigured,
+        },
+        'widget created (US-W1)',
+      );
+
+      // Poll it now rather than on the next sweep. `lastPolledAt` above already
+      // makes the widget due, so the scheduler would pick it up within 60s on
+      // its own; this is what turns "within a minute" into "by the time the
+      // modal closes", which is the difference between a board that looks alive
+      // and one that looks broken to whoever just added the widget.
+      //
+      // Best-effort ON PURPOSE, unlike the credential delete in #261: the
+      // fallback here is not data left behind, it is the widget polling on its
+      // normal schedule a few seconds later. Failing the create - which already
+      // succeeded and is already committed - over a queue hiccup would be
+      // strictly worse than being a minute late.
+      if (def.polling === 'server' && isConfigured) {
+        const enqueued = await enqueuePoll(widget.id);
+        if (!enqueued) {
+          request.log.info(
+            { widgetId: widget.id },
+            'first poll not enqueued; the scheduler sweep will pick it up (Eng §8.1)',
+          );
+        }
+      }
+
+      return reply.status(201).send(toPlacement(widget));
+    },
+  );
+
+  /**
+   * GET /v1/widgets/:id - US-C6. The one widget, full and unfiltered, for its
+   * owner's own edit form - see `WidgetDetail`'s doc comment in
+   * packages/shared for why this is a different shape from the board
+   * payload's allowlisted `config`.
+   */
+  fastify.get(
+    '/v1/widgets/:id',
+    { preHandler: requireWidgetOwnership },
+    async (request): Promise<WidgetDetail> => {
+      const { user } = requireSession(request);
+      const widget = request.widget!;
+
+      // EX-18: api_credentials has no user_id of its own, so this is scoped
+      // through the same widgets -> boards chain requireWidgetOwnership itself
+      // relies on, joined explicitly rather than via ownedWidgetIds' subquery
+      // - the ownership ESLint rule only recognizes a literal .innerJoin
+      // immediately after .from(), not a subquery inside .where().
+      const [credentialRow] = await db
+        .select({ id: schema.apiCredentials.id })
+        .from(schema.apiCredentials)
+        .innerJoin(schema.widgets, eq(schema.apiCredentials.widgetId, schema.widgets.id))
+        .innerJoin(schema.boards, eq(schema.widgets.boardId, schema.boards.id))
+        .where(
+          and(eq(schema.apiCredentials.widgetId, widget.id), eq(schema.boards.userId, user.id)),
+        )
+        .limit(1);
+
+      return {
+        id: widget.id,
+        boardId: widget.boardId,
+        widgetType: widget.widgetType as WidgetType,
+        gridCol: widget.gridCol,
+        gridRow: widget.gridRow,
+        gridWidth: widget.gridWidth,
+        gridHeight: widget.gridHeight,
+        retentionHours: widget.retentionHours,
+        refreshIntervalSeconds: widget.refreshIntervalSeconds,
+        config: widget.config as Record<string, unknown>,
+        hasCredential: credentialRow !== undefined,
+        createdAt: widget.createdAt.toISOString(),
+        updatedAt: widget.updatedAt.toISOString(),
+      };
+    },
+  );
+
+  /**
+   * GET /v1/widgets/:id/snapshots - timeline data for charting
+   * (EX-Snapshots-Endpoint, Eng §6.2, FR-5.4).
+   *
+   * Widget-scoped, so `requireWidgetOwnership` gates it and a mismatch is a
+   * 404 (Eng §11.7). The query below is additionally joined through `boards`
+   * and filtered on `boards.user_id`: `widget_snapshots` has no user column of
+   * its own, and the ownership rule is about the query, not about the gate
+   * that ran before it.
+   *
+   * ORDERING. Rows are selected NEWEST first so the cap drops the oldest
+   * points rather than the newest - a truncated timeline that is missing
+   * today is useless - then reversed, because a chart plots oldest to newest.
+   *
+   * Error rows come back alongside value rows rather than being filtered out.
+   * A failed poll is a real event on the timeline (FR-4.4), and hiding it
+   * would draw a continuous line across an outage.
+   */
+  fastify.get(
+    '/v1/widgets/:id/snapshots',
+    { preHandler: requireWidgetOwnership },
+    async (request): Promise<SnapshotsResponse> => {
+      const { user } = requireSession(request);
+      const widget = request.widget!;
+
+      const parsed = SnapshotQuery.safeParse(request.query);
+      if (!parsed.success) {
+        throw validationFailed(parsed.error, 'That time range could not be read.');
+      }
+      const { from, to } = parsed.data;
+
+      const bounds = [
+        eq(schema.widgets.id, widget.id),
+        eq(schema.boards.userId, user.id),
+        ...(from ? [gte(schema.widgetSnapshots.capturedAt, new Date(from))] : []),
+        ...(to ? [lte(schema.widgetSnapshots.capturedAt, new Date(to))] : []),
+      ];
+
+      // One extra row is requested purely to answer "was there more?" without
+      // a second COUNT query over the same range.
+      const rows = await db
+        .select({
+          capturedAt: schema.widgetSnapshots.capturedAt,
+          value: schema.widgetSnapshots.value,
+          error: schema.widgetSnapshots.error,
+        })
+        .from(schema.widgetSnapshots)
+        .innerJoin(schema.widgets, eq(schema.widgetSnapshots.widgetId, schema.widgets.id))
+        .innerJoin(schema.boards, eq(schema.widgets.boardId, schema.boards.id))
+        .where(and(...bounds))
+        .orderBy(desc(schema.widgetSnapshots.capturedAt), desc(schema.widgetSnapshots.id))
+        .limit(MAX_SNAPSHOT_POINTS + 1);
+
+      const truncated = rows.length > MAX_SNAPSHOT_POINTS;
+      const kept = truncated ? rows.slice(0, MAX_SNAPSHOT_POINTS) : rows;
+
+      // toLatestSnapshot returns null for a row with neither half set, which
+      // the worker never writes; dropping those keeps the chart honest rather
+      // than plotting a hole as a zero.
+      const points = kept
+        .reverse()
+        .map((row) => toLatestSnapshot(row))
+        .filter((point): point is NonNullable<typeof point> => point !== null);
+
+      return { widgetId: widget.id, points, truncated };
+    },
+  );
+
+  /**
+   * POST /v1/widgets/:id/refresh - "refresh now" (US-B6, FR-4.3, EX-41/EX-43,
+   * Eng §8.4). Widget-scoped, so a mismatch is a 404.
+   *
+   * Three behaviours, chosen by the widget's polling mode, exactly as §8.4
+   * sets out:
+   *
+   *   server        enqueue a one-off poll job ahead of the scheduler's bulk
+   *                 work, and answer 202. The poll itself is the worker's;
+   *                 this endpoint promises only that it was scheduled.
+   *   client        the widget fetches its own upstream through the proxy, so
+   *                 there is nothing to enqueue. 202 with enqueued: false.
+   *   client, local Clock and Date/Time do no I/O at all. 204, no work needed
+   *                 (§8.4's third case) - the client re-renders on the same
+   *                 user action that sent this.
+   *
+   * RATE LIMIT (EX-43): 1 per 30 seconds per WIDGET, on top of the default
+   * 120/min per user. Per-widget is the limit that matters here, because the
+   * cost of abuse lands on a third party's API rather than on us - and a
+   * board-wide "refresh all" legitimately fires one of these per widget at
+   * once, which a per-user limit would reject wholesale.
+   *
+   * The lock is claimed BEFORE the enqueue. Claiming after would let two
+   * simultaneous requests both enqueue and then both fail to claim.
+   */
+  fastify.post(
+    '/v1/widgets/:id/refresh',
+    { preHandler: requireWidgetOwnership },
+    async (request, reply): Promise<RefreshResponse | undefined> => {
+      const widget = request.widget!;
+      const def = getWidgetTypeDef(widget.widgetType as WidgetType);
+
+      // §8.4's third case: purely local types have nothing to refresh. Answered
+      // before the rate limit, because there is no upstream to protect and
+      // rate-limiting a no-op only punishes a user clicking their own clock.
+      if (def.polling === 'client' && def.defaultRefreshSeconds === null) {
+        return reply.status(204).send();
+      }
+
+      const lock = await claimRefreshLock(widget.id);
+      if (!lock.claimed) {
+        throw new ApiError(
+          429,
+          ApiErrorCode.RATE_LIMITED,
+          `This widget was refreshed moments ago. Try again in ${lock.retryAfterSeconds} seconds.`,
+          { retryAfterSeconds: lock.retryAfterSeconds },
+        );
+      }
+
+      // Client-polled types with an upstream (Weather, Currency) re-fetch
+      // through /v1/widget-data/* on the client's own next tick; §8.4 has this
+      // endpoint invalidate their proxy cache, which does not exist yet
+      // (SCP-033). Answering 202 with enqueued:false is honest about that:
+      // the request was accepted and no server-side work was scheduled.
+      if (def.polling !== 'server') {
+        return reply.status(202).send({ widgetId: widget.id, enqueued: false });
+      }
+
+      const enqueued = await enqueuePoll(widget.id);
+      if (!enqueued) {
+        // No Redis, or Redis refused. Do NOT answer 202 - the caller would
+        // wait for data that is never coming.
+        throw new ApiError(
+          503,
+          ApiErrorCode.INTERNAL,
+          'Refresh could not be scheduled right now. The widget will still update on its normal schedule.',
+        );
+      }
+
+      request.log.info({ widgetId: widget.id }, 'manual refresh enqueued (US-B6/EX-41)');
+      return reply.status(202).send({ widgetId: widget.id, enqueued: true });
+    },
+  );
+
+  /** PATCH /v1/widgets/:id - placement, retention, refresh interval, and
+   * config. US-W2 drag (#170), US-W3 resize (#158), US-H2 retention (F8.2),
+   * US-C6 edit an existing widget's configuration. 200 on success.
+   * Widget-scoped (not board-scoped) since the row already exists.
+   * Ownership re-check, FR-3.3 overlap, and the write all run inside one
+   * transaction with the board row locked - same pattern as POST above.
+   * A retention/config-only PATCH skips the grid checks entirely, since
+   * re-running overlap against an unmoved rectangle would surface
+   * pre-existing overlaps unrelated to this request. */
+  fastify.patch(
+    '/v1/widgets/:id',
+    { preHandler: requireWidgetOwnership },
+    async (request): Promise<BoardWidgetPlacement> => {
+      const { user } = requireSession(request);
+      const widget = request.widget!;
+
+      const parsed = UpdateWidgetRequest.safeParse(request.body);
+      if (!parsed.success) {
+        throw validationFailed(parsed.error, 'The widget could not be updated as described.');
+      }
+
+      const {
+        gridCol,
+        gridRow,
+        gridWidth,
+        gridHeight,
+        retentionHours,
+        refreshIntervalSeconds,
+        config: suppliedConfig,
+      } = parsed.data;
+
+      const def = getWidgetTypeDef(widget.widgetType as WidgetType);
+
+      if (refreshIntervalSeconds !== undefined) {
+        const intervalError = validateRefreshInterval(def, refreshIntervalSeconds);
+        if (intervalError) {
+          throw validationFailed(
+            intervalError,
+            `That refresh interval is not valid for a ${def.displayName} widget.`,
+          );
+        }
+      }
+
+      // US-C6: validated against the STORED type (`def`, above), never a
+      // caller-supplied one - PATCH has no widgetType field, so there is no
+      // way for a caller to ask this to validate against a different type's
+      // schema than the row already has.
+      let config: Record<string, unknown> | undefined;
+      if (suppliedConfig !== undefined) {
+        const configResult = parseWidgetConfig(widget.widgetType as WidgetType, suppliedConfig);
+        if (!configResult.success) {
+          throw validationFailed(
+            underConfig(configResult.error),
+            `That configuration is not valid for a ${def.displayName} widget.`,
+          );
+        }
+        config = configResult.data as Record<string, unknown>;
+      }
+
+      // A widget created unconfigured (POST's isConfigured===false path) is
+      // seeded with a null interval, since an unschedulable widget has no
+      // business polling (see the POST handler's comment on this). If THIS
+      // PATCH is what configures it for the first time and the caller did not
+      // also send an explicit interval, seed it the same way POST would have -
+      // otherwise the widget would end up configured but still permanently
+      // unschedulable, which no one asked for and nothing would ever surface.
+      const wasUnconfigured =
+        config !== undefined &&
+        refreshIntervalSeconds === undefined &&
+        Object.keys(widget.config as object).length === 0;
+      const nextRefreshIntervalSeconds = wasUnconfigured
+        ? def.defaultRefreshSeconds
+        : refreshIntervalSeconds;
+
+      const movesOrResizes =
+        gridCol !== undefined ||
+        gridRow !== undefined ||
+        gridWidth !== undefined ||
+        gridHeight !== undefined;
+
+      // Merge onto the current row so a drag-only PATCH doesn't clobber
+      // width/height (and vice versa for resize-only).
+      const nextCol = gridCol ?? widget.gridCol;
+      const nextRow = gridRow ?? widget.gridRow;
+      const nextWidth = gridWidth ?? widget.gridWidth;
+      const nextHeight = gridHeight ?? widget.gridHeight;
+
+      if (movesOrResizes && nextCol + nextWidth > GRID_COLUMNS) {
+        throw validationFailed(
+          new ZodError([
+            {
+              code: 'custom',
+              path: ['gridWidth'],
+              message: `A widget at column ${nextCol} may span at most ${GRID_COLUMNS - nextCol} columns (FR-3.1).`,
+            },
+          ]),
+          'The widget could not be updated as described.',
+        );
+      }
+
+      const updated = await db.transaction(async (tx) => {
+        await tx
+          .select({ id: schema.boards.id })
+          .from(schema.boards)
+          .where(eq(schema.boards.id, widget.boardId))
+          .for('update');
+
+        // Re-verify ownership through boards, not the pre-handler's result -
+        // widgets has no user_id of its own (Eng §11.7).
+        const stillOwned = await findOwnedWidget(widget.id, user.id);
+        if (!stillOwned) {
+          request.log.info(
+            { widgetId: widget.id },
+            'widget no longer owned between gate and write',
+          );
+          throw new ApiError(404, ApiErrorCode.NOT_FOUND, 'Widget not found.');
+        }
+
+        // FR-3.3 overlap (Task #188) - server-side backstop for the
+        // client-side check (#187), which is UX-only and bypassable.
+        const siblings = movesOrResizes
+          ? await tx
+              .select({
+                gridCol: schema.widgets.gridCol,
+                gridRow: schema.widgets.gridRow,
+                gridWidth: schema.widgets.gridWidth,
+                gridHeight: schema.widgets.gridHeight,
+              })
+              .from(schema.widgets)
+              .innerJoin(schema.boards, eq(schema.widgets.boardId, schema.boards.id))
+              .where(
+                and(
+                  eq(schema.boards.id, widget.boardId),
+                  eq(schema.boards.userId, user.id),
+                  ne(schema.widgets.id, widget.id),
+                ),
+              )
+          : [];
+
+        const candidate = { col: nextCol, row: nextRow, width: nextWidth, height: nextHeight };
+        const overlapsSibling = siblings.some((sibling) =>
+          rectanglesOverlap(candidate, {
+            col: sibling.gridCol,
+            row: sibling.gridRow,
+            width: sibling.gridWidth,
+            height: sibling.gridHeight,
+          }),
+        );
+
+        if (overlapsSibling) {
+          throw overlapRejected(
+            'That position or size overlaps another widget on this board (FR-3.3).',
+          );
+        }
+
+        const [row] = await tx
+          .update(schema.widgets)
+          .set({
+            gridCol: nextCol,
+            gridRow: nextRow,
+            gridWidth: nextWidth,
+            gridHeight: nextHeight,
+            ...(retentionHours !== undefined ? { retentionHours } : {}),
+            ...(nextRefreshIntervalSeconds !== undefined
+              ? { refreshIntervalSeconds: nextRefreshIntervalSeconds }
+              : {}),
+            ...(config !== undefined ? { config } : {}),
+            // A changed config makes the widget due NOW, exactly as POST does
+            // on create (see `dueNowLastPolledAt` there).
+            //
+            // Without this, fixing a broken config left the tile showing the
+            // OLD error snapshot until the next scheduled sweep - up to an hour
+            // at FR-4.2's 3600s minimum. The user has no way to tell a config
+            // they just fixed from one that is still wrong, so the natural move
+            // is to "fix" it again, differently, and make it worse.
+            //
+            // Only on a config change: a move or resize does not alter what
+            // gets fetched, and re-polling every drag would turn the grid into
+            // a request amplifier.
+            ...(config !== undefined ? { lastPolledAt: dueNowLastPolledAt(def) } : {}),
+            // DB clock, not app clock - Railway's Postgres can run ahead of
+            // a local dev machine, which broke updatedAt < createdAt ordering.
+            updatedAt: sql`now()`,
+          })
+          .where(eq(schema.widgets.id, widget.id))
+          .returning();
+
+        // US-C6 / US-S3: a config with no `apiKey` placement has nowhere to
+        // send a stored key, so the credential row is orphaned - the worker
+        // reads the placement from the config and would never attach it again.
+        // Deleting it here, in the same transaction as the config write, is
+        // what makes "turn auth off" durable: the browser used to issue a
+        // separate best-effort DELETE afterwards, which left the encrypted row
+        // alive whenever that second call failed, and never ran at all for a
+        // caller using the api directly.
+        //
+        // Unconditional on the new config rather than diffed against the old:
+        // the question is whether the key has a destination NOW, and a type
+        // that cannot hold credentials simply has no row to delete.
+        if (config !== undefined && config.apiKey === undefined) {
+          const orphaned = await tx
+            .delete(schema.apiCredentials)
+            .where(
+              and(
+                eq(schema.apiCredentials.widgetId, widget.id),
+                // EX-18: api_credentials has no user_id of its own. Scoped
+                // through the widgets -> boards chain, same shape as the
+                // DELETE verb in credentials.ts.
+                inArray(schema.apiCredentials.widgetId, ownedWidgetIds(user.id)),
+              ),
+            )
+            .returning({ id: schema.apiCredentials.id });
+
+          if (orphaned.length > 0) {
+            request.log.info(
+              { widgetId: widget.id },
+              'credential removed - config no longer places an api key (US-C6/US-S3)',
+            );
+          }
+        }
+
+        return row!;
+      });
+
+      request.log.info(
+        {
+          widgetId: widget.id,
+          gridCol: nextCol,
+          gridRow: nextRow,
+          gridWidth: nextWidth,
+          gridHeight: nextHeight,
+          retentionHours,
+          refreshIntervalSeconds: nextRefreshIntervalSeconds,
+          reconfigured: config !== undefined,
+        },
+        'widget updated (US-W2/US-W3 placement, US-H2 retention, US-C5 refresh interval, US-C6 config)',
+      );
+
+      // Poll it now rather than waiting for the sweep. `lastPolledAt` above
+      // already made it due, so the scheduler would claim it within 60s on its
+      // own; this turns "within a minute" into "by the time the modal closes",
+      // which is what lets someone see whether the config they just corrected
+      // actually works.
+      //
+      // Best-effort for the same reason as POST's: the update is committed, and
+      // failing it over a queue hiccup would be strictly worse than polling on
+      // the normal schedule a few seconds later.
+      if (config !== undefined && def.polling === 'server') {
+        const enqueued = await enqueuePoll(widget.id);
+        if (!enqueued) {
+          request.log.info(
+            { widgetId: widget.id },
+            'repoll not enqueued after reconfigure; the sweep will pick it up (Eng §8.1)',
+          );
+        }
+      }
+
+      return toPlacement(updated);
+    },
+  );
+
+  /**
+   * DELETE /v1/widgets/:id - US-W4 (Task #210). 200 with `{ id }` on success.
+   *
+   * `:id` is the WIDGET id, so the gate is `requireWidgetOwnership`, same as
+   * PATCH. The board row is locked first so a delete serializes with a
+   * concurrent POST (FR-3.5 count) or PATCH (FR-3.3 overlap read) on the same
+   * board, and ownership is re-verified through the boards join immediately
+   * before the write. A second concurrent delete of the same widget blocks on
+   * the lock, then fails that re-check and gets the same 404 a stranger gets.
+   *
+   * Snapshots and the stored credential go with the row via their FK cascades
+   * (Eng §5.2); nothing is deleted by hand here.
+   */
+  fastify.delete(
+    '/v1/widgets/:id',
+    { preHandler: requireWidgetOwnership },
+    async (request, reply) => {
+      const { user } = requireSession(request);
+      // Non-null because the pre-handler either set it or ended the request.
+      const widget = request.widget!;
+
+      await db.transaction(async (tx) => {
+        await tx
+          .select({ id: schema.boards.id })
+          .from(schema.boards)
+          .where(and(eq(schema.boards.id, widget.boardId), eq(schema.boards.userId, user.id)))
+          .for('update');
+
+        const stillOwned = await findOwnedWidget(widget.id, user.id);
+        if (!stillOwned) {
+          request.log.info(
+            { widgetId: widget.id },
+            'widget no longer owned between gate and write',
+          );
+          throw new ApiError(404, ApiErrorCode.NOT_FOUND, 'Widget not found.');
+        }
+
+        const deleted = await tx
+          .delete(schema.widgets)
+          .where(eq(schema.widgets.id, widget.id))
+          .returning({ id: schema.widgets.id });
+        if (deleted.length === 0) {
+          throw new ApiError(404, ApiErrorCode.NOT_FOUND, 'Widget not found.');
+        }
+      });
+
+      request.log.info(
+        { boardId: widget.boardId, widgetId: widget.id, widgetType: widget.widgetType },
+        'widget deleted (US-W4)',
+      );
+
+      return reply.status(200).send({ id: widget.id });
+    },
+  );
+}

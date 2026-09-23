@@ -26,6 +26,10 @@ export const load: PageServerLoad = ({ locals, url }) => {
     // §4: arriving here with a returnTo means a session expired mid-session,
     // which deserves a different sentence than a plain visit to /sign-in.
     sessionExpired: returnTo !== null,
+    // SCR-AUTH-04 sends a completed reset here. The api revokes every session
+    // on reset, so the user lands signed out and needs telling why rather than
+    // being shown a bare form after successfully changing their password.
+    passwordReset: url.searchParams.get('reset') === '1',
   };
 };
 

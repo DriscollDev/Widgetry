@@ -1,8 +1,44 @@
 <!doctype html>
 <html lang="en" data-theme="cerberus">
   <head>
+    <!--
+      Applies the stored theme (apps/web/src/lib/theme.ts) before anything
+      paints - a script after the CSS link would still show one frame of the
+      default. Synchronous and inline on purpose; the id list here must stay
+      in sync with THEMES there.
+    -->
+    <script>
+      (function () {
+        try {
+          var stored = localStorage.getItem('widgetry-theme');
+          var known = [
+            'hamlindigo',
+            'cerberus',
+            'concord',
+            'terminus',
+            'crimson',
+            'sahara',
+            'rose',
+            'modern',
+            'seafoam',
+            'vox',
+          ];
+          if (known.indexOf(stored) !== -1) {
+            document.documentElement.dataset.theme = stored;
+          }
+        } catch (e) {}
+      })();
+    </script>
     <meta charset="utf-8" />
-    <link rel="icon" href="%sveltekit.assets%/favicon.svg" />
+    <!--
+      Was `favicon.svg`, which never existed - static/ was empty, so every page
+      load 404'd for it and the tab showed the browser's blank default. Points
+      at the real mark now.
+    -->
+    <link rel="icon" href="%sveltekit.assets%/logo-mark.svg" />
+    <!-- iOS ignores SVG icons, so the raster mark is the home-screen fallback. -->
+    <link rel="apple-touch-icon" href="%sveltekit.assets%/logo-mark.png" />
+    <meta name="theme-color" content="#2a1f5e" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     %sveltekit.head%
   </head>

@@ -110,6 +110,84 @@ targeting the web app with `--filter @widgetry/web dev` is the useful command.
 > there's nothing to spin up locally and no Docker required. `api`/`worker`
 > connect using the `DATABASE_URL` / `REDIS_URL` values in your `.env`.
 
+## Database: migrations and the demo seed
+
+### Migrations
+
+Forward-only. Run them once against a fresh database, and again after pulling
+any change that adds one:
+
+```bash
+pnpm db:migrate
+```
+
+### Seeding the demo data
+
+`pnpm db:seed` rebuilds a demo account with three boards, 21 widgets covering
+every widget type, and 48 hourly readings per server-polled widget so the
+timeline charts, sparklines and uptime strips have real history to draw the
+moment a board loads.
+
+**It is guarded, and the guard is a handshake rather than a name rule.** The
+seed refuses to run unless you name the database you mean in
+`SEED_ALLOW_DATABASE`, and it has to agree with `DATABASE_URL`:
+
+```bash
+# in .env - either the bare database name...
+SEED_ALLOW_DATABASE=railway
+
+# ...or the whole connection string, which is stricter: host, port AND database
+# must match. Prefer this when two environments share a database name.
+SEED_ALLOW_DATABASE=postgresql://user:pw@host:5432/railway
+```
+
+Naming it is the whole point: production **is** the demo environment (there is
+no dev deployment), so the seed is allowed to run there - but only deliberately.
+
+```bash
+pnpm db:seed                                        # write
+pnpm --filter @widgetry/db seed --dry-run           # report, change nothing
+pnpm --filter @widgetry/db seed --verify-signin     # write, then prove sign-in works
+```
+
+Start with `--dry-run`. It prints the target database, what would be deleted and
+what would be written, and touches nothing.
+
+The seed is **idempotent** - re-running it deletes the demo user's boards and
+rebuilds them - and its blast radius is one account: every statement is scoped
+to the user resolved from `SEED_DEMO_EMAIL`, and the only destructive one is a
+`DELETE` on that user's boards. It needs no running service, so it works against
+a deployment that is down.
+
+### Removing the demo data
+
+```bash
+pnpm --filter @widgetry/db seed:clean               # remove the demo boards
+pnpm --filter @widgetry/db seed:clean --purge-user  # also remove the account
+pnpm --filter @widgetry/db seed:clean --dry-run     # report, change nothing
+```
+
+The default leaves the account in place, because the common case is "reset the
+demo between rehearsals" rather than "erase the demo" - keeping the user keeps
+the password stable and any signed-in browser session working.
+
+### Demo account
+
+Defaults to `demo@widgetry.app` / `widgetry-demo-2026`, overridable with
+`SEED_DEMO_EMAIL`, `SEED_DEMO_PASSWORD` and `SEED_DEMO_NAME`.
+
+> **Override the password before seeding production.** Those defaults live in
+> this repository, so a production seed that keeps them creates a real account
+> with a publicly known password.
+
+### Two guards that point opposite ways
+
+- **`db:seed` refuses any database whose name ends in `_ci_test`**, and that one
+  cannot be overridden - the integration suite depends on its contents and the
+  seed deletes rows.
+- **`db:reset` refuses any database whose name does _not_ end in `_ci_test`.**
+  It drops and recreates the schema, and it exists only for CI. It is not a way
+  to clear your dev database.
 
 ## Common commands
 
@@ -125,10 +203,48 @@ All commands run from the repository root.
 | `pnpm lint`                        | ESLint + Prettier check (matches CI)                |
 | `pnpm lint:fix` / `pnpm format`    | Auto-fix lint issues / format all files             |
 | `pnpm test:unit`                   | Run unit tests (Vitest)                             |
+| `pnpm test:coverage`               | Unit-test coverage per package (see below)          |
 | `pnpm test:integration`            | Run integration tests _(skipped unless `TEST_DATABASE_URL` points at a `_ci_test` database - see `.env.example`)_ |
+| `pnpm db:migrate`                  | Apply pending migrations (forward-only)             |
+| `pnpm db:seed`                     | Rebuild the demo boards _(needs `SEED_ALLOW_DATABASE`; try `--dry-run` first)_ |
+| `pnpm --filter @widgetry/db seed:clean` | Remove the demo boards, leaving the account    |
+| `pnpm db:reset`                    | Drop and recreate the schema - **`_ci_test` databases only** |
 
 Per-package scripts are reachable with `pnpm --filter <name> <script>`, e.g.
 `pnpm --filter @widgetry/web build`.
+
+## Test coverage
+
+Coverage is measured with `@vitest/coverage-v8`, per package rather than as one
+blended figure — the packages differ enough that a single number would hide more
+than it showed.
+
+```bash
+pnpm test:coverage                        # every package, unit tests only
+pnpm --filter @widgetry/api test:coverage:full   # api INCLUDING integration
+```
+
+Measured 2026-09-23, statements / branches:
+
+| Package | Unit only | With integration | Note |
+| ------- | --------- | ---------------- | ---- |
+| `shared` | 89.2% / 86.0% | — | contracts and widget schemas |
+| `net` | 86.6% / 78.8% | — | the SSRF gate |
+| `worker` | 63.9% / 90.2% | — | its integration suite is still empty (SCP-014) |
+| `queue` | 53.8% / 100% | — | a thin BullMQ contract; few lines, all branches |
+| `web` | 51.9% / 76.3% | — | `.svelte` components are largely untested |
+| `db` | 44.2% / 94.2% | — | mostly schema and migrations, which are never executed |
+| `api` | 40.5% / 80.0% | **78.2% / 85.6%** | see below |
+
+**Read the api row carefully, and quote the 78%.** Its unit tests cover helpers;
+its *routes* — ownership scoping, validation, the cascades — are exercised by the
+154-test integration suite. `test:coverage` deliberately excludes those so it
+runs anywhere without a database, which makes the unit-only figure an
+understatement rather than a result. `test:coverage:full` is the honest one, and
+it needs `TEST_DATABASE_URL` set (see `.env.example`).
+
+No threshold is enforced in CI. Setting one that the weakest package fails would
+turn every unrelated PR red; the numbers above are the evidence, not a gate.
 
 ## Web app specifics
 

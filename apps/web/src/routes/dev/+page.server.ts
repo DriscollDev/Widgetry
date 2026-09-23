@@ -3,10 +3,10 @@
 // Delete this whole directory before the production push; nothing in the app
 // links to it and no FR/US covers it.
 //
-// It refuses to exist outside `vite dev`. The rest of `/dev/*` currently ships
-// in a production build (flagged in the guard comment in hooks.server.ts), but
-// this page reports session internals, so it gets its own lock rather than
-// waiting for that to be tidied up.
+// `+layout.server.ts` now 404s this whole subtree outside `vite dev`, so the
+// check below is redundant. It stays because this page is the one that reports
+// session internals: if the layout guard is ever moved or deleted, this page
+// should still refuse to render rather than quietly become public.
 
 import { dev } from '$app/environment';
 import { error } from '@sveltejs/kit';

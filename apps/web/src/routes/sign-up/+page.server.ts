@@ -9,7 +9,7 @@ import { fail, redirect } from '@sveltejs/kit';
 import { flattenError } from 'zod';
 import { authErrorMessage } from '$lib/auth-messages.js';
 import { fullName, SignUpForm } from '$lib/auth-forms.js';
-import { postAuthDestination } from '$lib/navigation.js';
+import { postAuthDestination, VERIFY_EMAIL_PATH } from '$lib/navigation.js';
 import { isRateLimited, signUpEmail } from '$lib/server/auth.js';
 import type { Actions, PageServerLoad } from './$types';
 
@@ -50,16 +50,16 @@ export const actions: Actions = {
       });
     }
 
-    // No `callbackURL`: SCR-AUTH-05 has no screen yet, so Better-Auth's default
-    // of "/" is the right target - the emailed link verifies the address and
-    // then drops the (now signed-in) user on the root router, which sends them
-    // to the board list per §4. Point this at a real route when SCR-AUTH-05
-    // gets built, since the failure case redirects to `<callbackURL>?error=…`
-    // and "/" ignores it.
+    // SCR-AUTH-05 exists now, so the emailed link lands somewhere that can
+    // actually report what happened. This matters beyond politeness: on
+    // failure Better-Auth redirects to `<callbackURL>?error=…`, and the old
+    // default of "/" silently ignored it - a failed verification looked
+    // exactly like a successful one.
     const result = await signUpEmail(event, {
       name: fullName(parsed.data.firstName, parsed.data.lastName),
       email: parsed.data.email,
       password: parsed.data.password,
+      callbackURL: VERIFY_EMAIL_PATH,
     });
 
     if (!result.ok) {
