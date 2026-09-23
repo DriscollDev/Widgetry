@@ -9,7 +9,7 @@
 // retimed or deleted through the api needs no corresponding queue surgery.
 //
 // ---------------------------------------------------------------------------
-// CLAIM-ON-SWEEP: a deliberate refinement of Eng §8.2, flagged for doc-sync
+// CLAIM-ON-SWEEP: a deliberate refinement of Eng §8.2, ratified at Eng v1.2
 // ---------------------------------------------------------------------------
 // §8.2 says `last_polled_at` advances when the job RUNS - on success, and on
 // failure after retries - so that a failing widget is not re-enqueued
@@ -39,7 +39,9 @@
 // skipped cycle on an already-crashed worker is the better trade, and it is
 // self-healing on the next tick after restart.
 //
-// ACTION: this refines §8.2's wording and should go through /doc-sync.
+// This is documented: Eng §8.2 carries it as "Decision (v1.2): the sweep
+// claims; the job confirms", and EX-35 records the widening from "on every
+// poll attempt" alone. No doc-sync outstanding.
 
 import { sql } from 'drizzle-orm';
 import type { Database } from '@widgetry/db';
