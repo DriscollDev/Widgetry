@@ -30,6 +30,9 @@
     DATA_KINDS,
     DATA_KIND_LABELS,
     kindForSlot,
+    slotWidthFor,
+    SLOT_WIDTHS,
+    SLOT_WIDTH_LABELS,
     PRIMITIVE_ACCEPTS,
     PRIMITIVE_LABELS,
     AUTH_TYPES,
@@ -40,6 +43,7 @@
     type DataKind,
     type SlotConfig,
     type SlotPrimitive,
+    type SlotWidth,
   } from '../widgets/custom/types';
 
   /** One row of the general headers list (US-C1). Separate from the auth
@@ -118,6 +122,18 @@
   function blankSlot(): SlotConfig {
     return { primitive: 'number', kind: 'number', label: '', jsonPath: '', max: 100, unit: '' };
   }
+
+  /**
+   * Keep an UNSET width tracking the primitive.
+   *
+   * `slotWidthFor` defaults a chart to wide and everything else to normal, and
+   * that default should keep applying while the user is still choosing how to
+   * draw the value. Writing the derived width into the slot the moment the
+   * select is first rendered would freeze whatever the first primitive implied
+   * - pick Big number, then switch to Line chart, and the chart would silently
+   * stay narrow. So the select DISPLAYS the derived value and only stores one
+   * when it is actually changed.
+   */
 
   // No steps at all now. The layout picker that used to be step 1 went with the
   // US-C4 revision - a user adds values and the arrangement follows from how
@@ -621,6 +637,23 @@
                   {/each}
                 </div>
               {/if}
+            </div>
+
+            <div>
+              <label for="width-{i}" class="mb-1 block text-xs text-surface-600-400"> Width </label>
+              <select
+                id="width-{i}"
+                value={slotWidthFor(slot)}
+                onchange={(e) => (slot.width = e.currentTarget.value as SlotWidth)}
+                class="w-full rounded-lg border border-surface-200-800 bg-surface-100-900 px-3 py-2 text-sm text-surface-950-50"
+              >
+                {#each SLOT_WIDTHS as option (option)}
+                  <option value={option}>{SLOT_WIDTH_LABELS[option]}</option>
+                {/each}
+              </select>
+              <p class="mt-1 text-xs text-surface-500">
+                Wide values take the room; charts default to it.
+              </p>
             </div>
 
             {#if needsScale[i]}

@@ -128,6 +128,37 @@ export const PRIMITIVE_ACCEPTS: Record<SlotPrimitive, readonly DataKind[]> = {
   'uptime-strip': ['status-series'],
 };
 
+/**
+ * How much of a row a slot asks for.
+ *
+ * A chart and a number want very different amounts of space, and until this
+ * existed the automatic arrangement guessed from POSITION - slot 0 got its
+ * natural width, slot 1 got the rest. That guess came from the old `split`
+ * layout, which meant "a headline value beside a chart", and it is wrong the
+ * moment the chart is the first value: a line chart squeezed to its natural
+ * width is a few pixels wide while a big number sprawls beside it.
+ */
+export const SLOT_WIDTHS = ['normal', 'wide'] as const;
+export const SlotWidth = z.enum(SLOT_WIDTHS, { error: 'Choose a width.' });
+export type SlotWidth = z.infer<typeof SlotWidth>;
+
+export const SLOT_WIDTH_LABELS: Record<SlotWidth, string> = {
+  normal: 'Normal',
+  wide: 'Wide',
+};
+
+/**
+ * The width a slot asks for, or a sensible default for one that does not say.
+ *
+ * Series primitives default to `wide` because a chart of 48 readings in a
+ * narrow column is unreadable, and everything else to `normal`. That makes the
+ * default arrangement right without anyone configuring it, and leaves the
+ * setting for when the default is not what you want.
+ */
+export function slotWidthFor(slot: { primitive: SlotPrimitive; width?: SlotWidth }): SlotWidth {
+  return slot.width ?? (needsSeries(slot.primitive) ? 'wide' : 'normal');
+}
+
 /** The kind a slot declares, or the best guess for one saved before `kind` was
  * persisted. Never throws: an unreadable kind falls back the same way. */
 export function kindForSlot(slot: { primitive: SlotPrimitive; kind?: DataKind }): DataKind {
@@ -251,6 +282,12 @@ export const SlotConfig = z.strictObject({
    * renderer reads `primitive`, exactly as before.
    */
   kind: DataKind.optional(),
+  /**
+   * How much room this slot asks for. Optional: absent means "decide from the
+   * primitive" (see slotWidthFor), which is what every config written before
+   * this existed relies on.
+   */
+  width: SlotWidth.optional(),
   label: z
     .string({ error: 'Give the slot a label.' })
     .trim()
