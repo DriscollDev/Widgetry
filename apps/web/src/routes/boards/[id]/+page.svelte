@@ -11,6 +11,7 @@
 <script lang="ts">
   import { applyAction, deserialize } from '$app/forms';
   import { invalidateAll } from '$app/navigation';
+  import { apiUrl } from '$lib/api';
   import { startBoardAutoRefresh } from '$lib/board-auto-refresh.js';
   import BoardView from '$lib/components/board-view/BoardView.svelte';
   import BoardSettingsModal from '$lib/modals/BoardSettingsModal.svelte';
@@ -140,6 +141,38 @@
     await invalidateAll();
   }
 
+  // --- US-B6 / FR-4.3: refresh one widget now. ---
+  //
+  // A widget's own schedule is at least an hour (FR-4.2), so a tile showing a
+  // stale error had no way back short of waiting it out. The endpoint for this
+  // shipped with #262 and nothing called it until now.
+  //
+  // The poll is asynchronous: the api enqueues a job and answers immediately,
+  // so the reload below races the worker. One short wait before re-reading
+  // catches the common case (a healthy endpoint answers in well under a
+  // second) without pretending to be synchronous - the board's own auto
+  // refresh picks up anything slower, and `enqueued: false` means there was
+  // never anything to wait for.
+  const REFRESH_SETTLE_MS = 1200;
+
+  async function refreshWidget(widgetId: string) {
+    let enqueued = false;
+    try {
+      const response = await fetch(apiUrl(`widgets/${widgetId}/refresh`), { method: 'POST' });
+      if (response.ok) {
+        enqueued = ((await response.json()) as { enqueued?: boolean }).enqueued === true;
+      }
+      // A 429 is the FR-4.3 per-widget limit (1 per 30s). Nothing to report:
+      // the user pressed refresh twice, and the first one is still in flight.
+    } catch {
+      // Offline or the proxy is down. The board reload below will fail the
+      // same way and surface it through the page's own error state.
+    }
+
+    if (enqueued) await new Promise((resolve) => setTimeout(resolve, REFRESH_SETTLE_MS));
+    await invalidateAll();
+  }
+
   // --- Task #222 (Eng §12, FR-2.3, FR-4.1): re-query the board on its
   // configured interval in auto mode. `interacting` mirrors BoardView's own
   // drag/resize state so a due tick can skip itself rather than reloading the
@@ -171,6 +204,7 @@
   onDeleteWidget={requestWidgetDelete}
   onEditWidget={requestWidgetEdit}
   onAddWidget={requestAddWidget}
+  onRefreshWidget={refreshWidget}
   onInteractionChange={(value) => (interacting = value)}
   onRetry={() => invalidateAll()}
 />

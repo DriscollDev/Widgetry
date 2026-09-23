@@ -691,6 +691,19 @@ export async function widgetRoutes(fastify: FastifyInstance): Promise<void> {
               ? { refreshIntervalSeconds: nextRefreshIntervalSeconds }
               : {}),
             ...(config !== undefined ? { config } : {}),
+            // A changed config makes the widget due NOW, exactly as POST does
+            // on create (see `dueNowLastPolledAt` there).
+            //
+            // Without this, fixing a broken config left the tile showing the
+            // OLD error snapshot until the next scheduled sweep - up to an hour
+            // at FR-4.2's 3600s minimum. The user has no way to tell a config
+            // they just fixed from one that is still wrong, so the natural move
+            // is to "fix" it again, differently, and make it worse.
+            //
+            // Only on a config change: a move or resize does not alter what
+            // gets fetched, and re-polling every drag would turn the grid into
+            // a request amplifier.
+            ...(config !== undefined ? { lastPolledAt: dueNowLastPolledAt(def) } : {}),
             // DB clock, not app clock - Railway's Postgres can run ahead of
             // a local dev machine, which broke updatedAt < createdAt ordering.
             updatedAt: sql`now()`,
@@ -748,6 +761,25 @@ export async function widgetRoutes(fastify: FastifyInstance): Promise<void> {
         },
         'widget updated (US-W2/US-W3 placement, US-H2 retention, US-C5 refresh interval, US-C6 config)',
       );
+
+      // Poll it now rather than waiting for the sweep. `lastPolledAt` above
+      // already made it due, so the scheduler would claim it within 60s on its
+      // own; this turns "within a minute" into "by the time the modal closes",
+      // which is what lets someone see whether the config they just corrected
+      // actually works.
+      //
+      // Best-effort for the same reason as POST's: the update is committed, and
+      // failing it over a queue hiccup would be strictly worse than polling on
+      // the normal schedule a few seconds later.
+      if (config !== undefined && def.polling === 'server') {
+        const enqueued = await enqueuePoll(widget.id);
+        if (!enqueued) {
+          request.log.info(
+            { widgetId: widget.id },
+            'repoll not enqueued after reconfigure; the sweep will pick it up (Eng §8.1)',
+          );
+        }
+      }
 
       return toPlacement(updated);
     },
