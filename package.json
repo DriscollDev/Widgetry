@@ -31,6 +31,7 @@
     "format": "prettier --write .",
     "test": "pnpm -r test",
     "test:unit": "pnpm -r test:unit",
+    "test:coverage": "pnpm -r test:coverage",
     "test:integration": "pnpm -r test:integration"
   },
   "devDependencies": {
