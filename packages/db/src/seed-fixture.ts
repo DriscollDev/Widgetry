@@ -95,7 +95,7 @@ function customWidget(
 }
 
 /**
- * Three boards, fifteen widgets.
+ * Three boards, eighteen widgets.
  *
  * Grid placement is hand-checked against FR-3.3: 12 columns, each widget 1-6
  * wide and 1-6 tall, and no two rectangles on a board overlap. The test
@@ -184,6 +184,47 @@ export const SEED_BOARDS: readonly SeedBoard[] = [
         { gridCol: 6, gridRow: 0, gridWidth: 6, gridHeight: 2 },
         up(200, 31),
       ),
+      // One of each remaining type, so a demo board shows every widget
+      // Widgetry ships rather than three variations on "a URL responded".
+      // Weather and Currency are client-polled and so carry no snapshot; Stock
+      // is server-polled and carries one, or its tile would be a loading
+      // skeleton until the worker's first sweep.
+      {
+        widgetType: 'weather',
+        gridCol: 0,
+        gridRow: 4,
+        gridWidth: 4,
+        gridHeight: 2,
+        config: { location: 'Halifax', temperatureUnit: 'celsius', windSpeedUnit: 'kmh' },
+        snapshot: null,
+      },
+      {
+        widgetType: 'currency',
+        gridCol: 4,
+        gridRow: 4,
+        gridWidth: 4,
+        gridHeight: 2,
+        config: { base: 'USD', quote: 'CAD', amount: 100, decimals: 2, label: 'Travel budget' },
+        snapshot: null,
+      },
+      {
+        widgetType: 'stock',
+        gridCol: 8,
+        gridRow: 4,
+        gridWidth: 4,
+        gridHeight: 2,
+        config: { symbol: 'AAPL', label: 'Apple', currencySymbol: '$' },
+        snapshot: {
+          symbol: 'AAPL',
+          price: 261.74,
+          previousClose: 262.23,
+          change: -0.49,
+          changePct: -0.19,
+          dayHigh: 263.31,
+          dayLow: 260.68,
+          quotedAt: '2026-09-22T20:00:00.000Z',
+        },
+      },
       customWidget(
         {
           url: 'https://api.coindesk.com/v1/bpi/currentprice.json',

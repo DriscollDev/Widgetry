@@ -39,9 +39,9 @@ describe('the fixture matches what EX-52 specifies', () => {
     expect(SEED_BOARDS).toHaveLength(3);
   });
 
-  it('has fifteen widgets', () => {
-    expect(SEED_WIDGET_COUNT).toBe(15);
-    expect(allWidgets).toHaveLength(15);
+  it('has eighteen widgets', () => {
+    expect(SEED_WIDGET_COUNT).toBe(18);
+    expect(allWidgets).toHaveLength(18);
   });
 
   it('gives every board a distinct name', () => {
@@ -118,15 +118,19 @@ describe('every widget config is one the api would accept', () => {
     },
   );
 
-  it('only uses types that have a renderer today', () => {
-    // The deliberate scope call recorded in seed-fixture.ts: weather, stock and
-    // currency would draw as the fallback, so the fixture leaves them out.
+  it('shows every widget type Widgetry ships', () => {
+    // This used to exclude weather, stock and currency because they had no
+    // renderer and would have drawn as the fallback. All three are built now,
+    // so a demo board can show one of each rather than three variations on
+    // "a URL responded".
     //
-    // `datetime` left this set when F5.1 and F5.2 merged - both fixture rows
-    // are `clock` now, one of them configured to show the date, which is what
-    // that type id used to mean.
+    // `datetime` is absent because F5.1 and F5.2 merged: both clock rows are
+    // `clock`, one of them configured to show the date, which is what that
+    // type id used to mean.
     const used = new Set<WidgetType>(allWidgets.map((w) => w.widgetType));
-    expect(used).toEqual(new Set(['uptime', 'custom_json', 'clock']));
+    expect(used).toEqual(
+      new Set(['uptime', 'custom_json', 'clock', 'weather', 'currency', 'stock']),
+    );
   });
 
   it('covers both polling modes', () => {
