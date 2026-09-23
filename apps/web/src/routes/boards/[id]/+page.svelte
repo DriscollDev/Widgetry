@@ -151,6 +151,7 @@
   onDeleteWidget={requestWidgetDelete}
   onAddWidget={requestAddWidget}
   onInteractionChange={(value) => (interacting = value)}
+  onRetry={() => invalidateAll()}
 />
 
 <BoardSettingsModal

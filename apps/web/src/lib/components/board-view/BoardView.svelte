@@ -30,6 +30,17 @@
    * the board out from under the user's cursor.
    */
   export let onInteractionChange: ((interacting: boolean) => void) | undefined = undefined;
+  /**
+   * SCP-038: called when the user clicks Retry on the error state. The route
+   * owns the re-fetch (`invalidateAll`), same division as every other callback
+   * here - this component does no I/O. When omitted the button is disabled
+   * rather than absent, so the error state keeps its shape in the /dev
+   * harness.
+   *
+   * Until this existed the button was a `console.log` stub: the one control on
+   * the screen a stuck user would reach for, and it did nothing.
+   */
+  export let onRetry: (() => void) | undefined = undefined;
 
   $: refreshLabel = formatRefresh(board);
   $: onInteractionChange?.(interactionMode !== null);
@@ -700,9 +711,7 @@
         </svg>
         <div class="board-view__error-body">
           <p>Something went wrong loading this board.</p>
-          <button type="button" on:click={() => console.log('retry board load (stub)')}>
-            Retry
-          </button>
+          <button type="button" on:click={() => onRetry?.()} disabled={!onRetry}> Retry </button>
         </div>
       </div>
     {:else if state === 'empty'}
