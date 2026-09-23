@@ -948,16 +948,30 @@
     touch-action: none;
   }
 
+  /* The cell is a positioning and interaction shell, NOT a card.
+
+     It used to draw its own background, 1px border and 0.375rem radius while
+     every renderer drew its own rounded-xl card inside it - a box in a box,
+     with mismatched radii, and two edges where the design has one. The chrome
+     lives with the content now; this keeps only what the grid and the pointer
+     handlers actually need.
+
+     The states that used to tint the border (drag, resize, conflict) moved to
+     `outline`, which paints outside the box and so needs no border to sit on,
+     costs no layout, and follows the renderer's own corners. */
   .board-view__widget {
     position: relative; /* anchors the absolutely-positioned resize handles */
     display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 0.375rem;
-    background: light-dark(var(--color-surface-50), var(--color-surface-800));
-    border: 1px solid light-dark(var(--color-surface-300), var(--color-surface-700));
+    border-radius: 0.75rem; /* matches the renderers' rounded-xl, for the outline */
     cursor: grab;
     user-select: none;
+  }
+
+  /* Renderers draw a full-height card; stretching is what lets them fill the
+     cell now that it is no longer centring a smaller box inside itself. */
+  .board-view__widget > :global(*:first-child) {
+    flex: 1 1 auto;
+    min-width: 0;
   }
 
   .board-view__widget:focus-visible {
@@ -968,7 +982,8 @@
   .board-view__widget--dragging {
     cursor: grabbing;
     opacity: 0.85;
-    border-color: light-dark(var(--color-primary-500), var(--color-primary-400));
+    outline: 2px solid light-dark(var(--color-primary-500), var(--color-primary-400));
+    outline-offset: 1px;
     z-index: 10;
   }
 
@@ -977,7 +992,8 @@
      grabbing cursor. */
   .board-view__widget--resizing {
     opacity: 0.85;
-    border-color: light-dark(var(--color-primary-500), var(--color-primary-400));
+    outline: 2px solid light-dark(var(--color-primary-500), var(--color-primary-400));
+    outline-offset: 1px;
     z-index: 10;
   }
 
@@ -989,16 +1005,21 @@
      animation, is what actually clears the class, so a mismatch here would
      just make the flash look slightly off, not break functionally. */
   .board-view__widget--conflict {
+    outline: 2px solid transparent;
+    outline-offset: 1px;
     animation: board-view-conflict-flash 400ms ease;
   }
 
+  /* Outline rather than border-color, for the same reason as the two states
+     above - and it starts and ends fully transparent so the flash leaves no
+     ring behind on a cell that otherwise has no edge of its own. */
   @keyframes board-view-conflict-flash {
     0%,
     100% {
-      border-color: light-dark(var(--color-surface-300), var(--color-surface-700));
+      outline-color: transparent;
     }
     50% {
-      border-color: light-dark(var(--color-error-600), var(--color-error-400));
+      outline-color: light-dark(var(--color-error-600), var(--color-error-400));
     }
   }
 
