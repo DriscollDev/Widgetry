@@ -11,6 +11,7 @@ import type { WidgetType } from '@widgetry/shared';
 import ClockRenderer from './ClockRenderer.svelte';
 import CurrencyRenderer from './CurrencyRenderer.svelte';
 import CustomJsonRenderer from './CustomJsonRenderer.svelte';
+import StockRenderer from './StockRenderer.svelte';
 import UptimeRenderer from './UptimeRenderer.svelte';
 import WeatherRenderer from './WeatherRenderer.svelte';
 import FallbackRenderer from './FallbackRenderer.svelte';
@@ -18,8 +19,8 @@ import type { RenderableWidget } from './types';
 
 export type WidgetRenderer = Component<{ widget: RenderableWidget }>;
 
-// Types with a real renderer. Clock is client-local and needs no data; the
-// Weather, Currency and Stock components register here as their adapters land.
+// Every MVP widget type has a real renderer now, so `rendererFor`'s fallback
+// is reachable only for a type this build does not know about at all.
 //
 // `datetime` maps to ClockRenderer on purpose: F5.1 and F5.2 merged into one
 // type whose `display` field chooses between them, and the old id is retired
@@ -30,6 +31,7 @@ const RENDERERS = new Map<WidgetType, WidgetRenderer>([
   ['datetime', ClockRenderer],
   ['currency', CurrencyRenderer],
   ['custom_json', CustomJsonRenderer],
+  ['stock', StockRenderer],
   ['uptime', UptimeRenderer],
   ['weather', WeatherRenderer],
 ]);

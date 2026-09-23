@@ -112,6 +112,33 @@ export async function fetchUptimeHistory(widgetId: string): Promise<SnapshotsRes
   return { ok: true, points, truncated: history.truncated };
 }
 
+/**
+ * The stock widget's view: the same history, narrowed to a price series
+ * (F5.5, §4.4's "history chart").
+ *
+ * Error rows are DROPPED here, where the uptime view keeps them as downtime.
+ * The difference is what the row means for each type: a failed uptime check is
+ * real downtime and belongs on the chart, whereas a failed quote poll says
+ * nothing about the price - plotting it as a gap or a zero would invent a
+ * movement that never happened. The line simply skips it.
+ */
+export async function fetchPriceHistory(
+  widgetId: string,
+): Promise<{ ok: true; prices: number[] } | { ok: false; reason: string }> {
+  const history = await fetchHistory(widgetId);
+  if (!history.ok) return history;
+
+  const prices = history.snapshots
+    .map((snapshot) => {
+      if (snapshot.error || !isRecord(snapshot.value)) return null;
+      const price = snapshot.value.price;
+      return typeof price === 'number' && Number.isFinite(price) ? price : null;
+    })
+    .filter((price): price is number => price !== null);
+
+  return { ok: true, prices };
+}
+
 /** Drop the cache. Exported for tests, which must not share state. */
 export function clearSnapshotCache(): void {
   cache.clear();

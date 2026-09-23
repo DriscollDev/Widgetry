@@ -109,6 +109,19 @@ const EnvSchema = z.object({
    * this straight into key names, and a stray `:` would silently shift the key
    * hierarchy rather than fail.
    */
+  /**
+   * F5.5's market-data key (Finnhub). ONE key for the whole platform, in the
+   * worker's environment - not per widget in `api_credentials`, because every
+   * stock widget talks to the same upstream on the same account (see
+   * packages/shared/src/widgets/stock.ts).
+   *
+   * Optional, so a developer without one can still run the worker: the stock
+   * fetcher turns its absence into an error snapshot naming the missing key,
+   * which is a visible, diagnosable tile rather than a crash at boot that
+   * takes every OTHER widget type down with it.
+   */
+  FINNHUB_API_KEY: z.preprocess((v) => (v === '' ? undefined : v), z.string().min(1).optional()),
+
   QUEUE_PREFIX: z.preprocess(
     (v) => (v === '' ? undefined : v),
     z

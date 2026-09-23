@@ -93,22 +93,40 @@ describe('config schemas', () => {
     expect(parseWidgetConfig('uptime', config).success).toBe(false);
   });
 
-  it('rejects arbitrary input for types that are not configurable yet', () => {
-    // The unbuilt types carry a STRICT empty schema, not a permissive one, so
-    // nothing unvalidated can reach the jsonb column ahead of the type being
-    // built. If one of these starts passing, someone replaced the placeholder
-    // with a passthrough.
-    for (const type of ['weather', 'stock', 'currency', 'clock', 'datetime'] as const) {
-      expect(parseWidgetConfig(type, {}).success).toBe(true);
-      expect(parseWidgetConfig(type, { anything: 'goes' }).success).toBe(false);
+  it('rejects arbitrary input for every type', () => {
+    // This used to read "types that are not configurable yet" and assert that
+    // each carried a STRICT EMPTY schema - `{}` in, nothing else. Every type
+    // has a real schema now, so the placeholder half is gone; what survives is
+    // the half that always mattered, which is that no type anywhere accepts a
+    // key it does not declare. If one starts passing, someone swapped a strict
+    // object for a passthrough and unvalidated input can reach the jsonb
+    // column.
+    for (const type of WIDGET_TYPES) {
+      expect(
+        parseWidgetConfig(type, { anything: 'goes' }).success,
+        `${type} accepted an undeclared key`,
+      ).toBe(false);
+    }
+  });
+
+  it('gives every type a real schema, so no config modal is empty', () => {
+    // The generic form derives its controls from the schema's shape, so a type
+    // whose schema declares no fields renders a modal with nothing in it -
+    // which is exactly what five of the seven did.
+    for (const type of WIDGET_TYPES) {
+      const shape = (getWidgetTypeDef(type).configSchema as unknown as { shape?: object }).shape;
+      expect(Object.keys(shape ?? {}).length, `${type} has no configurable fields`).toBeGreaterThan(
+        0,
+      );
     }
   });
 });
 
 describe('fetcher coverage', () => {
-  it('has a fetcher for uptime and custom_json', () => {
+  it('has a fetcher for every server-polled type', () => {
     expect(FETCHERS.uptime).toBeTypeOf('function');
     expect(FETCHERS.custom_json).toBeTypeOf('function');
+    expect(FETCHERS.stock).toBeTypeOf('function');
   });
 
   it('never registers a fetcher for a client-polled type', () => {
@@ -120,9 +138,10 @@ describe('fetcher coverage', () => {
   });
 
   it('reports the server-polled types still awaiting a fetcher', () => {
-    // Not an assertion that the list is empty - stock is legitimately
-    // outstanding. This pins the CURRENT state, so finishing one of
-    // them updates this test deliberately rather than by accident.
-    expect(missingFetchers().sort()).toEqual(['stock']);
+    // Empty now that stock has one. A type that is declared server-polled with
+    // no fetcher can still be CREATED, and every job the scheduler enqueues for
+    // it writes an `internal` error snapshot - so this staying empty is what
+    // keeps that state from being discovered as a queue of failing jobs.
+    expect(missingFetchers()).toEqual([]);
   });
 });

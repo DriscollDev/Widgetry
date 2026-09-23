@@ -45,13 +45,14 @@ describe('toConfigView (Task #235)', () => {
     expect(allowlistedKeys('custom_json')).toEqual(expect.arrayContaining(['layoutId', 'slots']));
   });
 
-  it('sends nothing for types without an allowlist entry', () => {
-    // clock and weather USED to be in here: neither had a config at all. Both
-    // have real schemas now, and every key of them is a display choice the
-    // browser has to read to draw the tile - see the CLOCK_KEYS note.
-    expect(toConfigView('stock', { ticker: 'IBM' })).toBeNull();
-    // Not a widget type at all - a prototype key must not resolve to one.
+  it('sends nothing for something that is not a widget type', () => {
+    // This used to list clock, weather and stock, none of which had a config at
+    // all. All seven have real schemas now and all seven have an entry, so what
+    // is left to check is that the lookup is a genuine allowlist: a key off
+    // Object.prototype must not resolve to one.
     expect(toConfigView('constructor', { url: 'x' })).toBeNull();
+    expect(toConfigView('__proto__', { url: 'x' })).toBeNull();
+    expect(toConfigView('not_a_type', { url: 'x' })).toBeNull();
   });
 
   it('sends the clock display settings, under both the live and retired ids', () => {

@@ -11,28 +11,27 @@
 //   web     - builds the catalog picker and the config form (Eng §7.4).
 //
 // ---------------------------------------------------------------------------
-// SCOPE OF THIS SLICE
+// EVERY TYPE HAS A REAL SCHEMA
 // ---------------------------------------------------------------------------
-// Every one of the seven types is registered, because `polling` must be
-// resolvable for all of them - it is what replaced the PROVISIONAL_POLLING_MODE
-// map that used to live in apps/api/src/routes/widgets.ts.
+// It did not always. Five of the seven carried `NOT_YET_CONFIGURABLE` - a
+// strict empty object - which was an exact statement of the behaviour at the
+// time (those widgets really did take no configuration and really were created
+// with `config = {}`) but had a consequence nobody had looked at: the generic
+// config form DERIVES its controls from the schema's shape, so a schema with no
+// fields renders a modal with nothing in it. Five of the seven widget types
+// opened an empty settings dialog.
 //
-// The `configSchema` entries are NOT all real. Only `uptime` and `custom_json`
-// have one, because they are the only types with a fetcher so far. Every other type carries
-// `NOT_YET_CONFIGURABLE` - a strict empty object, which is an exact statement of
-// today's behaviour rather than a placeholder that lies: those widgets really do
-// take no configuration yet, and really are created with `config = {}`. Filling
-// one in is the first step of building that widget type; see the per-type TODOs.
-// Do not replace it with a permissive passthrough object - that would let
-// unvalidated user input into the jsonb column, which is the one thing the
-// registry exists to prevent.
+// The rule that placeholder existed to protect still stands and now applies
+// everywhere: every schema here is a strict object. A permissive passthrough
+// would let unvalidated user input into the jsonb column, which is the one
+// thing this registry exists to prevent.
 
-import { z } from 'zod';
 import type { WidgetType } from '../api/widgets.js';
 import { WIDGET_TYPES } from '../api/widgets.js';
 import type { ServerPolledWidgetTypeDef, WidgetTypeDef } from './types.js';
 import { ClockConfig } from './clock.js';
 import { CurrencyConfig } from './currency.js';
+import { StockConfig } from './stock.js';
 import { WeatherConfig } from './weather.js';
 import { CustomJsonConfig } from './custom-json.js';
 import { UptimeConfig } from './uptime.js';
@@ -42,13 +41,6 @@ import { UptimeConfig } from './uptime.js';
  * A type may set `minRefreshSeconds` above this; nothing may set it below.
  */
 export const MIN_SERVER_POLL_SECONDS = 3600;
-
-/**
- * The config schema for a type that has not been built yet: accepts `{}` and
- * nothing else. See the scope note above for why this is strict and not
- * permissive.
- */
-const NOT_YET_CONFIGURABLE = z.strictObject({});
 
 export const WIDGET_TYPE_DEFS: Record<WidgetType, WidgetTypeDef> = {
   uptime: {
@@ -79,16 +71,17 @@ export const WIDGET_TYPE_DEFS: Record<WidgetType, WidgetTypeDef> = {
     minRefreshSeconds: null,
   },
 
-  // TODO(F5.5): server-polled with history per FR-4.1/4.2 and the v1.1
-  // resolution - the "stocks-no-history client-polled" variant is dead (locked
-  // decision 8). The upstream (Alpha Vantage vs Finnhub) is still an open
-  // decision in Feature Spec §4.4, and its free-tier rate limit may force
-  // `minRefreshSeconds` above the 3600 floor. configSchema needs the ticker.
+  // F5.5. Server-polled with history per FR-4.1/4.2 and the v1.1 resolution -
+  // the "stocks-no-history client-polled" variant is dead (locked decision 8).
+  // §4.4's open upstream choice is settled on Finnhub, whose free tier allows
+  // 60 requests a MINUTE; Alpha Vantage's 25 a day would not have supported a
+  // second widget at the 3600s floor. That budget is why minRefreshSeconds
+  // stays at the floor rather than being raised. See ./stock.ts.
   stock: {
     id: 'stock',
     displayName: 'Stock Price',
     category: 'informational',
-    configSchema: NOT_YET_CONFIGURABLE,
+    configSchema: StockConfig,
     renderer: 'timeline',
     polling: 'server',
     supportsHistory: true,
