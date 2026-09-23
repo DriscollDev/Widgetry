@@ -1,0 +1,46 @@
+// apps/web/src/lib/theme.ts
+//
+// The theme gradient (OQ-2, Design Principles §7): four Skeleton presets
+// ordered calm to vivid, all in the same blue-violet family so no theme
+// reads as a different product (the doc's own test, §3.2). Named by mood,
+// not by anything functional - Design Principle 3.2 keeps personality out of
+// color, so this ordering is aesthetic only and never signals widget status.
+//
+// Client-only preference: localStorage, no `users` column yet. app.html's
+// inline script reads the same storage key before paint so there is no
+// flash of the wrong theme; keep that script's id list in sync with THEMES.
+
+export const THEMES = [
+  { id: 'hamlindigo', label: 'Calm', description: 'Muted and soft.' },
+  { id: 'cerberus', label: 'Standard', description: "Widgetry's default." },
+  { id: 'concord', label: 'Deep', description: 'Richer and more saturated.' },
+  { id: 'terminus', label: 'Vivid', description: 'The boldest of the set.' },
+] as const;
+
+export type ThemeId = (typeof THEMES)[number]['id'];
+
+export const DEFAULT_THEME: ThemeId = 'cerberus';
+
+const STORAGE_KEY = 'widgetry-theme';
+
+export function isThemeId(value: string | null | undefined): value is ThemeId {
+  return THEMES.some((theme) => theme.id === value);
+}
+
+/** The theme actually applied right now, read off the DOM rather than
+ *  storage - the two can disagree in a tab that never reloaded since. */
+export function currentTheme(): ThemeId {
+  if (typeof document === 'undefined') return DEFAULT_THEME;
+  const applied = document.documentElement.dataset.theme;
+  return isThemeId(applied) ? applied : DEFAULT_THEME;
+}
+
+export function setTheme(id: ThemeId): void {
+  document.documentElement.dataset.theme = id;
+  try {
+    localStorage.setItem(STORAGE_KEY, id);
+  } catch {
+    // Private browsing or storage disabled - the choice just won't survive a
+    // reload, which is a strictly worse but not broken experience.
+  }
+}

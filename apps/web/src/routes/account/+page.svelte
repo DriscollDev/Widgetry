@@ -14,11 +14,22 @@
 -->
 <script lang="ts">
   import { enhance } from '$app/forms';
+  import { currentTheme, setTheme, THEMES, type ThemeId } from '$lib/theme';
   import type { ActionData, PageData } from './$types';
 
   let { data, form }: { data: PageData; form: ActionData } = $props();
 
   let submitting = $state(false);
+
+  /** Reads the DOM once at init, which app.html's blocking script has
+   *  already set correctly by the time this component mounts. Writable:
+   *  `chooseTheme` below reassigns it directly rather than through a store. */
+  let theme = $derived(currentTheme());
+
+  function chooseTheme(id: ThemeId) {
+    setTheme(id);
+    theme = id;
+  }
 
   const memberSince = $derived(
     data.user
@@ -38,6 +49,34 @@
     <h1 class="text-2xl font-semibold text-surface-950-50">Account</h1>
     <p class="mt-1 text-sm text-surface-600-400">Your profile and sign-in security.</p>
   </header>
+
+  <section class="rounded-xl border border-surface-200-800 bg-surface-50-950 p-5">
+    <h2 class="text-sm font-semibold text-surface-950-50">Appearance</h2>
+    <p class="mt-1 text-xs text-surface-600-400">
+      Saved to this browser. Changes apply immediately.
+    </p>
+
+    <div class="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+      {#each THEMES as candidate (candidate.id)}
+        {@const active = theme === candidate.id}
+        <button
+          type="button"
+          onclick={() => chooseTheme(candidate.id)}
+          data-theme={candidate.id}
+          aria-pressed={active}
+          class="rounded-lg border p-3 text-left transition-colors {active
+            ? 'border-primary-500'
+            : 'border-surface-200-800 hover:border-surface-400-600'}"
+        >
+          <span class="flex items-center gap-2">
+            <span class="size-4 rounded-full preset-filled-primary-500" aria-hidden="true"></span>
+            <span class="text-sm font-medium text-surface-950-50">{candidate.label}</span>
+          </span>
+          <span class="mt-1 block text-xs text-surface-600-400">{candidate.description}</span>
+        </button>
+      {/each}
+    </div>
+  </section>
 
   {#if data.user}
     <section class="rounded-xl border border-surface-200-800 bg-surface-50-950 p-5">
