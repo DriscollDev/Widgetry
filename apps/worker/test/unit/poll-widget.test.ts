@@ -240,12 +240,9 @@ describe('poll job - snapshot write fallback', () => {
 });
 
 describe('poll job - SSRF regression suite (EX-30)', () => {
-  // The real customJsonFetcher calling the real, unmocked safeFetch (only the
-  // DB is mocked) - so this exercises the actual §11.3 gate end to end, not a
-  // stand-in that already knows the URL is bad. A literal blocked address
-  // (rather than a hostname) keeps this hermetic: resolveAndValidate short
-  // -circuits on an IP literal and never opens a socket, same reasoning as
-  // safe-fetch.test.ts's literal-address cases.
+  // Real customJsonFetcher + real safeFetch (only the DB is mocked), so this
+  // exercises the actual §11.3 gate end to end. A literal blocked address
+  // keeps it hermetic - never opens a socket.
   const BLOCKED_CONFIG = {
     url: 'http://169.254.169.254/latest/meta-data/',
     layoutId: 'single',

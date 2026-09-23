@@ -1,30 +1,15 @@
 // apps/worker/test/unit/safe-fetch-http.test.ts
 //
-// EX-29 (redirect status detection) and EX-Size-Timeout: `requestOnce`'s HTTP
-// mechanics, verified against a real local server. Previously implemented but
-// entirely unverified - safe-fetch.test.ts deliberately only covers literal
-// blocked addresses, which never reach `requestOnce` at all.
+// EX-29 (redirect detection) and EX-Size-Timeout: requestOnce's HTTP
+// mechanics, verified against a real local server rather than a mock of
+// node:http, since the behavior under test IS the wiring to it.
 //
-// Why a real server rather than a mock of node:http: the behavior under test
-// IS the wiring to node:http (the timeout timer racing the response, the byte
-// counter racing incoming chunks, `res.destroy()` actually stopping a transfer)
-// - mocking that module would just reassert what the source already claims.
-//
-// Why this tests `requestOnce` directly rather than `safeFetch`: `safeFetch`
-// runs every hop through `resolveAndValidate` first, and 127.0.0.1 - the only
-// address a test server in this environment can bind to - is unconditionally
-// blocked (§11.3, correctly). There is no address this sandbox can both
-// control and have the gate accept, so a full-pipeline test would need either
-// live internet egress (explicitly rejected elsewhere in this suite) or
-// weakening the blocklist for a test, which defeats the point of testing it.
-// `requestOnce` has no address policy of its own - that is entirely
-// `resolveAndValidate`'s job, already covered in safe-fetch.test.ts and
-// safe-fetch-dns-rebinding.test.ts - so testing it against loopback raises no
-// SSRF question. What is NOT covered by any test, and is called out explicitly
-// in apps/worker/test/README.md rather than left implicit: `safeFetch`'s own
-// redirect LOOP - re-running `resolveAndValidate` on each hop's Location,
-// counting redirects across hops - is verified by code review only, for the
-// structural reason above.
+// Tests requestOnce directly, not safeFetch: 127.0.0.1 is unconditionally
+// blocked by the SSRF gate (correctly), so a full-pipeline test against a
+// local server isn't possible. requestOnce has no address policy of its own
+// - that's resolveAndValidate's job, covered elsewhere - so loopback here
+// raises no SSRF question. safeFetch's own redirect loop is verified by code
+// review only, per apps/worker/test/README.md.
 
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -61,15 +46,10 @@ const routes: Record<string, Handler> = {
     }, 400);
   },
   '/big': (_req, res) => {
-    // No content-length: Node sends this chunked, so the cap can only be
-    // enforced by counting bytes as they arrive - exactly the "lying or
-    // absent header is the normal case for a hostile server" scenario the
-    // cap's own comment in safe-fetch.ts names. (A content-length that
-    // UNDERSELLS the real body was tried here too, but isn't a real bypass:
-    // Node's client parses strictly by the declared length and treats the
-    // leftover bytes as a malformed pipelined response - a parse error, not
-    // a cap question. Omitting the header, as any chunked or
-    // connection-close-terminated response does, is the actual threat.)
+    // No content-length - sent chunked, so the byte cap can only be enforced
+    // by counting as it arrives. That's the realistic hostile case; a
+    // Content-Length that underselling the real body isn't a real bypass,
+    // since Node's client just rejects the leftover bytes as malformed.
     res.writeHead(200);
     res.end('x'.repeat(1000));
   },

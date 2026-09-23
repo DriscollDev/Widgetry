@@ -361,12 +361,9 @@ function parseHttpUrl(raw: string): URL {
  * One hop. Returns either the response (headers read, body optionally consumed)
  * or a redirect target for the caller to re-validate.
  *
- * Exported so its mechanics (timeout, the byte cap, redirect-status detection)
- * can be tested directly against a local server (EX-29/EX-Size-Timeout). It
- * deliberately does not itself call `resolveAndValidate` - the address policy
- * is the caller's job (`safeFetch`, tested separately) - so exercising it here
- * needs no SSRF-gate workaround: a loopback test server is never a policy
- * question for this function, only for what calls it.
+ * Exported so its mechanics (timeout, byte cap, redirect detection) can be
+ * tested against a real local server, without needing an SSRF-gate
+ * workaround - address policy is the caller's job, not this function's.
  */
 export function requestOnce(
   url: URL,

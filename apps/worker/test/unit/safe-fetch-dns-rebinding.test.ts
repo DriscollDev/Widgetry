@@ -1,21 +1,10 @@
 // apps/worker/test/unit/safe-fetch-dns-rebinding.test.ts
 //
-// EX-28/EX-30 (§11.3 steps 2-4): the one scenario safe-fetch.test.ts explicitly
-// documents as missing - "a case that resolves a real hostname to a private
-// address... needs either a controlled DNS zone or a live network." A stub
-// resolver closes that gap without either: `node:dns` is mocked so a NAMED host
-// (never a literal, so `isIP` cannot short-circuit the lookup) resolves exactly
-// the way a DNS-rebinding attacker would want it to, and this file asserts the
-// gate still refuses it. Hermetic - no socket is ever opened, because every case
-// here is refused before `requestOnce` runs.
-//
-// Two layers, same split as safe-fetch.test.ts:
-//   `resolveAndValidate` - the pre-request check safeFetch runs explicitly.
-//   `guardedLookup` - the `lookup` Node actually calls at connect time, which is
-//     what closes the TOCTOU window a rebinding attack depends on (see the
-//     header comment in ../../src/lib/safe-fetch.ts for why pinning has to work
-//     this way). Untested anywhere else: every existing safeFetch case uses a
-//     literal address, which never reaches `guardedLookup` at all.
+// EX-28/EX-30 (§11.3 steps 2-4): DNS rebinding via a mocked node:dns, since a
+// real test needs either a controlled DNS zone or a live network. Covers both
+// resolveAndValidate (the pre-request check) and guardedLookup (the
+// connect-time pin that actually closes the TOCTOU window) - hermetic, no
+// socket ever opens.
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { promises as dnsPromises } from 'node:dns';
@@ -152,9 +141,6 @@ describe('safeFetch - the end-to-end rebinding case (§11.3, the gap safe-fetch.
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.failure).toBe('blocked');
-      // Same hygiene rule as the literal-address cases: matched rule and
-      // resolved address are for the operator log, not asserted away from here,
-      // but the outcome itself must never depend on a live socket.
       expect(result.detail.length).toBeGreaterThan(0);
     }
   });
