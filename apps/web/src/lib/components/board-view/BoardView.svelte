@@ -32,6 +32,18 @@
    * omit-to-hide rule Task #214 established for that entry point.
    */
   export let onEditWidget: ((widgetId: string) => void) | undefined = undefined;
+
+  /**
+   * US-B6 / FR-4.3: called with a widget's id when the user picks "Refresh
+   * now". Independently gated like Edit, so a page that has not wired it
+   * simply does not show the entry.
+   *
+   * This exists because a widget's own schedule is at least an hour
+   * (FR-4.2), so a tile showing a stale error had no way to be re-polled
+   * short of waiting it out. POST /v1/widgets/:id/refresh shipped for this
+   * and nothing called it.
+   */
+  export let onRefreshWidget: ((widgetId: string) => void) | undefined = undefined;
   /**
    * Task #222: fires whenever a drag or resize starts or ends, so the route's
    * auto-refresh scheduler can skip a tick mid-gesture rather than reloading
@@ -331,6 +343,11 @@
   function chooseDelete(widgetId: string) {
     closeMenu(false);
     onDeleteWidget?.(widgetId);
+  }
+
+  function chooseRefresh(widgetId: string) {
+    closeMenu(false);
+    onRefreshWidget?.(widgetId);
   }
 
   function chooseEdit(widgetId: string) {
@@ -841,6 +858,18 @@
                         on:click={() => chooseEdit(widget.id)}
                       >
                         Edit
+                      </button>
+                    {/if}
+                    {#if onRefreshWidget}
+                      <button
+                        type="button"
+                        role="menuitem"
+                        class="board-view__widget-menu-item"
+                        data-widget-menu-item
+                        on:pointerdown={(e) => e.stopPropagation()}
+                        on:click={() => chooseRefresh(widget.id)}
+                      >
+                        Refresh now
                       </button>
                     {/if}
                     <button

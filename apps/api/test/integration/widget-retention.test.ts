@@ -155,6 +155,77 @@ describeIntegration('PATCH /v1/widgets/:id - retention (US-H2, FR-5.2)', () => {
     expect(row?.retentionHours).toBe(DEFAULT_WIDGET_RETENTION_HOURS);
   });
 
+  // --- Reconfigure reschedules the poll (US-C6 + FR-4.3) ---
+  //
+  // A widget polls at most hourly (FR-4.2's 3600s floor), so before this a
+  // corrected config left the tile showing the OLD error snapshot for up to an
+  // hour, with no way to tell a fixed config from a still-broken one. PATCH now
+  // makes the widget due immediately, exactly as POST does on create.
+  //
+  // Only the `lastPolledAt` half is asserted here: the suite blanks REDIS_URL
+  // on purpose (test/setup.ts), so the follow-up enqueue always no-ops and the
+  // sweep is what would pick the widget up. That degradation is the designed
+  // fallback, not a gap in the test.
+
+  const lastPolledAtOf = async (widgetId: string): Promise<Date> => {
+    const [row] = await db
+      .select()
+      .from(schema.widgets)
+      .where(eq(schema.widgets.id, widgetId))
+      .limit(1);
+    expect(row?.lastPolledAt).toBeTruthy();
+    return row!.lastPolledAt;
+  };
+
+  it('makes a widget due again when its config changes', async () => {
+    const widgetId = await createWidget('uptime');
+    const before = await lastPolledAtOf(widgetId);
+
+    const response = await patchWidget(widgetId, {
+      config: { url: 'https://example.test/corrected' },
+    });
+    expect(response.statusCode, response.body).toBe(200);
+
+    // Due means last_polled_at is at least one interval in the past, which is
+    // what the scheduler's sweep tests for. Asserting "moved backwards" rather
+    // than an exact instant keeps this independent of the type's interval.
+    const after = await lastPolledAtOf(widgetId);
+    expect(after.getTime()).toBeLessThanOrEqual(before.getTime());
+    expect(after.getTime()).toBeLessThanOrEqual(Date.now());
+  });
+
+  it('leaves the schedule alone when only placement changes', async () => {
+    // A drag must not re-poll: moving a tile does not change what it fetches,
+    // and re-polling every gesture would turn the grid into an amplifier.
+    const widgetId = await createWidget('uptime');
+    const [row] = await db
+      .select()
+      .from(schema.widgets)
+      .where(eq(schema.widgets.id, widgetId))
+      .limit(1);
+    const before = row!.lastPolledAt;
+
+    // Its OWN current position, re-sent. The handler takes the move path
+    // whenever a placement field is present, changed or not, and a widget
+    // cannot overlap itself - so this exercises the branch without racing the
+    // grid positions the other tests in this file are occupying.
+    const response = await patchWidget(widgetId, {
+      gridCol: row!.gridCol,
+      gridRow: row!.gridRow,
+    });
+    expect(response.statusCode, response.body).toBe(200);
+
+    expect((await lastPolledAtOf(widgetId)).getTime()).toBe(before.getTime());
+  });
+
+  it('leaves the schedule alone on a retention-only change', async () => {
+    const widgetId = await createWidget('uptime');
+    const before = await lastPolledAtOf(widgetId);
+
+    expect((await patchWidget(widgetId, { retentionHours: 48 })).statusCode).toBe(200);
+    expect((await lastPolledAtOf(widgetId)).getTime()).toBe(before.getTime());
+  });
+
   it('updates retention and persists it to the column', async () => {
     const widgetId = await createWidget();
     const response = await patchWidget(widgetId, { retentionHours: 24 });
