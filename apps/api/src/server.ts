@@ -21,6 +21,7 @@ import { boardRoutes } from './routes/boards.js';
 import { credentialRoutes } from './routes/credentials.js';
 import { healthRoutes } from './routes/health.js';
 import { meRoutes } from './routes/me.js';
+import { widgetDataRoutes } from './routes/widget-data.js';
 import { widgetRoutes } from './routes/widgets.js';
 import { closePollQueue } from './lib/poll-queue.js';
 import { closeRefreshLock } from './lib/refresh-lock.js';
@@ -128,6 +129,7 @@ export async function buildServer(): Promise<FastifyInstance> {
   await fastify.register(meRoutes);
   await fastify.register(boardRoutes);
   await fastify.register(widgetRoutes);
+  await fastify.register(widgetDataRoutes);
   await fastify.register(credentialRoutes);
 
   // Both are lazy and may never have opened anything; closing them regardless

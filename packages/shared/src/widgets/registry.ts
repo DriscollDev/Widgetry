@@ -32,6 +32,7 @@ import type { WidgetType } from '../api/widgets.js';
 import { WIDGET_TYPES } from '../api/widgets.js';
 import type { ServerPolledWidgetTypeDef, WidgetTypeDef } from './types.js';
 import { ClockConfig } from './clock.js';
+import { CurrencyConfig } from './currency.js';
 import { CustomJsonConfig } from './custom-json.js';
 import { UptimeConfig } from './uptime.js';
 
@@ -93,13 +94,15 @@ export const WIDGET_TYPE_DEFS: Record<WidgetType, WidgetTypeDef> = {
     minRefreshSeconds: MIN_SERVER_POLL_SECONDS,
   },
 
-  // TODO(F5.6): exchangerate.host or Frankfurter, decision open. Client-polled
-  // through the api proxy. configSchema needs the base/quote currency pair.
+  // F5.6. Frankfurter, settling §4.4's open choice - it needs no API key, and
+  // exchangerate.host's free tier now does. Client-polled through
+  // /v1/widget-data/currency, which caches the upstream for 60s across all
+  // users (Eng §7.2). See ./currency.ts.
   currency: {
     id: 'currency',
     displayName: 'Currency Exchange',
     category: 'informational',
-    configSchema: NOT_YET_CONFIGURABLE,
+    configSchema: CurrencyConfig,
     renderer: 'value',
     polling: 'client',
     supportsHistory: false,
