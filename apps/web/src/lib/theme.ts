@@ -1,20 +1,23 @@
 // apps/web/src/lib/theme.ts
 //
-// The theme gradient (OQ-2, Design Principles §7): four Skeleton presets
-// ordered calm to vivid, all in the same blue-violet family so no theme
-// reads as a different product (the doc's own test, §3.2). Named by mood,
-// not by anything functional - Design Principle 3.2 keeps personality out of
-// color, so this ordering is aesthetic only and never signals widget status.
+// The theme gradient (OQ-2, Design Principles §7): the first four are ordered
+// calm to vivid within the same blue-violet family, so none of them reads as
+// a different product (the doc's own test, §3.2). Ember breaks the family on
+// purpose - a warm option for anyone who wants one - rather than extending
+// the gradient with a fifth blue-violet step. Named by mood, not by anything
+// functional - Design Principle 3.2 keeps personality out of color, so this
+// ordering is aesthetic only and never signals widget status.
 //
 // Client-only preference: localStorage, no `users` column yet. app.html's
 // inline script reads the same storage key before paint so there is no
 // flash of the wrong theme; keep that script's id list in sync with THEMES.
 
 export const THEMES = [
-  { id: 'hamlindigo', label: 'Calm', description: 'Muted and soft.' },
-  { id: 'cerberus', label: 'Standard', description: "Widgetry's default." },
-  { id: 'concord', label: 'Deep', description: 'Richer and more saturated.' },
-  { id: 'terminus', label: 'Vivid', description: 'The boldest of the set.' },
+  { id: 'hamlindigo', label: 'Calm', description: 'Soft and easy.' },
+  { id: 'cerberus', label: 'Standard', description: 'The classic.' },
+  { id: 'concord', label: 'Deep', description: 'Rich and moody.' },
+  { id: 'terminus', label: 'Vivid', description: 'Bold.' },
+  { id: 'crimson', label: 'Ember', description: 'Bring the heat.' },
 ] as const;
 
 export type ThemeId = (typeof THEMES)[number]['id'];
