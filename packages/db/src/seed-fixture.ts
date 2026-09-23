@@ -456,6 +456,21 @@ export const SEED_BOARDS: readonly SeedBoard[] = [
           // picture. DEMO_KEY is NASA's own published placeholder, rate-limited
           // and deliberately public - it is not a secret, and nothing in the
           // repo depends on it being one.
+          //
+          // The key sits in the URL here, which is the ONE case where that is
+          // acceptable and is not how a real key should be configured. A real
+          // key goes through the auth section, which stores it encrypted and
+          // attaches it per request; a key in the URL is stored in plain jsonb
+          // and handed back to the browser with the config (FR-6.2). This is
+          // exempt only because DEMO_KEY is public by design.
+          //
+          // LIVE, not pinned to a date: it fetches whatever NASA is showing
+          // today, which is the point of the demo. The cost is that APOD
+          // occasionally publishes a VIDEO, and on those days `url` is a
+          // YouTube link - a perfectly valid http(s) URL that is not an image,
+          // so the tile renders its "Image did not load" state. Adding
+          // `&date=2023-12-15` pins it to the picture seeded below if a
+          // deterministic demo matters more than a live one.
           url: 'https://api.nasa.gov/planetary/apod?api_key=DEMO_KEY',
           title: 'Astronomy picture of the day',
           accent: 'tertiary',
@@ -465,11 +480,18 @@ export const SEED_BOARDS: readonly SeedBoard[] = [
           ],
         },
         { gridCol: 0, gridRow: 6, gridWidth: 6, gridHeight: 4 },
-        // A real APOD image, so a freshly seeded board shows a picture before
-        // the worker's first sweep replaces it with the actual day's one.
+        // A REAL APOD entry (2023-12-15), verified to return 200 image/jpeg, so
+        // a freshly seeded board shows an actual picture before the worker's
+        // first sweep replaces it with the current day's.
+        //
+        // The previous value here was a plausible-looking path that had never
+        // been fetched, and it 404'd - which on the one widget in the fixture
+        // that exists to demonstrate images is the worst place to guess. If
+        // this needs changing, fetch the entry and check the URL rather than
+        // constructing one that looks right.
         customHistory(206, [
-          steady('https://apod.nasa.gov/apod/image/2312/M27_Hubble_960.jpg'),
-          steady('The Dumbbell Nebula from Hubble'),
+          steady('https://apod.nasa.gov/apod/image/2312/OrionBetelgeuse_occultation1024.jpg'),
+          steady('Betelgeuse Eclipsed'),
         ]),
       ),
     ],

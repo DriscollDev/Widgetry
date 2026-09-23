@@ -274,3 +274,53 @@ describe('BoardView interaction reporting (Task #222)', () => {
     expect(onInteractionChange).not.toHaveBeenCalledWith(true);
   });
 });
+
+describe('BoardView refresh-now (US-B6, FR-4.3)', () => {
+  const widgets = populatedBoardFixture.widgets;
+
+  const renderWithRefresh = () => {
+    const onDeleteWidget = vi.fn();
+    const onRefreshWidget = vi.fn();
+    render(BoardView, {
+      props: { board: populatedBoardFixture, state: 'populated', onDeleteWidget, onRefreshWidget },
+    });
+    return { onDeleteWidget, onRefreshWidget };
+  };
+
+  const menuButtons = () => screen.getAllByRole('button', { name: 'Widget menu' });
+
+  it('offers no Refresh entry when the page has not wired one', async () => {
+    // Independently gated, like Edit: a page that does not know how to refresh
+    // must not advertise that it can.
+    const onDeleteWidget = vi.fn();
+    render(BoardView, {
+      props: { board: populatedBoardFixture, state: 'populated', onDeleteWidget },
+    });
+    await fireEvent.click(menuButtons()[0]!);
+    await screen.findByRole('menu');
+    expect(screen.queryByRole('menuitem', { name: 'Refresh now' })).not.toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'Delete' })).toBeInTheDocument();
+  });
+
+  it('calls onRefreshWidget with that widget id and closes the menu', async () => {
+    const { onRefreshWidget, onDeleteWidget } = renderWithRefresh();
+    await fireEvent.click(menuButtons()[1]!);
+    await fireEvent.click(await screen.findByRole('menuitem', { name: 'Refresh now' }));
+
+    expect(onRefreshWidget).toHaveBeenCalledTimes(1);
+    expect(onRefreshWidget).toHaveBeenCalledWith(widgets[1]!.id);
+    // Refreshing is not deleting, however adjacent the two entries are.
+    expect(onDeleteWidget).not.toHaveBeenCalled();
+    await waitFor(() => expect(screen.queryByRole('menu')).not.toBeInTheDocument());
+  });
+
+  it('gives each widget a Refresh entry bound to its own id', async () => {
+    const { onRefreshWidget } = renderWithRefresh();
+    for (const [index, widget] of widgets.entries()) {
+      await fireEvent.click(menuButtons()[index]!);
+      await fireEvent.click(await screen.findByRole('menuitem', { name: 'Refresh now' }));
+      expect(onRefreshWidget).toHaveBeenLastCalledWith(widget.id);
+    }
+    expect(onRefreshWidget).toHaveBeenCalledTimes(widgets.length);
+  });
+});
