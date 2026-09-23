@@ -17,6 +17,7 @@ import {
   getWidgetTypeDef,
   parseWidgetConfig,
   CustomJsonSnapshotValue,
+  isDisplayableImageUrl,
   SLOT_PRIMITIVES,
   StockSnapshotValue,
   UptimeSnapshotValue,
@@ -241,6 +242,49 @@ describe('seeded history matches what the worker would write', () => {
       }
     },
   );
+
+  it('seeds every image slot with something the renderer will actually draw', () => {
+    // Cannot prove a URL resolves without a network call, and this suite does
+    // not make one. What it CAN pin is the shape: an image slot must carry an
+    // absolute http(s) URL, because that is the only thing the worker will
+    // store (isDisplayableImageUrl) and the only thing <img> is given.
+    //
+    // Worth guarding because the seeded value is a hand-written constant, and
+    // the first one shipped here was a plausible-looking APOD path that had
+    // never been fetched and 404'd. This catches the shape half of that class
+    // of mistake; the other half is "verify the URL before pasting it".
+    const imageSlots = allWidgets
+      .filter((w) => w.widgetType === 'custom_json')
+      .flatMap((widget) => {
+        const slots = widget.config.slots as { primitive: string; kind?: string }[];
+        return slots.flatMap((slot, index) =>
+          slot.primitive === 'image' ? [{ widget, slot, index }] : [],
+        );
+      });
+
+    // The fixture is meant to show off the whole catalog; an image primitive
+    // nobody seeded is a feature the demo board never draws.
+    expect(imageSlots.length).toBeGreaterThan(0);
+
+    for (const { widget, slot, index } of imageSlots) {
+      expect(slot.kind, 'an image slot declares image-url').toBe('image-url');
+
+      for (const value of valuesOf(widget)) {
+        const parsed = CustomJsonSnapshotValue.safeParse(value);
+        expect(parsed.success).toBe(true);
+        if (!parsed.success) continue;
+
+        const entry = parsed.data.slots[index];
+        expect(entry?.ok, 'a seeded image slot resolves').toBe(true);
+        if (!entry?.ok) continue;
+
+        expect(
+          isDisplayableImageUrl(entry.value),
+          `seeded image URL is not one the worker would store: ${String(entry.value)}`,
+        ).toBe(true);
+      }
+    }
+  });
 
   it.each(allWidgets.filter((w) => w.widgetType === 'stock').map((w, i) => [i, w] as const))(
     'every stock reading of widget %i is a valid StockSnapshotValue',
