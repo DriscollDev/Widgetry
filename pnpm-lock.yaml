@@ -47,6 +47,9 @@ importers:
       '@widgetry/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@widgetry/queue':
+        specifier: workspace:*
+        version: link:../../packages/queue
       '@widgetry/shared':
         specifier: workspace:*
         version: link:../../packages/shared
@@ -151,6 +154,9 @@ importers:
       '@widgetry/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@widgetry/queue':
+        specifier: workspace:*
+        version: link:../../packages/queue
       '@widgetry/shared':
         specifier: workspace:*
         version: link:../../packages/shared
@@ -227,6 +233,22 @@ importers:
       tsx:
         specifier: ^4
         version: 4.23.1
+      vitest:
+        specifier: ^3
+        version: 3.2.7(@types/node@20.19.43)(happy-dom@20.11.2)(jiti@2.7.0)(jsdom@30.0.1(@noble/hashes@2.2.0))(lightningcss@1.32.0)(tsx@4.23.1)
+
+  packages/queue:
+    dependencies:
+      bullmq:
+        specifier: ^5
+        version: 5.81.4
+      ioredis:
+        specifier: ^5
+        version: 5.11.1
+    devDependencies:
+      '@types/node':
+        specifier: ^20
+        version: 20.19.43
       vitest:
         specifier: ^3
         version: 3.2.7(@types/node@20.19.43)(happy-dom@20.11.2)(jiti@2.7.0)(jsdom@30.0.1(@noble/hashes@2.2.0))(lightningcss@1.32.0)(tsx@4.23.1)

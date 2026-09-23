@@ -1,0 +1,24 @@
+{
+  "name": "@widgetry/queue",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "The BullMQ contract shared by the worker (consumer) and the api (producer).",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "echo '[queue] no tests yet' && exit 0",
+    "test:unit": "vitest run",
+    "test:integration": "echo '[queue] no integration tests yet' && exit 0"
+  },
+  "dependencies": {
+    "bullmq": "^5",
+    "ioredis": "^5"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "vitest": "^3"
+  }
+}

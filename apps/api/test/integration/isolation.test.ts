@@ -10,13 +10,13 @@
 // (Task #170 placement, US-H2 retention, US-C6 config), GET /v1/widgets/:id
 // (US-C6), PUT/DELETE /v1/widgets/:id/credential (US-S1..S4), and DELETE
 // /v1/widgets/:id (US-W4, Task #210) are all real now. Nothing here is a probe
-// any more; refresh and snapshots have no handlers yet.
+// any more. GET /v1/widgets/:id/snapshots (EX-Snapshots-Endpoint) and
+// POST /v1/widgets/:id/refresh (EX-41) are both real now - every
+// board- and widget-scoped route in Eng §6.2 is covered by this table.
 //
-// NOTE FOR WHOEVER ADDS THE NEXT REAL WIDGET ROUTE: as each of
-// POST /v1/widgets/:id/refresh and
-// GET /v1/widgets/:id/snapshots lands,
-// add it to `endpointsFor` below and delete the matching probe. §11.7 requires
-// EVERY scoped endpoint to appear here, and this suite runs on every PR.
+// NOTE FOR WHOEVER ADDS THE NEXT WIDGET ROUTE: add it to `endpointsFor`
+// below in the same PR. §11.7 requires EVERY scoped endpoint to appear here,
+// and this suite runs on every PR.
 //
 // A real route needs two things a probe did not: a request body that would
 // actually succeed, and an expected owner-path status (POST answers 201). Both
@@ -113,8 +113,8 @@ describeIntegration('multi-tenant isolation (EX-17, Eng §11.7)', () => {
     // their method+paths would throw FST_ERR_DUPLICATE_ROUTE - which would be
     // the good kind of failure, since a probe silently shadowing a real route
     // would mean this suite proving the gate on a stub while the shipped
-    // handler went untested. Add a probe back only for a genuinely unbuilt
-    // endpoint (refresh, snapshots), and delete it the moment that lands.
+    // handler went untested. There is no unbuilt scoped endpoint left to
+    // probe for; add one back only if a future route lands here first.
     await app.ready();
     db = createDb(process.env.DATABASE_URL!);
 
@@ -214,6 +214,28 @@ describeIntegration('multi-tenant isolation (EX-17, Eng §11.7)', () => {
       ownerStatus: 200,
     },
     {
+      // EX-Snapshots-Endpoint. Real route as of this commit - the probe that
+      // stood here is gone. A widget with no snapshots still answers 200 with
+      // an empty list, so no fixture rows are needed for the isolation check.
+      name: 'GET /v1/widgets/:id/snapshots',
+      method: 'GET' as const,
+      url: `/v1/widgets/${widgetId}/snapshots`,
+      payload: undefined,
+      ownerStatus: 200,
+    },
+    {
+      // EX-41/EX-43. `widgetId` is a clock - purely local, so §8.4's third
+      // case answers 204 for the owner without needing Redis or a queue. That
+      // is deliberate for this table: the cross-tenant assertion is about the
+      // ownership gate, and picking the branch with no infrastructure
+      // dependency keeps a 404 here from ever meaning "Redis was down".
+      name: 'POST /v1/widgets/:id/refresh',
+      method: 'POST' as const,
+      url: `/v1/widgets/${widgetId}/refresh`,
+      payload: undefined,
+      ownerStatus: 204,
+    },
+    {
       name: 'PATCH /v1/widgets/:id',
       method: 'PATCH' as const,
       url: `/v1/widgets/${widgetId}`,
@@ -293,6 +315,17 @@ describeIntegration('multi-tenant isolation (EX-17, Eng §11.7)', () => {
       expect(response.statusCode, `${endpoint.name} should allow the owner: ${response.body}`).toBe(
         endpoint.ownerStatus ?? 200,
       );
+
+      // 204 means "done, and there is deliberately nothing to send" - the
+      // refresh endpoint answers it for a purely local widget (Eng §8.4). There
+      // is no body to parse, and asking for one throws on the empty string
+      // rather than failing an assertion, which is how this first showed up.
+      // The status check above is the whole owner-path assertion for those.
+      if (response.statusCode === 204) {
+        expect(response.body, `${endpoint.name} must send no body with a 204`).toBe('');
+        continue;
+      }
+
       const body = response.json();
       // The credential verbs answer with `widgetId`; everything else with `id`.
       expect(body.id ?? body.widgetId, `${endpoint.name} should resolve a row`).toBeTruthy();
