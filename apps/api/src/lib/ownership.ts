@@ -87,12 +87,8 @@ export function ownedWidgetQuery(widgetId: string, userId: string) {
     .limit(1);
 }
 
-/**
- * Every widget id `userId` owns, as a subquery - the ownership scope for a
- * write or read against `widget_snapshots` or `api_credentials`, neither of
- * which has a `user_id` of its own (see the file header). Shared by
- * credentials.ts and widgets.ts rather than each defining its own copy.
- */
+/** Every widget id a user owns, as a subquery. Used to scope queries against
+ * widget_snapshots/api_credentials, which have no user_id of their own. */
 export function ownedWidgetIds(userId: string) {
   return db
     .select({ id: schema.widgets.id })

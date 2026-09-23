@@ -89,10 +89,8 @@
   let catalogOpen = $state(false);
   let configOpen = $state(false);
   let pickedType = $state<PickedWidgetType | null>(null);
-  /** US-C6: set instead of `pickedType` when the config modal is opened to
-   * edit an existing widget rather than create one - WidgetConfigModal reads
-   * this to switch its whole flow (fetch, PATCH instead of POST, no grid
-   * position) over to edit mode. */
+  /** Set instead of `pickedType` when opening the config modal to edit an
+   * existing widget rather than create one. */
   let editWidgetId = $state<string | null>(null);
 
   // First free spot for a new widget. Since #204 the API answers 409 to a widget
@@ -126,10 +124,7 @@
     await invalidateAll();
   }
 
-  // --- US-C6: edit an existing widget's configuration. Reuses the same
-  // WidgetConfigModal instance the create flow uses - it already branches its
-  // whole behavior on whether editWidgetId is set - rather than a second
-  // modal duplicating the custom_json/generic split. ---
+  // Reuses the same WidgetConfigModal instance the create flow uses.
   function requestWidgetEdit(widgetId: string) {
     pickedType = null;
     editWidgetId = widgetId;

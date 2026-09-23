@@ -5,12 +5,9 @@
 //   PUT    /v1/widgets/:id/credential   set or replace   US-S1, US-S4, FR-6.1
 //   DELETE /v1/widgets/:id/credential   remove           US-S3
 //
-// Deliberately no GET (Eng §6.2, tested in credential-routes.test.ts): a
-// "does a credential exist" read is a real use case (US-C6's edit form wants
-// to say so), but it belongs on the board/widget payload as a `hasCredential`
-// flag (see BoardWidgetPlacement in packages/shared), not as a read verb on
-// this write-only sub-resource - keeping this route group write-only-only is
-// the whole point of it being a separate resource from the widget itself.
+// No GET here on purpose - stays write-only (Eng §6.2). Credential status
+// (hasCredential) is exposed via GET /v1/widgets/:id instead.
+//
 // Write-only (FR-6.2, US-S2). The plaintext key exists in this process only
 // between parsing the request body and `encryptCredential` returning; it is
 // never logged (the request body is not part of the request log line), never

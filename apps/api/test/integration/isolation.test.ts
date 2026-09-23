@@ -5,14 +5,8 @@
 // widget-scoped endpoint User B must receive 404 - never 403, never 200, never
 // a 500 that betrays a database error on a crafted id.
 //
-// The board-scoped endpoints below are real routes from routes/boards.ts and
-// routes/widgets.ts - the probes they replaced are gone. PATCH /v1/widgets/:id
-// (Task #170 placement, US-H2 retention, US-C6 config), GET /v1/widgets/:id
-// (US-C6), PUT/DELETE /v1/widgets/:id/credential (US-S1..S4), and DELETE
-// /v1/widgets/:id (US-W4, Task #210) are all real now. Nothing here is a probe
-// any more. GET /v1/widgets/:id/snapshots (EX-Snapshots-Endpoint) and
-// POST /v1/widgets/:id/refresh (EX-41) are both real now - every
-// board- and widget-scoped route in Eng §6.2 is covered by this table.
+// Every board- and widget-scoped route in Eng §6.2 is a real route now and
+// covered by the table below - nothing here is a probe any more.
 //
 // NOTE FOR WHOEVER ADDS THE NEXT WIDGET ROUTE: add it to `endpointsFor`
 // below in the same PR. §11.7 requires EVERY scoped endpoint to appear here,
@@ -107,14 +101,8 @@ describeIntegration('multi-tenant isolation (EX-17, Eng §11.7)', () => {
     const { buildServer } = await import('../../src/server.js');
     app = await buildServer();
 
-    // No probes left in this family - GET, PATCH, DELETE and the credential
-    // verbs on /v1/widgets/:id are all real routes registered by buildServer()
-    // via routes/widgets.ts and routes/credentials.ts. A probe here on any of
-    // their method+paths would throw FST_ERR_DUPLICATE_ROUTE - which would be
-    // the good kind of failure, since a probe silently shadowing a real route
-    // would mean this suite proving the gate on a stub while the shipped
-    // handler went untested. There is no unbuilt scoped endpoint left to
-    // probe for; add one back only if a future route lands here first.
+    // No probes left in this family - every widget route is real. Add one
+    // back only if a future route lands here first.
     await app.ready();
     db = createDb(process.env.DATABASE_URL!);
 

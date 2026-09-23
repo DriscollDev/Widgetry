@@ -24,13 +24,8 @@
    * deletion yet looks exactly as it did before.
    */
   export let onDeleteWidget: ((widgetId: string) => void) | undefined = undefined;
-  /**
-   * US-C6: called with a widget's id when the user picks Edit from that
-   * widget's menu. What happens next belongs to the route - fetching the
-   * widget's full config and opening WidgetConfigModal in edit mode. Shown
-   * alongside Delete in the same menu, so it follows the same
-   * omit-to-hide rule Task #214 established for that entry point.
-   */
+  /** Called with a widget's id when the user picks Edit from its menu. Shown
+   * only when wired, same as onDeleteWidget above. */
   export let onEditWidget: ((widgetId: string) => void) | undefined = undefined;
   /**
    * Task #222: fires whenever a drag or resize starts or ends, so the route's
@@ -791,14 +786,9 @@
               }}
             />
 
-            <!-- Task #214 (US-W4) / US-C6: per-widget menu. The menu itself is
-                 gated on onDeleteWidget, same as Task #214 originally wired
-                 it - a page that has not adopted deletion looks exactly as
-                 before. Edit is a second, independently-gated entry inside
-                 it, shown only when the route also wired onEditWidget. The
-                 pointerdown stopPropagation calls are load-bearing: without
-                 them the press bubbles to the widget's startDrag, which
-                 captures the pointer and steals the click from the button. -->
+            <!-- Per-widget menu, gated on onDeleteWidget; Edit is a second
+                 entry gated on onEditWidget. pointerdown stopPropagation is
+                 load-bearing - without it the press bubbles to startDrag. -->
             {#if onDeleteWidget}
               <div
                 class="board-view__widget-menu"

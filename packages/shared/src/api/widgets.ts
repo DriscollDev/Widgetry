@@ -223,18 +223,9 @@ export const BoardWidgetPlacement = WidgetPlacement.extend({
 export type BoardWidgetPlacement = z.infer<typeof BoardWidgetPlacement>;
 
 /**
- * GET /v1/widgets/:id - US-C6. A single widget's full, UNFILTERED state, for
- * its owner's own edit form.
- *
- * Deliberately a different shape from `BoardWidgetPlacement`, not a reuse of
- * it: that schema's `config` is the display allowlist (`WidgetConfigView`,
- * via `toConfigView` - excludes `headers` and `apiKey` on purpose, see
- * apps/api/src/widgets/config-view.ts), because it is sent for every widget on
- * a board just to render them. This endpoint is fetched one widget at a time,
- * only by that widget's owner, only to populate an edit form - the same bar
- * `POST`'s 201 response already clears by echoing back whatever config the
- * caller just sent. `headers` and `apiKey`'s PLACEMENT (not the secret itself
- * - see `hasCredential`) are exactly what an edit form needs to show.
+ * GET /v1/widgets/:id - US-C6. A widget's full, unfiltered config, for its
+ * owner's edit form - unlike BoardWidgetPlacement's config, which is
+ * allowlisted for display (see config-view.ts) and excludes headers/apiKey.
  */
 export const WidgetDetail = z.object({
   id: z.uuid(),
@@ -248,12 +239,7 @@ export const WidgetDetail = z.object({
   refreshIntervalSeconds: z.number().int().nullable(),
   /** Full stored config. `{}` for an unconfigured widget. */
   config: z.record(z.string(), z.unknown()),
-  /**
-   * Whether `PUT /v1/widgets/:id/credential` has a row for this widget - never
-   * the key itself (FR-6.2). That route stays write-only (see its file's
-   * header comment); this is the read path for the one non-secret fact about
-   * it a caller might need.
-   */
+  /** Whether a credential is saved - never the key itself (FR-6.2). */
   hasCredential: z.boolean(),
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime(),
@@ -308,13 +294,9 @@ export const WidgetRetentionHours = z
  * conflict validation are different concerns, and the reject-and-snap-back
  * check runs race-safe in the handler's transaction (#188).
  *
- * DONE(F4.2/US-C6): `config`. Same `unknown`-here/`parseWidgetConfig`-in-the-
- *   handler split as `CreateWidgetRequest.config` - this schema cannot know
- *   what shape is valid, because that depends on the widget's own (already
- *   fixed, non-caller-supplied) `widgetType`. The handler re-validates against
- *   the STORED type, never a caller-supplied one - PATCH has no `widgetType`
- *   field and changing a widget's type is out of scope (US-C6 is "edit an
- *   existing widget's configuration", not "change what it is").
+ * DONE(F4.2/US-C6): `config`, same `unknown`-here/`parseWidgetConfig`-in-the-
+ *   handler split as `CreateWidgetRequest.config`. Validated against the
+ *   widget's stored type - there is no `widgetType` field to change it.
  */
 export const UpdateWidgetRequest = WidgetPlacement.partial()
   .extend({

@@ -131,10 +131,7 @@ describe('UpdateWidgetRequest - PATCH semantics', () => {
     });
   });
 
-  // US-C6. Same split as refreshIntervalSeconds below: this schema only knows
-  // config is `unknown` and may be present - whether ITS SHAPE is valid for
-  // the widget's actual (stored, not caller-supplied) type is the handler's
-  // job via parseWidgetConfig, same two-step split CreateWidgetRequest uses.
+  // Shape validation only - actual config validity is the handler's job.
   it('accepts a config field, unvalidated at this layer', () => {
     const result = UpdateWidgetRequest.safeParse({ config: { url: 'https://x.test/' } });
     expect(result.success).toBe(true);
