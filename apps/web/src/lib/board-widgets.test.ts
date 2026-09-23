@@ -14,6 +14,7 @@ const placement = {
   gridWidth: 3,
   gridHeight: 2,
   retentionHours: 168,
+  refreshIntervalSeconds: 3600,
   createdAt: at,
   updatedAt: at,
 } satisfies BoardWidgetPlacement;

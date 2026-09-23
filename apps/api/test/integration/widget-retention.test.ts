@@ -287,3 +287,144 @@ describeIntegration('PATCH /v1/widgets/:id - retention (US-H2, FR-5.2)', () => {
     expect(response.statusCode, response.body).toBe(200);
   });
 });
+
+describeIntegration('POST/PATCH /v1/widgets - refresh interval (US-C5, FR-4.2)', () => {
+  let app: FastifyInstance;
+  let db: ReturnType<typeof createDb>;
+  let cookie = '';
+  let boardId = '';
+
+  const email = `refresh-interval-${runId}@widgetry.test`;
+
+  const createWidget = async (widgetType: string, body: Record<string, unknown> = {}) =>
+    app.inject({
+      method: 'POST',
+      url: `/v1/boards/${boardId}/widgets`,
+      remoteAddress: nextIp(),
+      headers: { cookie, 'content-type': 'application/json' },
+      payload: {
+        widgetType,
+        ...nextGridPosition(),
+        gridWidth: 2,
+        gridHeight: 2,
+        ...(widgetType === 'uptime' ? { config: { url: 'https://example.test/health' } } : {}),
+        ...body,
+      },
+    });
+
+  const patchWidget = (widgetId: string, payload: unknown) =>
+    app.inject({
+      method: 'PATCH',
+      url: `/v1/widgets/${widgetId}`,
+      remoteAddress: nextIp(),
+      headers: { cookie, 'content-type': 'application/json' },
+      payload: payload as Record<string, unknown>,
+    });
+
+  beforeAll(async () => {
+    const { buildServer } = await import('../../src/server.js');
+    app = await buildServer();
+    await app.ready();
+    db = createDb(process.env.DATABASE_URL!);
+
+    const signUp = await app.inject({
+      method: 'POST',
+      url: '/v1/auth/sign-up/email',
+      remoteAddress: nextIp(),
+      headers: { 'content-type': 'application/json' },
+      payload: { name: 'Refresh Interval Test', email, password: VALID_PASSWORD },
+    });
+    expect(signUp.statusCode, `sign-up failed: ${signUp.body}`).toBe(200);
+    cookie = cookiesFrom(signUp);
+
+    const board = await app.inject({
+      method: 'POST',
+      url: '/v1/boards',
+      remoteAddress: nextIp(),
+      headers: { cookie, 'content-type': 'application/json' },
+      payload: { name: 'Refresh interval board', refreshMode: 'manual' },
+    });
+    expect(board.statusCode, board.body).toBe(201);
+    boardId = BoardResponse.parse(board.json()).id;
+  });
+
+  afterAll(async () => {
+    await app?.close();
+    if (db) await db.delete(schema.user).where(eq(schema.user.email, email));
+  });
+
+  it('creates a widget with a caller-supplied interval and persists it', async () => {
+    const response = await createWidget('uptime', { refreshIntervalSeconds: 7200 });
+    expect(response.statusCode, response.body).toBe(201);
+
+    const [row] = await db
+      .select()
+      .from(schema.widgets)
+      .where(eq(schema.widgets.id, response.json().id))
+      .limit(1);
+    expect(row?.refreshIntervalSeconds).toBe(7200);
+  });
+
+  it('updates the interval via PATCH and persists it', async () => {
+    const created = await createWidget('uptime');
+    const widgetId = created.json().id as string;
+
+    const response = await patchWidget(widgetId, { refreshIntervalSeconds: 7200 });
+    expect(response.statusCode, response.body).toBe(200);
+
+    const [row] = await db
+      .select()
+      .from(schema.widgets)
+      .where(eq(schema.widgets.id, widgetId))
+      .limit(1);
+    expect(row?.refreshIntervalSeconds).toBe(7200);
+  });
+
+  it.each([100, 3599, 0, -1])(
+    'rejects %d on create - below the uptime floor, with a 400',
+    async (seconds) => {
+      const response = await createWidget('uptime', { refreshIntervalSeconds: seconds });
+      expect(response.statusCode, response.body).toBe(400);
+      expect(response.json().error.code).toBe('validation_failed');
+    },
+  );
+
+  it('rejects a below-floor interval on PATCH too', async () => {
+    const created = await createWidget('uptime');
+    const widgetId = created.json().id as string;
+
+    const response = await patchWidget(widgetId, { refreshIntervalSeconds: 100 });
+    expect(response.statusCode, response.body).toBe(400);
+  });
+
+  it('refuses an interval on a client-polled widget, unlike retention', async () => {
+    // The inverse of retention's "accepted inertly" rule above: there is no
+    // poll loop for a clock widget that would ever read this, so it is a 400
+    // rather than a silently-ignored write.
+    const response = await createWidget('clock', { refreshIntervalSeconds: 3600 });
+    expect(response.statusCode, response.body).toBe(400);
+    expect(response.json().error.code).toBe('validation_failed');
+  });
+
+  it('refuses an interval on a client-polled widget via PATCH too', async () => {
+    const created = await createWidget('clock');
+    const widgetId = created.json().id as string;
+
+    const response = await patchWidget(widgetId, { refreshIntervalSeconds: 3600 });
+    expect(response.statusCode, response.body).toBe(400);
+  });
+
+  it('leaves the interval unchanged when a PATCH is rejected', async () => {
+    const created = await createWidget('uptime', { refreshIntervalSeconds: 7200 });
+    const widgetId = created.json().id as string;
+
+    await patchWidget(widgetId, { refreshIntervalSeconds: 100 });
+
+    const [row] = await db
+      .select()
+      .from(schema.widgets)
+      .where(eq(schema.widgets.id, widgetId))
+      .limit(1);
+    expect(row?.refreshIntervalSeconds).toBe(7200);
+  });
+});
