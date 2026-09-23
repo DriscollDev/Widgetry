@@ -180,3 +180,31 @@ describe('BoardView add widget (Task #219, US-W1)', () => {
     expect(screen.getAllByRole('button', { name: 'Add widget' })).toHaveLength(1);
   });
 });
+
+describe('BoardView interaction reporting (Task #222)', () => {
+  it('reports interacting true on drag start and false once the drop settles', async () => {
+    const onInteractionChange = vi.fn();
+    const { container } = render(BoardView, {
+      props: { board: populatedBoardFixture, state: 'populated', onInteractionChange },
+    });
+
+    const widget = container.querySelector('.board-view__widget');
+    expect(widget).toBeTruthy();
+
+    await fireEvent.pointerDown(widget!, { clientX: 10, clientY: 10 });
+    expect(onInteractionChange).toHaveBeenLastCalledWith(true);
+
+    await fireEvent.pointerUp(widget!);
+    expect(onInteractionChange).toHaveBeenLastCalledWith(false);
+  });
+
+  it('reports interacting false throughout when nothing is being dragged', () => {
+    const onInteractionChange = vi.fn();
+    render(BoardView, {
+      props: { board: populatedBoardFixture, state: 'populated', onInteractionChange },
+    });
+
+    expect(onInteractionChange).toHaveBeenCalledWith(false);
+    expect(onInteractionChange).not.toHaveBeenCalledWith(true);
+  });
+});
