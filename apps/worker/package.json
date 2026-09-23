@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@widgetry/db": "workspace:*",
+    "@widgetry/queue": "workspace:*",
     "@widgetry/shared": "workspace:*",
     "bullmq": "^5",
     "dotenv": "^17",

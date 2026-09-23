@@ -74,19 +74,26 @@ describe('board route registration (Eng §6.2)', () => {
     }
   });
 
-  it('does not register the widget-scoped routes that do not exist yet', () => {
-    // The complement of the assertion above. If one of these starts passing, its
-    // author owes the isolation suite an entry (Eng §11.7) - the probe routes
-    // that file registers would otherwise quietly shadow the real thing and the
-    // suite would be testing itself.
-    //
-    // GET /v1/widgets/:id used to be in this list; it is a real route now
-    // (US-C6) and isolation.test.ts's endpointsFor table already covers it.
-    for (const url of ['/v1/widgets/:id/refresh', '/v1/widgets/:id/snapshots']) {
-      expect(
-        app.hasRoute({ method: 'GET', url }),
-        `${url} exists now - update isolation.test.ts`,
-      ).toBe(false);
+  it('registers every widget-scoped route in the Eng §6.2 catalog', async () => {
+    // This used to be the complement - a list of routes asserted NOT to exist.
+    // They all exist now, so it asserts the positive instead: each is
+    // registered AND session-gated. Anything added here owes isolation.test.ts
+    // an entry (Eng §11.7).
+    const routes = [
+      { method: 'GET' as const, url: '/v1/widgets/:id' },
+      { method: 'GET' as const, url: '/v1/widgets/:id/snapshots' },
+      { method: 'POST' as const, url: '/v1/widgets/:id/refresh' },
+    ];
+
+    for (const route of routes) {
+      expect(app.hasRoute(route), `${route.method} ${route.url} is not registered`).toBe(true);
+
+      const response = await app.inject({
+        method: route.method,
+        url: route.url.replace(':id', SAMPLE_ID),
+      });
+      expect(response.statusCode, `${route.url} must 401 when anonymous`).toBe(401);
+      expect(response.json().error.code).toBe('unauthenticated');
     }
   });
 });

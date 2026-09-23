@@ -22,6 +22,8 @@ import { credentialRoutes } from './routes/credentials.js';
 import { healthRoutes } from './routes/health.js';
 import { meRoutes } from './routes/me.js';
 import { widgetRoutes } from './routes/widgets.js';
+import { closePollQueue } from './lib/poll-queue.js';
+import { closeRefreshLock } from './lib/refresh-lock.js';
 
 /**
  * Map an HTTP status onto one of our own error codes.
@@ -127,6 +129,13 @@ export async function buildServer(): Promise<FastifyInstance> {
   await fastify.register(boardRoutes);
   await fastify.register(widgetRoutes);
   await fastify.register(credentialRoutes);
+
+  // Both are lazy and may never have opened anything; closing them regardless
+  // keeps a test that built a server from leaving a socket behind.
+  fastify.addHook('onClose', async () => {
+    await closePollQueue();
+    closeRefreshLock();
+  });
 
   return fastify;
 }
