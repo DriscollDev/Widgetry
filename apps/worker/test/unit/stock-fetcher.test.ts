@@ -33,15 +33,54 @@ async function runFetcher(config: unknown = { symbol: 'AAPL' }) {
   return stockFetcher(config, ctx);
 }
 
-beforeEach(() => {
-  vi.resetModules();
+/**
+ * The whole worker environment, not just this fetcher's key.
+ *
+ * `env.FINNHUB_API_KEY` goes through the validating proxy in src/env.ts, and
+ * that proxy validates the ENTIRE schema on first access - so reading one
+ * optional key requires DATABASE_URL, REDIS_URL and MASTER_ENCRYPTION_KEY to
+ * be present and well-formed too.
+ *
+ * Without these stubs the suite passed locally and failed in CI, which is the
+ * worst way for a test to be wrong: it was quietly reading the developer's own
+ * .env. This file is the only worker unit test that touches `env` at all,
+ * which is why nothing had caught it. Stubbing every required key makes it
+ * hermetic - same answer on a laptop, in CI, and on a machine with no .env.
+ *
+ * The values are deliberately fake. The key is 32 zero bytes, base64, which is
+ * what MASTER_ENCRYPTION_KEY's shape check wants and is obviously not a real
+ * secret.
+ */
+function stubWorkerEnv(): void {
+  vi.stubEnv('DATABASE_URL', 'postgres://user:pw@localhost:5432/unit-test');
+  vi.stubEnv('REDIS_URL', 'redis://localhost:6379');
+  vi.stubEnv('MASTER_ENCRYPTION_KEY', Buffer.alloc(32).toString('base64'));
   vi.stubEnv('FINNHUB_API_KEY', 'test-key-do-not-log');
+}
+
+beforeEach(() => {
+  // Clears src/env.ts's module-level cache, so each test's stubs are the ones
+  // that get validated rather than the first test's.
+  vi.resetModules();
+  stubWorkerEnv();
 });
 
 afterEach(() => {
   vi.unstubAllEnvs();
   vi.unstubAllGlobals();
   vi.clearAllMocks();
+});
+
+describe('the test environment is hermetic', () => {
+  it('uses the stubbed values, never the developer’s .env', async () => {
+    // The guarantee this rests on: the worker's loadRootEnv calls dotenv with
+    // `override: false`, so anything already in process.env wins. Asserted
+    // rather than assumed, because the failure mode is a suite that passes on
+    // a laptop and fails in CI - which is exactly how this file first broke.
+    const { env } = await import('../../src/env.js');
+    expect(env.DATABASE_URL).toBe('postgres://user:pw@localhost:5432/unit-test');
+    expect(env.FINNHUB_API_KEY).toBe('test-key-do-not-log');
+  });
 });
 
 describe('stockFetcher - a good quote', () => {
