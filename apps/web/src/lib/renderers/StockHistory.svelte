@@ -17,7 +17,7 @@
   status colours rather than a general up/down palette.
 -->
 <script lang="ts">
-  import { buildSparklinePath } from '$lib/widgets/sparkline';
+  import Sparkline from '$lib/widgets/Sparkline.svelte';
   import { fetchPriceHistory } from './snapshots';
 
   type Props = { widgetId: string };
@@ -39,28 +39,12 @@
       live = false;
     };
   });
-
-  const width = 100;
-  const height = 24;
-
-  const path = $derived(buildSparklinePath(prices, width, height));
 </script>
 
 {#if prices.length >= 2}
-  <svg
-    viewBox="0 0 {width} {height}"
-    preserveAspectRatio="none"
-    class="h-6 w-full"
-    role="img"
-    aria-label="Price over the recorded history, {prices.length} readings"
-  >
-    <path
-      d={path}
-      fill="none"
-      class="stroke-primary-500"
-      stroke-width="2"
-      stroke-linecap="round"
-      stroke-linejoin="round"
-    />
-  </svg>
+  <Sparkline
+    points={prices}
+    heightClass="h-6"
+    label="Price over the recorded history, {prices.length} readings"
+  />
 {/if}

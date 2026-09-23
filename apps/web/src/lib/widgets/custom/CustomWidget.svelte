@@ -18,7 +18,7 @@
   // arrangement the automatic rule does not produce, and existing widgets use
   // it.
 
-  import { arrangementFor, type SlotClass } from '@widgetry/shared';
+  import { arrangementFor, slotWidthFor, type SlotClass } from '@widgetry/shared';
   import WidgetSlot from './WidgetSlot.svelte';
   import { getLayout, type CustomWidgetConfig, type SlotData } from './types';
 
@@ -40,6 +40,35 @@
 
   /** Columns for the automatic grid. Three across is the widest that stays readable. */
   const gridCols = $derived(slots.length >= 5 ? 'grid-cols-3' : 'grid-cols-2');
+
+  /**
+   * The two-slot row's column template, from what the slots ASK for rather
+   * than from their position.
+   *
+   * It used to be a fixed `auto 1fr` - slot 0 at its natural width, slot 1
+   * taking the rest - inherited from the `split` layout, which meant "a
+   * headline value beside a chart". Once slots became free-form that was wrong
+   * half the time: put the chart first and it was squeezed to a few pixels
+   * while the number beside it sprawled.
+   *
+   * The three class strings are written out in full because Tailwind scans
+   * source text; a computed `grid-cols-[...]` would never be generated.
+   */
+  const twoColumns = $derived.by(() => {
+    const first = slotWidthFor(slots[0]!) === 'wide';
+    const second = slotWidthFor(slots[1]!) === 'wide';
+    if (first && !second) return 'grid-cols-[1fr_auto]';
+    if (!first && second) return 'grid-cols-[auto_1fr]';
+    // Both or neither: split the row evenly rather than picking a winner.
+    return 'grid-cols-2';
+  });
+
+  /** A wide slot takes two columns of the automatic grid, where there is room. */
+  function spanFor(index: number): string {
+    const slot = slots[index];
+    if (!slot || slots.length < 3) return '';
+    return slotWidthFor(slot) === 'wide' ? 'col-span-2' : '';
+  }
 
   function dataFor(index: number): SlotData {
     return slotData[index] ?? { state: 'loading' };
@@ -121,25 +150,29 @@
       />
     </div>
   {:else if slots.length === 2}
-    <div class="grid grid-cols-[auto_1fr] items-center gap-4">
+    <div class="grid {twoColumns} items-center gap-4">
       {#each slots as slot, i (i)}
-        <WidgetSlot
-          config={slot}
-          data={dataFor(i)}
-          accent={config.accent}
-          slotClass={classFor(i)}
-        />
+        <div class="min-w-0">
+          <WidgetSlot
+            config={slot}
+            data={dataFor(i)}
+            accent={config.accent}
+            slotClass={classFor(i)}
+          />
+        </div>
       {/each}
     </div>
   {:else}
     <div class="grid {gridCols} gap-3">
       {#each slots as slot, i (i)}
-        <WidgetSlot
-          config={slot}
-          data={dataFor(i)}
-          accent={config.accent}
-          slotClass={classFor(i)}
-        />
+        <div class="min-w-0 {spanFor(i)}">
+          <WidgetSlot
+            config={slot}
+            data={dataFor(i)}
+            accent={config.accent}
+            slotClass={classFor(i)}
+          />
+        </div>
       {/each}
     </div>
   {/if}
