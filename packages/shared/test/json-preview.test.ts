@@ -145,12 +145,13 @@ describe('previewFields - what the locked grammar cannot address', () => {
     expect(skipped).toEqual([{ at: '(response)', reason: 'root-is-array' }]);
   });
 
-  it.each([['a bare string', '"hi"'], ['a number', 7], ['null', null]])(
-    'reports %s at the root',
-    (_label, body) => {
-      expect(previewFields(body).skipped[0]?.reason).toBe('root-not-object');
-    },
-  );
+  it.each([
+    ['a bare string', '"hi"'],
+    ['a number', 7],
+    ['null', null],
+  ])('reports %s at the root', (_label, body) => {
+    expect(previewFields(body).skipped[0]?.reason).toBe('root-not-object');
+  });
 
   it('names the nested location of an unaddressable key', () => {
     const { skipped } = previewFields({ data: { 'Time Series (Daily)': { a: 1 } } });

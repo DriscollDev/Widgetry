@@ -488,9 +488,9 @@
           {#if preview.skipped.length > 0}
             <p class="mt-1 text-xs text-surface-500">
               {preview.skipped.length}
-              {preview.skipped.length === 1 ? 'field is' : 'fields are'} not addressable: paths use
-              plain field names, so keys like <code>x-rate-limit</code> and a response that is a
-              list at the top level cannot be reached.
+              {preview.skipped.length === 1 ? 'field is' : 'fields are'} not addressable: paths use plain
+              field names, so keys like <code>x-rate-limit</code> and a response that is a list at the
+              top level cannot be reached.
             </p>
           {/if}
         {/if}

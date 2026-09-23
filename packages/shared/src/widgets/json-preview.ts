@@ -96,9 +96,10 @@ export function previewValue(value: unknown): string {
   if (typeof value === 'boolean') return String(value);
   if (typeof value === 'number') return Number.isFinite(value) ? String(value) : 'not a number';
   if (typeof value === 'string') {
-    const trimmed = value.length > PREVIEW_VALUE_MAX_LENGTH
-      ? `${value.slice(0, PREVIEW_VALUE_MAX_LENGTH - 1)}…`
-      : value;
+    const trimmed =
+      value.length > PREVIEW_VALUE_MAX_LENGTH
+        ? `${value.slice(0, PREVIEW_VALUE_MAX_LENGTH - 1)}…`
+        : value;
     // Newlines would break the single-line row; APOD's `explanation` is a
     // paragraph, so this is the common case rather than an edge one.
     return trimmed.replace(/\s+/g, ' ');

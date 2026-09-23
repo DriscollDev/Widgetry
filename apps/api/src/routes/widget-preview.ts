@@ -61,7 +61,10 @@ import { RATE_LIMIT_WINDOW } from '../plugins/rate-limit.js';
  * says it must never appear - and it would look entirely reasonable while doing
  * it, because the field is about redirects, not about keys.
  */
-function redactedFinalUrl(finalUrl: string, credential?: CustomPreviewRequestType['credential']): string {
+function redactedFinalUrl(
+  finalUrl: string,
+  credential?: CustomPreviewRequestType['credential'],
+): string {
   if (!credential || credential.placement.in !== 'query') return finalUrl;
   try {
     const parsed = new URL(finalUrl);

@@ -20,12 +20,7 @@
 // TODO(F10.1).
 
 import { describe, expect, it } from 'vitest';
-import {
-  checkAddressAllowed,
-  describeLocation,
-  headersForHop,
-  safeFetch,
-} from '../src/index.js';
+import { checkAddressAllowed, describeLocation, headersForHop, safeFetch } from '../src/index.js';
 
 describe('checkAddressAllowed - Feature Spec §6.3 IPv4 ranges', () => {
   // One or more representatives per blocked range, including each range's
