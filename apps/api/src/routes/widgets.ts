@@ -5,6 +5,7 @@
 // PATCH /v1/widgets/:id          US-W2 drag (#170), US-W3 resize (#158), US-H2 retention (F8.2),
 //                                US-C5 refresh interval, US-C6 edit config
 // GET   /v1/widgets/:id/snapshots  EX-Snapshots-Endpoint - timeline data (FR-5.4)
+// POST  /v1/widgets/:id/refresh    US-B6, FR-4.3, EX-41/EX-43 - refresh now
 // DELETE /v1/widgets/:id         US-W4 delete widget (Task #210)
 //
 // POST checks board ownership + the FR-3.5 cap + FR-3.3 overlap (Task #198),
@@ -38,6 +39,7 @@ import {
   dueNowLastPolledAt,
   MAX_SNAPSHOT_POINTS,
   parseWidgetConfig,
+  type RefreshResponse,
   SnapshotQuery,
   type SnapshotsResponse,
   UpdateWidgetRequest,
@@ -55,6 +57,8 @@ import {
   requireWidgetOwnership,
   type Widget,
 } from '../lib/ownership.js';
+import { enqueuePoll } from '../lib/poll-queue.js';
+import { claimRefreshLock } from '../lib/refresh-lock.js';
 import { requireSession } from '../lib/session.js';
 import { toLatestSnapshot } from '../widgets/latest-snapshot.js';
 
@@ -303,6 +307,27 @@ export async function widgetRoutes(fastify: FastifyInstance): Promise<void> {
         'widget created (US-W1)',
       );
 
+      // Poll it now rather than on the next sweep. `lastPolledAt` above already
+      // makes the widget due, so the scheduler would pick it up within 60s on
+      // its own; this is what turns "within a minute" into "by the time the
+      // modal closes", which is the difference between a board that looks alive
+      // and one that looks broken to whoever just added the widget.
+      //
+      // Best-effort ON PURPOSE, unlike the credential delete in #261: the
+      // fallback here is not data left behind, it is the widget polling on its
+      // normal schedule a few seconds later. Failing the create - which already
+      // succeeded and is already committed - over a queue hiccup would be
+      // strictly worse than being a minute late.
+      if (def.polling === 'server' && isConfigured) {
+        const enqueued = await enqueuePoll(widget.id);
+        if (!enqueued) {
+          request.log.info(
+            { widgetId: widget.id },
+            'first poll not enqueued; the scheduler sweep will pick it up (Eng §8.1)',
+          );
+        }
+      }
+
       return reply.status(201).send(toPlacement(widget));
     },
   );
@@ -418,6 +443,80 @@ export async function widgetRoutes(fastify: FastifyInstance): Promise<void> {
         .filter((point): point is NonNullable<typeof point> => point !== null);
 
       return { widgetId: widget.id, points, truncated };
+    },
+  );
+
+  /**
+   * POST /v1/widgets/:id/refresh - "refresh now" (US-B6, FR-4.3, EX-41/EX-43,
+   * Eng §8.4). Widget-scoped, so a mismatch is a 404.
+   *
+   * Three behaviours, chosen by the widget's polling mode, exactly as §8.4
+   * sets out:
+   *
+   *   server        enqueue a one-off poll job ahead of the scheduler's bulk
+   *                 work, and answer 202. The poll itself is the worker's;
+   *                 this endpoint promises only that it was scheduled.
+   *   client        the widget fetches its own upstream through the proxy, so
+   *                 there is nothing to enqueue. 202 with enqueued: false.
+   *   client, local Clock and Date/Time do no I/O at all. 204, no work needed
+   *                 (§8.4's third case) - the client re-renders on the same
+   *                 user action that sent this.
+   *
+   * RATE LIMIT (EX-43): 1 per 30 seconds per WIDGET, on top of the default
+   * 120/min per user. Per-widget is the limit that matters here, because the
+   * cost of abuse lands on a third party's API rather than on us - and a
+   * board-wide "refresh all" legitimately fires one of these per widget at
+   * once, which a per-user limit would reject wholesale.
+   *
+   * The lock is claimed BEFORE the enqueue. Claiming after would let two
+   * simultaneous requests both enqueue and then both fail to claim.
+   */
+  fastify.post(
+    '/v1/widgets/:id/refresh',
+    { preHandler: requireWidgetOwnership },
+    async (request, reply): Promise<RefreshResponse | undefined> => {
+      const widget = request.widget!;
+      const def = getWidgetTypeDef(widget.widgetType as WidgetType);
+
+      // §8.4's third case: purely local types have nothing to refresh. Answered
+      // before the rate limit, because there is no upstream to protect and
+      // rate-limiting a no-op only punishes a user clicking their own clock.
+      if (def.polling === 'client' && def.defaultRefreshSeconds === null) {
+        return reply.status(204).send();
+      }
+
+      const lock = await claimRefreshLock(widget.id);
+      if (!lock.claimed) {
+        throw new ApiError(
+          429,
+          ApiErrorCode.RATE_LIMITED,
+          `This widget was refreshed moments ago. Try again in ${lock.retryAfterSeconds} seconds.`,
+          { retryAfterSeconds: lock.retryAfterSeconds },
+        );
+      }
+
+      // Client-polled types with an upstream (Weather, Currency) re-fetch
+      // through /v1/widget-data/* on the client's own next tick; §8.4 has this
+      // endpoint invalidate their proxy cache, which does not exist yet
+      // (SCP-033). Answering 202 with enqueued:false is honest about that:
+      // the request was accepted and no server-side work was scheduled.
+      if (def.polling !== 'server') {
+        return reply.status(202).send({ widgetId: widget.id, enqueued: false });
+      }
+
+      const enqueued = await enqueuePoll(widget.id);
+      if (!enqueued) {
+        // No Redis, or Redis refused. Do NOT answer 202 - the caller would
+        // wait for data that is never coming.
+        throw new ApiError(
+          503,
+          ApiErrorCode.INTERNAL,
+          'Refresh could not be scheduled right now. The widget will still update on its normal schedule.',
+        );
+      }
+
+      request.log.info({ widgetId: widget.id }, 'manual refresh enqueued (US-B6/EX-41)');
+      return reply.status(202).send({ widgetId: widget.id, enqueued: true });
     },
   );
 

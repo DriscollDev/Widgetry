@@ -9,27 +9,20 @@
 // If one of these needs to change, change the document too - they cite the
 // section they come from precisely so that stays possible.
 
-/** Queue names. Kept together so nothing constructs one from a string literal. */
-export const QUEUE = {
-  /** Eng §8.2: one job per widget poll. */
-  WIDGET_POLLS: 'widget-polls',
-  /**
-   * The two repeating cron jobs: the §8.1 scheduler tick and the §8.3 retention
-   * purge. They share a queue because they share a property - each is a single
-   * periodic sweep that must not run concurrently with itself - and giving them
-   * one worker with concurrency 1 is what enforces that.
-   */
-  MAINTENANCE: 'maintenance',
-} as const;
-
-/** Job names within QUEUE.MAINTENANCE. */
-export const MAINTENANCE_JOB = {
-  SCHEDULER_TICK: 'scheduler-tick',
-  PURGE_SNAPSHOTS: 'purge-snapshots',
-} as const;
-
-/** Job name within QUEUE.WIDGET_POLLS. */
-export const POLL_WIDGET_JOB = 'poll-widget';
+// Queue names, job names and the poll-job retry policy moved to
+// @widgetry/queue when the api became a second producer (Eng §8.4's manual
+// refresh). Re-exported here so every existing `from './config.js'` import in
+// this app keeps working and there is still one obvious place to look.
+export {
+  MAINTENANCE_JOB,
+  MANUAL_REFRESH_PRIORITY,
+  POLL_JOB_ATTEMPTS,
+  POLL_JOB_BACKOFF_MS,
+  POLL_JOB_REMOVE_ON_COMPLETE,
+  POLL_JOB_REMOVE_ON_FAIL,
+  POLL_WIDGET_JOB,
+  QUEUE,
+} from '@widgetry/queue';
 
 /**
  * Eng §8.1: the master scheduler sweeps every 60 seconds. Also the number that
@@ -68,10 +61,6 @@ export const PURGE_BATCH_SIZE = 10_000;
  * inside one 60s tick - which is what lets the sweep's claim (see
  * ./scheduler.ts) cover the whole retry sequence.
  */
-export const POLL_JOB_ATTEMPTS = 3;
-export const POLL_JOB_BACKOFF_MS = 30_000;
-export const POLL_JOB_REMOVE_ON_COMPLETE = { count: 100 } as const;
-export const POLL_JOB_REMOVE_ON_FAIL = { count: 500 } as const;
 
 /** Eng §11.3 step 5: per-request timeout for any outbound fetch. */
 export const OUTBOUND_TIMEOUT_MS = 5_000;

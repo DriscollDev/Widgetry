@@ -404,3 +404,33 @@ export const SnapshotsResponse = z.object({
 });
 
 export type SnapshotsResponse = z.infer<typeof SnapshotsResponse>;
+
+/**
+ * EX-43 / Eng §8.4: a widget may be manually refreshed once every 30 seconds.
+ *
+ * In the contract rather than only in the api so the board's "refresh all"
+ * button can pace itself against the same number instead of discovering it
+ * through 429s.
+ */
+export const REFRESH_LOCK_SECONDS = 30;
+
+/**
+ * `POST /v1/widgets/:id/refresh` (US-B6, FR-4.3).
+ *
+ * 202 with this body when the request was accepted, 204 with no body for a
+ * purely local widget that has nothing to refresh (Eng §8.4's third case).
+ */
+export const RefreshResponse = z.object({
+  widgetId: z.uuid(),
+  /**
+   * Whether a server-side poll was actually scheduled.
+   *
+   * False is a normal answer, not a failure: a client-polled widget fetches
+   * its own upstream, so there is nothing to enqueue. It is reported rather
+   * than hidden so the UI can distinguish "a refresh is on its way, expect new
+   * data shortly" from "you already have the freshest data there is".
+   */
+  enqueued: z.boolean(),
+});
+
+export type RefreshResponse = z.infer<typeof RefreshResponse>;

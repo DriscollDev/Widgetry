@@ -703,6 +703,46 @@ describeIntegration('GET/PATCH /v1/widgets/:id - editing config (US-C6)', () => 
     expect((await getWidget(widgetId)).json().hasCredential).toBe(true);
   });
 
+  const refreshWidget = (widgetId: string) =>
+    app.inject({
+      method: 'POST',
+      url: `/v1/widgets/${widgetId}/refresh`,
+      remoteAddress: nextIp(),
+      headers: { cookie },
+    });
+
+  it('answers 204 for a purely local widget, which has nothing to refresh', async () => {
+    // Eng §8.4's third case. Clock does no I/O at all - the client re-renders
+    // on the same user action that sent this.
+    const created = await createWidget('clock');
+    const response = await refreshWidget(created.json().id as string);
+
+    expect(response.statusCode, response.body).toBe(204);
+    expect(response.body).toBe('');
+  });
+
+  it('refuses to claim a refresh it cannot schedule (EX-41)', async () => {
+    // The integration suite runs with REDIS_URL deliberately blanked
+    // (test/setup.ts), so there is no queue to enqueue onto. The endpoint must
+    // answer 503 rather than a cheerful 202: a 202 would have the client wait
+    // for data that is never coming. This asserts the honest-failure path, and
+    // it is the reason enqueuePoll returns a boolean instead of throwing.
+    const created = await createWidget('uptime', {
+      config: { url: 'https://api.example.test/health' },
+    });
+    const response = await refreshWidget(created.json().id as string);
+
+    expect(response.statusCode, response.body).toBe(503);
+    expect(response.json().error.code).toBe('internal');
+    // The message has to tell the user their widget is not stuck forever.
+    expect(response.json().error.message).toMatch(/normal schedule/i);
+  });
+
+  it('404s a refresh for a widget that does not exist', async () => {
+    const response = await refreshWidget('99999999-9999-4999-8999-999999999999');
+    expect(response.statusCode).toBe(404);
+  });
+
   it('returns timeline points oldest-first (EX-Snapshots-Endpoint)', async () => {
     const created = await createWidget('uptime', {
       config: { url: 'https://api.example.test/health' },

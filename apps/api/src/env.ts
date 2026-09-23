@@ -73,8 +73,18 @@ const EnvSchema = z
 
     DATABASE_URL: z.string().min(1),
     // Optional: rate limiting falls back to per-process memory when absent
-    // (dev convenience only - see plugins/rate-limit.ts).
+    // (dev convenience only - see plugins/rate-limit.ts), and the manual-refresh
+    // endpoint answers 503 rather than pretending it enqueued (Eng §8.4).
     REDIS_URL: optionalString,
+
+    /**
+     * Eng §16.2. MUST match the worker's, or a refresh job is enqueued into a
+     * namespace nothing is listening on and the widget never refreshes while
+     * both processes report themselves healthy. Blank in production so both
+     * sides use BullMQ's `bull` default; set per-developer locally, where the
+     * whole team shares one remote Redis.
+     */
+    QUEUE_PREFIX: optionalString,
 
     // Session signing key. 32+ bytes of randomness; Railway secret in prod.
     BETTER_AUTH_SECRET: z.string().min(32, 'BETTER_AUTH_SECRET must be >= 32 characters'),
