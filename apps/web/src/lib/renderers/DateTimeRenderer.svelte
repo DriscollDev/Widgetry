@@ -39,11 +39,20 @@
     display: flex;
     flex-direction: column;
     align-items: center;
+    justify-content: center;
     gap: 0.25rem;
     width: 100%;
+    height: 100%;
     container-type: inline-size;
     text-align: center;
     pointer-events: none;
+    /* See ClockRenderer's matching comment - BoardView's cell no longer
+       draws the card. */
+    border-radius: 0.75rem;
+    background: light-dark(var(--color-surface-50), var(--color-surface-950));
+    border: 1px solid light-dark(var(--color-surface-200), var(--color-surface-800));
+    padding: 1rem;
+    box-sizing: border-box;
   }
 
   .datetime__time {
