@@ -315,6 +315,17 @@ describeIntegration('multi-tenant isolation (EX-17, Eng §11.7)', () => {
       expect(response.statusCode, `${endpoint.name} should allow the owner: ${response.body}`).toBe(
         endpoint.ownerStatus ?? 200,
       );
+
+      // 204 means "done, and there is deliberately nothing to send" - the
+      // refresh endpoint answers it for a purely local widget (Eng §8.4). There
+      // is no body to parse, and asking for one throws on the empty string
+      // rather than failing an assertion, which is how this first showed up.
+      // The status check above is the whole owner-path assertion for those.
+      if (response.statusCode === 204) {
+        expect(response.body, `${endpoint.name} must send no body with a 204`).toBe('');
+        continue;
+      }
+
       const body = response.json();
       // The credential verbs answer with `widgetId`; everything else with `id`.
       expect(body.id ?? body.widgetId, `${endpoint.name} should resolve a row`).toBeTruthy();
