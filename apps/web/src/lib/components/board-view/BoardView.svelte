@@ -24,8 +24,15 @@
    * deletion yet looks exactly as it did before.
    */
   export let onDeleteWidget: ((widgetId: string) => void) | undefined = undefined;
+  /**
+   * Task #222: fires whenever a drag or resize starts or ends, so the route's
+   * auto-refresh scheduler can skip a tick mid-gesture rather than reloading
+   * the board out from under the user's cursor.
+   */
+  export let onInteractionChange: ((interacting: boolean) => void) | undefined = undefined;
 
   $: refreshLabel = formatRefresh(board);
+  $: onInteractionChange?.(interactionMode !== null);
 
   // --- Task #166 scope: cursor-follow + snap preview only. No SERVER persistence
   // — that's Task #170's debounced PATCH (Eng Doc §9.3), directly below. Local/
